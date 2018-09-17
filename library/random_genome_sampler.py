@@ -172,7 +172,7 @@ def uniform_samples(taxid, index, number):
 
 def get_fasta(accession_counts_list, length, index,
               output, taxid_file, window_length=50, verbose=False,
-              thresholding=False, temp_dir='/tmp/'):
+              thresholding=False, amino_acid=False, temp_dir='/tmp/'):
     """
     Save randomly sampled sequences in a fasta file written to output.
 
@@ -244,7 +244,8 @@ def get_fasta(accession_counts_list, length, index,
             for f in onlyfiles:
                 if (f.endswith(".fna") or
                         f.endswith(".fasta") or
-                        f.endswith(".fa")):
+                        f.endswith(".fa") or
+                        f.endswith(".faa")):
                     fasta_location = os.path.join(accession_location, f)
                 elif f.endswith(".2bit"):
                     twobit_location = os.path.join(accession_location, f)
@@ -265,7 +266,8 @@ def get_fasta(accession_counts_list, length, index,
                                                       fasta_location,
                                                       my_fasta,
                                                       taxid_file,
-                                                      final_file)
+                                                      final_file,
+                                                      amino_acid)
                 get_random = not bed_2bit_counts[0]
                 accession_cnt += bed_2bit_counts[1]
                 if verbose:
@@ -322,6 +324,7 @@ def get_random_bed_2bit(number, length, taxid, accession, fai_location,
         and an integer of the records that had indeterminate N characters.
 
     """
+    raise NotImplementedError
     taxid = str(taxid)
     if number <= NUMBER_CUTOFF:
         my_sample = NUMBER_SAMPLE
@@ -363,7 +366,7 @@ def get_random_bed_2bit(number, length, taxid, accession, fai_location,
 
 def get_random_bed_fast(number, length, taxid, accession, fai_location,
                         bedtools_file, fasta_location, my_fasta,
-                        taxid_file, final_file):
+                        taxid_file, final_file, amino_acid=False):
     """
     Get random nucleotide sequences from a bed file and a fasta file.  Exclude
     sequences with N's in them.
@@ -421,7 +424,7 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
             break
         record_id, record_seq = fasta_record
         record_seq = record_seq.upper()
-        if "N" in record_seq:
+        if not amino_acid and "N" in record_seq:
             records_with_n += 1
             continue
         record_id = accession + ":" + taxid + ":" + record_id
@@ -464,6 +467,10 @@ def main():
                         help=("The length of the window size to use when "
                               "using thresholding."),
                         default=50)
+    parser.add_argument("--amino_acid", "-a", action="store_true",
+                        help=("Use this switch to indicate that amino acids "
+                              "are being sampled."),
+                        default=False)
     parser.add_argument("--output", "-o", type=str,
                         help=("The location to store the output fasta file."),
                         default="./random_sample.fasta")
@@ -499,6 +506,7 @@ def main():
                                     index, open(args.output, 'w'),
                                     args.tax_id_file, args.window_length,
                                     args.verbose, args.thresholding,
+                                    args.amino_acid,
                                     args.temp_dir)
     sys.stderr.write("There were {} fasta records written.\n"
                      "The process took {} time.\n".format(

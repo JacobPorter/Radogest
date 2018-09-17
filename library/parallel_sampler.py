@@ -26,7 +26,7 @@ from permute_split_fasta_taxid import randomly_permute_fasta_taxid
 
 def get_sample(taxid, sublevels, index_dir, number, length, data_dir,
                split_amount='0.8,0.1,0.1', thresholding=False,
-               window_length=100, temp_dir="/tmp/"):
+               window_length=100, amino_acid=False, temp_dir="/tmp/"):
     """
     Get a random sample.  Create training, validation, and testing data sets
     and put them in the appropriate folders.
@@ -73,7 +73,8 @@ def get_sample(taxid, sublevels, index_dir, number, length, data_dir,
                                     index, fasta_file,
                                     taxid_file, window_length=window_length,
                                     temp_dir=temp_dir,
-                                    thresholding=thresholding)
+                                    thresholding=thresholding,
+                                    amino_acid=amino_acid)
     fasta_file.close()
     taxid_file.close()
     permute_count = randomly_permute_fasta_taxid(fasta_path,
@@ -133,7 +134,8 @@ def create_directories(data_dir):
 
 def parallel_sample(taxid_list, ranks, index_dir, number, length,
                     data_dir, split_amount, processes,
-                    thresholding=False, window_length=100, temp_dir="/tmp"):
+                    thresholding=False, window_length=100, amino_acid=False,
+                    temp_dir="/tmp"):
     """
     Get samples of data in parallel and writes them into files and a data
     directory that Plinko expects.
@@ -179,6 +181,7 @@ def parallel_sample(taxid_list, ranks, index_dir, number, length,
                                                        length, data_dir,
                                                        split_amount,
                                                        thresholding,
+                                                       amino_acid,
                                                        temp_dir)))
         output = []
         for taxid, process_desc in zip(taxid_list, process_list):
@@ -233,6 +236,10 @@ def main():
                               "The percentages to split the data into "
                               "for training, validation, and test sets."),
                         default="0.8,0.10,0.10")
+    parser.add_argument("--amino_acid", "-a", action="store_true",
+                        help=("Turn this switch on when sampling amino "
+                              "acids."),
+                        default=False)
     parser.add_argument("--data_dir", "-d", type=str,
                         help=("The directory to store data."),
                         default="./Data/")
@@ -264,7 +271,7 @@ def main():
     parallel_sample(taxid_list,
                     ranks, args.index, args.number, args.length, args.data_dir,
                     args.split_amount, args.processes, args.thresholding,
-                    args.window_length,
+                    args.window_length, args.amino_acid,
                     args.temp_dir)
     later = datetime.datetime.now()
     sys.stderr.write("The process took time: {}\n".format(later - now))

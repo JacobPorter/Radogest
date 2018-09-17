@@ -108,6 +108,14 @@ def make_fai_individual(root_directory, path, files, twoBitToFa=False,
     count = defaultdict(int)
     contigs = None
     genome_length = None
+    fasta_exists = False
+    for f in files:
+        if (name_ends(f, FASTA_ENDINGS, addition=".gz") or
+                name_ends(f, FASTA_ENDINGS, addition="")):
+            fasta_exists = True
+            break
+    if not fasta_exists:
+        return None, None, None
     # if twoBitToFa:
     #     skip = False
     #     for name in files:
@@ -135,7 +143,7 @@ def make_fai_individual(root_directory, path, files, twoBitToFa=False,
                 continue
         else:
             if (not leave_compressed and
-                name_ends(name, FASTA_ENDINGS, addition='.gz')):
+                    name_ends(name, FASTA_ENDINGS, addition='.gz')):
                 if verbose >= 2:
                     sys.stderr.write(name + "\n")
                 subprocess.run(["gunzip", os.path.join(path, name)])
@@ -233,6 +241,35 @@ def make_fai_multi(index, root_directory, twoBitToFa=False,
     return count, index
 
 
+def remove_accessions(index, accessions_to_remove):
+    """
+    Remove genomes from the index.
+
+    Parameters
+    ----------
+    index: dict
+        The genomes index.
+    accessions_to_remove: list
+        A list of accessions to remove from the index.
+
+    Returns
+    -------
+    dict
+        The genomes index is returned.
+
+    """
+    remove_count = 0
+    for taxid in index['taxids']:
+        my_accessions_to_remove = []
+        for accession in index['taxids'][taxid]:
+            if accession in accessions_to_remove:
+                my_accessions_to_remove.append(accession)
+        for accession in my_accessions_to_remove:
+            del index['taxids'][taxid][accession]
+            remove_count += 1
+    return index, remove_count
+
+
 def make_fai(index, root_directory, twoBitToFa=False,
              leave_compressed=False, verbose=0,
              index_only=False):
@@ -268,6 +305,7 @@ def make_fai(index, root_directory, twoBitToFa=False,
     """
     count = {"gzip": 0, "2bit": 0, "fai": 0}
     counter = 0
+    accessions_to_remove = []
     for path, _, files in os.walk(root_directory):
         counter += 1
         if counter % 5000 == 0 and verbose >= 1:
@@ -277,11 +315,16 @@ def make_fai(index, root_directory, twoBitToFa=False,
             root_directory, path, files, twoBitToFa,
             leave_compressed, verbose, index_only)
         accession = os.path.basename(path)
-        if contigs is not None and genome_length is not None:
-            index['genomes'][accession]['contig_count'] = contigs
-            index['genomes'][accession]['base_length'] = genome_length
-        for key in count_local:
-            count[key] += count_local[key]
+        if count_local is None:
+            accessions_to_remove.append(accession)
+        else:
+            if contigs is not None and genome_length is not None:
+                index['genomes'][accession]['contig_count'] = contigs
+                index['genomes'][accession]['base_length'] = genome_length
+            for key in count_local:
+                count[key] += count_local[key]
+    index, remove_count = remove_accessions(index, accessions_to_remove)
+    count['remove_count'] = remove_count
     sys.stderr.flush()
     return count, index
 

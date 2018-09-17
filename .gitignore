@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Eclipse stuff
+.pydevproject
+.project
+
 # VIM swap files
 .*.swp
 

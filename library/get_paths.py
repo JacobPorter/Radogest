@@ -4,6 +4,7 @@ SAMTOOLS = "/home/jsporter/Applications/samtools-1.8/"
 UCSC = "/home/jsporter/Applications/UCSC/"
 BEDTOOLS = "/home/jsporter/Applications/bedtools2/bin/"
 GENOMES = "/groups/fungcat/datasets/current/fasta/Genomes/"
+GENOMESAA = "/groups/fungcat/datasets/current/fasta/GenomesAA/"
 
 
 def get_paths():
@@ -11,4 +12,4 @@ def get_paths():
     return {'SAMTOOLS': SAMTOOLS,
             'UCSC': UCSC,
             'BEDTOOLS': BEDTOOLS,
-            'GENOMES': GENOMES}
+            'GENOMES': GENOMESAA}
