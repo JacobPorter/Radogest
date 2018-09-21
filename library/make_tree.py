@@ -10,6 +10,7 @@ import datetime
 import pickle
 import sys
 import json
+from random import shuffle
 from tqdm import tqdm
 from collections import defaultdict
 from ete3 import NCBITaxa
@@ -178,8 +179,15 @@ def make_tree(index, verbose=False):
     ranks = defaultdict(set)
     print("Creating the initial tree.", file=sys.stderr)
     for accession in tqdm(index['genomes']):
-        taxid = int(index['genomes'][accession]['taxid'])
+        try:
+            taxid = int(index['genomes'][accession]['taxid'])
+        except KeyError:
+            print("Could not find a key for: {}".format(accession),
+                  file=sys.stderr)
+            raise KeyError
         if taxid in looked_at:
+            continue
+        if not index['taxids'][taxid]:
             continue
         lineage_rank = ncbi.get_rank(ncbi.get_lineage(taxid))
         lineage_rank = {lineage_rank[key]: key for key in lineage_rank if
@@ -249,6 +257,7 @@ def make_tree(index, verbose=False):
           file=sys.stderr)
     counter_dict, taxid_list = count_levels(ranks, ranks[1])
     taxid_list = [1] + taxid_list
+    shuffle(taxid_list)
     return (ranks, missing_ranks,
             unclassified_to_remove,
             empties_remove, children_removed, counter_dict, taxid_list)

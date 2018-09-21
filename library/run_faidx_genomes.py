@@ -241,7 +241,7 @@ def make_fai_multi(index, root_directory, twoBitToFa=False,
     return count, index
 
 
-def remove_accessions(index, accessions_to_remove):
+def remove_accessions(index, accessions_to_remove, verbose=0):
     """
     Remove genomes from the index.
 
@@ -249,8 +249,8 @@ def remove_accessions(index, accessions_to_remove):
     ----------
     index: dict
         The genomes index.
-    accessions_to_remove: list
-        A list of accessions to remove from the index.
+    accessions_to_remove: dict
+        A dict keyed on accessions to remove from the index.
 
     Returns
     -------
@@ -259,6 +259,8 @@ def remove_accessions(index, accessions_to_remove):
 
     """
     remove_count = 0
+    print("Removing empty genome folders from the index.", file=sys.stderr)
+    count = 0
     for taxid in index['taxids']:
         my_accessions_to_remove = []
         for accession in index['taxids'][taxid]:
@@ -267,6 +269,10 @@ def remove_accessions(index, accessions_to_remove):
         for accession in my_accessions_to_remove:
             del index['taxids'][taxid][accession]
             remove_count += 1
+        count += 1
+        if verbose >= 1 and count % 5000 == 0:
+            print("Processed: {}".format(count), file=sys.stderr)
+            sys.stderr.flush()
     return index, remove_count
 
 
@@ -305,7 +311,7 @@ def make_fai(index, root_directory, twoBitToFa=False,
     """
     count = {"gzip": 0, "2bit": 0, "fai": 0}
     counter = 0
-    accessions_to_remove = []
+    accessions_to_remove = {}
     for path, _, files in os.walk(root_directory):
         counter += 1
         if counter % 5000 == 0 and verbose >= 1:
@@ -316,14 +322,15 @@ def make_fai(index, root_directory, twoBitToFa=False,
             leave_compressed, verbose, index_only)
         accession = os.path.basename(path)
         if count_local is None:
-            accessions_to_remove.append(accession)
+            accessions_to_remove[accession] = True
         else:
             if contigs is not None and genome_length is not None:
                 index['genomes'][accession]['contig_count'] = contigs
                 index['genomes'][accession]['base_length'] = genome_length
             for key in count_local:
                 count[key] += count_local[key]
-    index, remove_count = remove_accessions(index, accessions_to_remove)
+    index, remove_count = remove_accessions(index, accessions_to_remove,
+                                            verbose=verbose)
     count['remove_count'] = remove_count
     sys.stderr.flush()
     return count, index
