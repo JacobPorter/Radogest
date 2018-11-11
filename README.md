@@ -45,7 +45,7 @@ A utility file for iterating through fasta files.  Used by other components.
 1. Download genomes with NCBI-Genome-Download with saved JSON files.
 2. Update get_paths.py with the locations of the genomes folder, and the locations of samtools, BED tools, and UCSC tools.  This is done by editing the file.
 3. Make the genomes index with make_genome_index.py
-4. Create fasta index files (fai files) for all of the genomes.  This updates the genomes index from the previous step.
+4. Create fasta index files (fai files) for all of the genomes with run_faidx_genomes.py.  This updates the genomes index from the previous step.
 5. Make the taxonomic tree with make_tree.py
 6. Genome down selection can be done with genome/selection/traversal.py.  There are several strategies.  This will modify the genomes index data structure, and it requires the tree data structure.
 7. random_genome_sampler.py and permute_split_fasta_taxid.py can be used to sample from a single taxonomic id and split the data.  parallel_sampler.py can sample from multiple taxonomic ids in the tree in parallel and will split the data.
