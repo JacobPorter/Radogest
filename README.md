@@ -1,4 +1,4 @@
-# Random Sampler
+# Radogest: random genome sampler for trees
 This is a random sampler for selecting fixed length nucleotide substrings from a taxonomic tree of genomes.  It requires Python 3.
 
 This requires samtools, UCSC tools, and BED tools.
