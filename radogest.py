@@ -34,7 +34,8 @@ from multiprocessing import Pool
 from collections import defaultdict
 
 from library.ncbi_genome_download.ncbi_genome_download.core import argument_parser as ncbi_argument_parser
-from library.ncbi_genome_download.ncbi_genome_download.core import args_download  as ncbi_args_download
+from library.ncbi_genome_download.ncbi_genome_download import __version__ as ncbi_version
+from library.ncbi_genome_download.ncbi_genome_download.__main__ import run_ncbi
 
 from tqdm import tqdm
 from ete3 import NCBITaxa
@@ -1463,13 +1464,13 @@ def main():
     index = ArgClass("-i", "--index",
                      help="The location of the genomes index.",
                      default="./index.pck")
-    parser.add_argument("-v", "--verbose", action='store_true', default=False)
+    verbose = ArgClass("-v", "--verbose", action='store_true', default=False)
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
     p_download = subparsers.add_parser("download",
                                        help=("Download genomes from the NCBI."),
                                        formatter_class=argparse.
                                        ArgumentDefaultsHelpFormatter)
-    ncbi_argument_parser(parser=p_download)
+    ncbi_argument_parser(version=ncbi_version, parser=p_download)
     p_fai = subparsers.add_parser("fai",
                                   help=("Create fai files for each genome "
                                         "in the data store."),
@@ -1498,6 +1499,7 @@ def main():
                         help=("The file location to write missing rank "
                               "information too."),
                         default="./missing.pck")
+    p_tree.add_argument(*verbose.args, **verbose.kwargs)
     p_select = subparsers.add_parser("select",
                                      help=("Select which genomes to "
                                            "sample from.  The genomes"
@@ -1521,7 +1523,7 @@ def main():
     sys.stdout.flush()
     mode = args.mode
     if mode == "download":
-        ret = ncbi_args_download(args)
+        ret = run_ncbi(args)
     elif mode == "fai":
         pass
     elif mode == "index":
