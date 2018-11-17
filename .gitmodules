@@ -1,0 +1,3 @@
+[submodule "SeqIterator"]
+	path = SeqIterator
+	url = https://github.com/JacobPorter/SeqIterator.git

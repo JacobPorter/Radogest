@@ -12,9 +12,9 @@ import sys
 import argparse
 import pickle
 import json
-from strategy import ProportionalRandom, QualitySortingTree, QualitySortingLeaf
-from strategy import AllGenomes, MinHashTree
-from strategy import EXCLUDED_GENOMES
+from library.genome_selection.strategy import ProportionalRandom, QualitySortingTree, QualitySortingLeaf
+from library.genome_selection.strategy import AllGenomes, MinHashTree
+from library.genome_selection.strategy import EXCLUDED_GENOMES
 
 
 class StrategyNotFound(Exception):
