@@ -23,6 +23,8 @@ from SeqIterator.SeqIterator import SeqReader, SeqWriter
 from library.permute import randomly_permute_fasta_taxid
 from library.chop import split_genomes
 
+from config import BEDTOOLS
+
 ncbi = NCBITaxa()
 
 # If the sample falls below NUMBER_CUTOFF, get NUMBER_SAMPLE samples instead.
@@ -32,8 +34,112 @@ NUMBER_SAMPLE = 300
 # This is done so that samples with N's in them can be excluded.
 SAMPLE_MULTIPLIER = 1.2
 
-from config import BEDTOOLS
+# The default probability of taking the reverse complement of a DNA sequence.
+_RC_PROB = 0.5
+
 # from config import GENOMES_NT, GENOMES_AA, GENOMES_CD
+
+# The reverse complement mapping.
+reverse_mapping = {"A": "T",
+                   "T": "A",
+                   "C": "G",
+                   "G": "C",
+                   "N": "N",
+                   "Y": "R",
+                   "R": "Y",
+                   "W": "W",
+                   "S": "S",
+                   "K": "M",
+                   "M": "K",
+                   "D": "H",
+                   "V": "B",
+                   "H": "D",
+                   "B": "V",
+                   "X": "X",
+                   "-": "-",
+                   }
+
+
+def get_reverse_complement(seq):
+    """
+    Calculate the reverse complement of a DNA string.
+
+    Parameters
+    ----------
+    seq: iterable
+        An ordered list of DNA bases.
+
+    Returns
+    -------
+    A string of DNA bases that represent the reverse complement of the input.
+
+    """
+    return "".join([reverse_mapping[base.upper()] for base in reversed(seq)])
+
+
+def random_reverse(seq_id, seq, prob=_RC_PROB):
+    """
+    Randomly compute the reverse complement of a sequence and modify the id.
+    
+    Parameters
+    ----------
+    seq_id: str
+        The id of the sequence for a fasta record.
+    seq: str
+        The DNA sequence.
+    prob: float 0 
+        The probability of taking the reverse complement.
+        0.0 <= prob <= 1.0
+        
+    Returns
+    -------
+    (str, str)
+        A tuple representing a sequence id followed by a DNA sequence.
+    
+    """
+    if random.random() >= prob:
+        return (seq_id + ":FW", seq)
+    else:
+        try:
+            rc_seq = get_reverse_complement(seq)
+        except KeyError:
+            print(seq_id, seq)
+            raise KeyError
+        return (seq_id + ":RC", rc_seq)
+
+
+def get_rc_fasta(filename_input, filename_output, prob=_RC_PROB, remove=True):
+    """
+    Randomly do the reverse comlement for DNA sequences in a fasta file.
+
+    Parameters
+    ----------
+    filename_input: str
+        The location of the filename.
+    filename_output: str
+        The location of the output.  If None or False, sys.stdout will be used.
+    prob: float
+        A number between 0 and 1.0 that represents the probability that the
+        reverse complement will be done.
+
+    Returns
+    -------
+    counter: int
+        A count of the records processed.
+
+    """
+    input_iterator = SeqReader(filename_input, file_type="fasta")
+    output_fd = open(filename_output, 'w') if filename_output else sys.stdout
+    read_counter = 0
+    write_counter = 0
+    output_writer = SeqWriter(output_fd, file_type="fasta")
+    for seq_id, seq_seq in input_iterator:
+        read_counter += 1
+        if remove and ("n" in seq_seq or "N" in seq_seq):
+            continue
+        output_writer.write(random_reverse(seq_id, seq_seq, prob=prob))
+        write_counter += 1
+    return read_counter, write_counter
 
 
 def binary_search(target, array, begin, end):
@@ -163,7 +269,7 @@ def uniform_samples(taxid, index, number):
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
               output, taxid_file, window_length=50, verbose=False,
-              thresholding=False, amino_acid=False, 
+              thresholding=False, amino_acid=False,
               temp_dir='/localscratch/'):
     """
     Save randomly sampled sequences in a fasta file written to output.
@@ -367,9 +473,9 @@ and testing data and puts them in directories that Plinko expects.
 
 def get_sample(taxid, sublevels, index_dir, genomes_dir,
                number, length, data_dir,
-               split=True,
-               split_amount='0.8,0.1,0.1', thresholding=False,
-               window_length=50, amino_acid=False, temp_dir="/localscratch/"):
+               split=True, split_amount='0.8,0.1,0.1', 
+               prob=_RC_PROB, thresholding=False, window_length=50,
+               amino_acid=False, temp_dir="/localscratch/"):
     """
     Get a random sample.  Create training, validation, and testing data sets
     and put them in the appropriate folders.
@@ -412,9 +518,9 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return (0, 0)
-    fasta_path = os.path.join(temp_dir, str(taxid) + ".fasta")
+    fasta_path_init = os.path.join(temp_dir, str(taxid) + ".init.fasta")
     taxid_path = os.path.join(temp_dir, str(taxid) + ".taxid")
-    fasta_file = open(fasta_path, "w")
+    fasta_file = open(fasta_path_init, "w")
     taxid_file = open(taxid_path, "w")
     fasta_records_count = get_fasta(accession_counts, length,
                                     index, genomes_dir, fasta_file,
@@ -424,6 +530,16 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                     amino_acid=amino_acid)
     fasta_file.close()
     taxid_file.close()
+    if not amino_acid:
+        fasta_path = os.path.join(temp_dir, str(taxid) + ".fasta")
+        _, _ = get_rc_fasta(fasta_path_init,
+                            fasta_path,
+                            prob=prob,
+                            remove=False)
+        if os.path.isfile(fasta_path_init):
+            os.remove(fasta_path_init)
+    else:
+        fasta_path = fasta_path_init
     permute_count = randomly_permute_fasta_taxid(fasta_path,
                                                  taxid_path,
                                                  fasta_path,
@@ -493,8 +609,8 @@ def create_directories(data_dir):
 
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                     data_dir, split, split_amount, processes,
-                    thresholding=False, window_length=100, amino_acid=False,
-                    temp_dir="/tmp"):
+                    prob=_RC_PROB, thresholding=False, window_length=100, 
+                    amino_acid=False, temp_dir="/tmp"):
     """
     Get samples of data in parallel and writes them into files and a data
     directory that Plinko expects.
@@ -544,6 +660,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                                                        length, data_dir,
                                                        split,
                                                        split_amount,
+                                                       prob,
                                                        thresholding,
                                                        window_length,
                                                        amino_acid,

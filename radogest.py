@@ -15,6 +15,15 @@ permute
     Jacob Porter <jsporter@vt.edu>
 """
 
+# TODO: Sequences with N's are not being excluded because of amino acid changes.  Debug.
+# TODO: Root node sampling for CDs was saying 0 bacteria genomes.  Investigate, debug.
+# TODO: Handle the case when contigs are too short for the kmer length desired.
+# TODO: Handle the case where kmers without N's for a given length are too rare.
+# TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
+# TODO: Add utility commands?  permute, split, chop, reverse_complement.
+# TODO: When finished with code, check and update comments and README documentation.
+# TODO: Write and submit a paper.
+
 import argparse
 import datetime
 import sys
@@ -68,10 +77,10 @@ def main():
     genomes = ArgClass("--genomes", "-g", type=str,
                        help=("The location of the genomes directory."),
                        default="./")
-    tree = ArgClass("--tree", "-t", type=str,
+    tree = ArgClass("--tree", "-r", type=str,
                     help="The location of the taxonomic tree data structure.",
                     default="./tree.pck")
-    taxid = ArgClass("--taxid", "-l",
+    taxid = ArgClass("--taxid", "-t",
                      help=("The file location that lists taxonomic ids."
                            "One id per file."),
                      default="./taxid_list.txt")
@@ -163,7 +172,7 @@ def main():
     p_sample.add_argument("--number", "-n", type=int,
                           help=("The number of samples to take."),
                           default=3200000)
-    p_sample.add_argument("--range", "-r", type=int, nargs=2,
+    p_sample.add_argument("--range", "-e", type=int, nargs=2,
                           help=("The subselection of taxonomic ids from the "
                                 "taxid file to use. This is useful for "
                                 "distributing the work across mutliple "
@@ -185,6 +194,10 @@ def main():
                                 "The percentages to split the data into "
                                 "for training, validation, and test sets."),
                           default="0.8,0.10,0.10")
+    p_sample.add_argument("--prob", "-b", type=float,
+                        help=("The probability that a sequence will be "
+                              "converted to the reverse complement."),
+                        default=0.5)
     p_sample.add_argument("--amino_acid", "-a", action="store_true",
                           help=("Turn this switch on when sampling amino "
                                 "acids."),
@@ -353,11 +366,14 @@ def main():
         if not os.path.isdir(args.temp_dir) or not os.path.exists(args.temp_dir):
             parser.error("The temporary directory could not be found or does not "
                          "exist.")
+        if args.prob < 0.0 or args.prob > 1.0:
+            parser.error("The reverse complement probability {} "
+                         "is not a valid probability.".format(args.prob))
         parallel_sample(taxid_list, args.genomes,
                         tree, args.index, args.number, 
                         args.kmer_size, args.data_dir,
                         args.split, args.split_amount,
-                        args.processes, args.thresholding,
+                        args.processes, args.prob, args.thresholding,
                         args.window_length, args.amino_acid,
                         args.temp_dir)
 #     elif mode == "permute":
