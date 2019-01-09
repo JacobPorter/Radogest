@@ -2,23 +2,14 @@
 """
 Radogest: random genome sampler for trees.
 
-Commands:
-download
-fai
-index
-tree
-select
-sample
-permute
-
 :Authors:
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Sequences with N's are not being excluded because of amino acid changes.  Debug.
-# TODO: Root node sampling for CDs was saying 0 bacteria genomes.  Investigate, debug.
+# TODO: Allow for samples with wildcards.
 # TODO: Handle the case when contigs are too short for the kmer length desired.
 # TODO: Handle the case where kmers without N's for a given length are too rare.
+# TODO: Handle the case in the tree where the root node does not contain some domains because they were not downloaded.
 # TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
 # TODO: Add utility commands?  permute, split, chop, reverse_complement.
 # TODO: When finished with code, check and update comments and README documentation.
@@ -179,7 +170,16 @@ def main():
                                 "compute nodes using the same taxid file.  "
                                 "Use -1 to denote the end of the file. "),
                           default=[0, -1])
+    p_sample.add_argument("--include_wild", "-x",
+                          help=("Include wild card characters in the samples.  "
+                                "When this is not used, samples with "
+                                "wild card characters will be discarded."),
+                          action='store_true', default=False)
     p_sample.add_argument("--thresholding", "-m",
+                          help=("If the number of kmers requested is larger "
+                                "than the number of kmers in the fasta "
+                                "file, chop up the fasta file rather than "
+                                "randomly sample from it."),
                           action='store_true', default=False)
     p_sample.add_argument("--window_length", "-w", type=int,
                           help=("The window length to use when using "
@@ -373,7 +373,9 @@ def main():
                         tree, args.index, args.number, 
                         args.kmer_size, args.data_dir,
                         args.split, args.split_amount,
-                        args.processes, args.prob, args.thresholding,
+                        args.processes, 
+                        args.include_wild,
+                        args.prob, args.thresholding,
                         args.window_length, args.amino_acid,
                         args.temp_dir)
 #     elif mode == "permute":

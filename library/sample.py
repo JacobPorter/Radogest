@@ -256,8 +256,7 @@ def uniform_samples(taxid, index, number):
         total_length = genome_lengths[-1]
     except IndexError as ie:
         print("Genome lengths are empty for taxid: {}".format(taxid),
-              file=open("/home/jsporter/Sampling_Out/index_error_"+
-                        str(taxid)+ ".out", 'w'))
+              file=sys.stderr)
         raise ie
     accession_counts = defaultdict(int)
     for _ in range(number):
@@ -268,7 +267,8 @@ def uniform_samples(taxid, index, number):
 
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
-              output, taxid_file, window_length=50, verbose=False,
+              output, taxid_file, include_wild=False, 
+              window_length=50, verbose=False,
               thresholding=False, amino_acid=False,
               temp_dir='/localscratch/'):
     """
@@ -331,7 +331,8 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 index['genomes'][accession]['base_length']) / length:
                 records_written = split_genomes([accession], length,
                                                 index, genomes_dir, 
-                                                final_file, 
+                                                final_file,
+                                                include_wild=include_wild, 
                                                 window_length=window_length)
                 for _ in range(records_written):
                     taxid_file.write(str(taxid) + "\n")
@@ -369,6 +370,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                                       my_fasta,
                                                       taxid_file,
                                                       final_file,
+                                                      include_wild,
                                                       amino_acid)
                 get_random = not bed_2bit_counts[0]
                 accession_cnt += bed_2bit_counts[1]
@@ -389,7 +391,8 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 
 def get_random_bed_fast(number, length, taxid, accession, fai_location,
                         bedtools_file, fasta_location, my_fasta,
-                        taxid_file, final_file, amino_acid=False):
+                        taxid_file, final_file, 
+                        include_wild=False, amino_acid=False):
     """
     Get random nucleotide sequences from a bed file and a fasta file.  Exclude
     sequences with N's in them.
@@ -448,7 +451,8 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
         record_seq = record_seq.upper()
         if not amino_acid and "N" in record_seq:
             records_with_n += 1
-            continue
+            if not include_wild:
+                continue
         record_id = accession + ":" + taxid + ":" + record_id
         final_file.write((record_id, record_seq))
         taxid_file.write(taxid + "\n")
@@ -474,6 +478,7 @@ and testing data and puts them in directories that Plinko expects.
 def get_sample(taxid, sublevels, index_dir, genomes_dir,
                number, length, data_dir,
                split=True, split_amount='0.8,0.1,0.1', 
+               include_wild=False,
                prob=_RC_PROB, thresholding=False, window_length=50,
                amino_acid=False, temp_dir="/localscratch/"):
     """
@@ -524,7 +529,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     taxid_file = open(taxid_path, "w")
     fasta_records_count = get_fasta(accession_counts, length,
                                     index, genomes_dir, fasta_file,
-                                    taxid_file, window_length=window_length,
+                                    taxid_file, include_wild=include_wild,
+                                    window_length=window_length,
                                     temp_dir=temp_dir,
                                     thresholding=thresholding,
                                     amino_acid=amino_acid)
@@ -608,8 +614,9 @@ def create_directories(data_dir):
 
 
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
-                    data_dir, split, split_amount, processes,
-                    prob=_RC_PROB, thresholding=False, window_length=100, 
+                    data_dir, split, split_amount, processes, 
+                    include_wild=False, prob=_RC_PROB, 
+                    thresholding=False, window_length=100, 
                     amino_acid=False, temp_dir="/tmp"):
     """
     Get samples of data in parallel and writes them into files and a data
@@ -631,6 +638,9 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
         The number of bases for each sample.
     data_dir: str
         The path to the data directory where fasta files will be written.
+    include_wild: bool
+        When true, samples will include wild card characters.
+        When false, samples will not include wild card characters.
     split: bool
         Determine whether to split the data or not.
     split_amount: str
@@ -660,6 +670,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                                                        length, data_dir,
                                                        split,
                                                        split_amount,
+                                                       include_wild,
                                                        prob,
                                                        thresholding,
                                                        window_length,

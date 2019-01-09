@@ -17,7 +17,7 @@ def split_genomes(accessions_list,
                   index, 
                   genomes_dir, 
                   output,
-                  includeNs=False, 
+                  include_wild=False, 
                   window_length=50):
     """
     Partition the DNA strings in a list of genomes and write to a fasta file.
@@ -67,7 +67,7 @@ def split_genomes(accessions_list,
             for i in range(0, len(sequence), window_length):
                 substring = sequence[i:i+length].upper()
                 if (len(substring) == length and (
-                        includeNs or 'N' not in substring)):
+                        include_wild or 'N' not in substring)):
                     writer.write(("{}_{}_[{}:{}]".format(
                         accession, header, i, i+length), substring))
                     number_written += 1

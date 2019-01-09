@@ -3,6 +3,12 @@ This is a random sampler for selecting fixed length nucleotide substrings from a
 
 It requires Python 3 and ete3.  This requires downloading samtools and BED tools.
 
+## Install Radogest
+
+git clone ....
+git submodule init
+git submodule update
+
 ## Important Files
 
 ### radogest.py

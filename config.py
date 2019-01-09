@@ -1,4 +1,4 @@
 """Stores the paths to tools."""
 
-SAMTOOLS = "/home/jsporter/Applications/samtools-1.8/"
-BEDTOOLS = "/home/jsporter/Applications/bedtools2/bin/"
+SAMTOOLS = "/scratch/fungcat/jsporter/Applications/samtools-1.9/"
+BEDTOOLS = "/scratch/fungcat/jsporter/Applications/bedtools2/bin/"
