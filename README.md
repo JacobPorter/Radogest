@@ -5,14 +5,16 @@ It requires Python 3 and ete3.  This requires downloading samtools and BED tools
 
 ## Install Radogest
 
+```
 git clone ....
 git submodule init
 git submodule update
+```
 
 ## Important Files
 
 ### radogest.py
-The main program.  Usage: radogest.py <command> <options>.  For help, type 'radogest.py -h' or 'radogest.py <command> -h'.
+The main program.  Usage: `radogest.py <command> <options>`.  For help, type `radogest.py -h` or `radogest.py <command> -h`.
 
 ### config.py
 This file stores the locations of samtools and BED tools.  This file may need to be modified with the locations of the programs to make radogest.py work correctly.
@@ -59,6 +61,6 @@ A utility file for iterating through fasta files.  Used by other components.
 5. select
 6. sample
  
-## Example
+## Examples
 
 TODO
