@@ -98,14 +98,14 @@ def random_reverse(seq_id, seq, prob=_RC_PROB):
     
     """
     if random.random() >= prob:
-        return (seq_id + ":FW", seq)
+        return (seq_id + ":+", seq)
     else:
         try:
             rc_seq = get_reverse_complement(seq)
         except KeyError:
             print(seq_id, seq)
             raise KeyError
-        return (seq_id + ":RC", rc_seq)
+        return (seq_id + ":-", rc_seq)
 
 
 def get_rc_fasta(filename_input, filename_output, prob=_RC_PROB, remove=True):
