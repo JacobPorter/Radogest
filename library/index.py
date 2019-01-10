@@ -6,6 +6,7 @@ import os
 import sys
 from tqdm import tqdm
 from ete3 import NCBITaxa
+from library.util import one_loop_stats, faidx_length 
 
 ncbi = NCBITaxa()
 
@@ -29,16 +30,17 @@ def process_fai(fai_file_fd):
         and a list of contig lengths.
 
     """
-    contig_lengths = [int(line.split('\t')[1]) for line in fai_file_fd]
-    if len(contig_lengths) == 0:
-        return None, None
-    else:
-        return ({"contig_count": len(contig_lengths),
-                 "base_length": sum(contig_lengths),
-                 "contig_max": max(contig_lengths), 
-                 "contig_min": min(contig_lengths),
-                 "contig_avg": sum(contig_lengths) / len(contig_lengths)},
-                 contig_lengths)
+    return one_loop_stats(fai_file_fd, faidx_length, prefix="contig_")
+#     contig_lengths = [int(line.split('\t')[1]) for line in fai_file_fd]
+#     if len(contig_lengths) == 0:
+#         return None, None
+#     else:
+#         return ({"contig_count": len(contig_lengths),
+#                  "base_length": sum(contig_lengths),
+#                  "contig_max": max(contig_lengths), 
+#                  "contig_min": min(contig_lengths),
+#                  "contig_avg": sum(contig_lengths) / len(contig_lengths)},
+#                  contig_lengths)
 
 
 def create_initial_index(index, genome_info, verbose=True):

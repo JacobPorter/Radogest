@@ -96,73 +96,73 @@ def make_fai_individual(root_directory, path, files,
     return count
 
 
-def make_fai_multi(index, root_directory, twoBitToFa=False,
-                   leave_compressed=False, verbose=0,
-                   index_only=False, workers=16):
-    """
-    Make fai files for all fasta files under the root_directory.  Add contig
-    counts and fasta base length to the index.
-
-    Parameters
-    ----------
-    index: dict
-        A python dictionary representing indexed genome information.
-    root_directory: str
-        A string representing the location of the root directory to search.
-    twoBitToFasta: bool
-        If true, convert 2bit files to fasta.  Does not create a fai index.
-    leave_compressed: bool
-        Does not gunzip anything.
-    verbose: int
-        If larger than one, print additional output.
-    index_only: bool
-        Updates the index in index only.  Assumes that the fai files have
-        already been created.
-    workers: int
-        The number of workers to use for multiprocessing.
-
-    Returns
-    -------
-    int, index
-        A count of the fasta files processed and the index.
-
-    Examples
-    --------
-        make_fai({}, '/home/jsporter/Genomes/')
-
-    """
-    count = {"gzip": 0, "2bit": 0, "fai": 0}
-    counter = 0
-    pool = Pool(processes=workers)
-    pd_list = []
-    for path, _, files in os.walk(root_directory):
-        # print(path, files)
-        pd = pool.apply_async(make_fai_individual, (root_directory,
-                                                    path,
-                                                    files,
-                                                    twoBitToFa,
-                                                    leave_compressed,
-                                                    verbose,
-                                                    index_only))
-        pd_list.append(pd)
-    pool.close()
-    pool.join()
-    for pd in pd_list:
-        count_local, contigs, genome_length = pd.get()
-        accession = os.path.basename(path)
-        if contigs is not None and genome_length is not None:
-            index['genomes'][accession]['contig_count'] = contigs
-            index['genomes'][accession]['base_length'] = genome_length
-        else:
-            print(path, files)
-        for key in count_local:
-            count[key] += count_local[key]
-        counter += 1
-        if counter >= 5000 and verbose >= 1:
-            sys.stderr.write("Processed: {}\n".format(counter))
-            sys.stderr.flush()
-    sys.stderr.flush()
-    return count, index
+# def make_fai_multi(index, root_directory, twoBitToFa=False,
+#                    leave_compressed=False, verbose=0,
+#                    index_only=False, workers=16):
+#     """
+#     Make fai files for all fasta files under the root_directory.  Add contig
+#     counts and fasta base length to the index.
+# 
+#     Parameters
+#     ----------
+#     index: dict
+#         A python dictionary representing indexed genome information.
+#     root_directory: str
+#         A string representing the location of the root directory to search.
+#     twoBitToFasta: bool
+#         If true, convert 2bit files to fasta.  Does not create a fai index.
+#     leave_compressed: bool
+#         Does not gunzip anything.
+#     verbose: int
+#         If larger than one, print additional output.
+#     index_only: bool
+#         Updates the index in index only.  Assumes that the fai files have
+#         already been created.
+#     workers: int
+#         The number of workers to use for multiprocessing.
+# 
+#     Returns
+#     -------
+#     int, index
+#         A count of the fasta files processed and the index.
+# 
+#     Examples
+#     --------
+#         make_fai({}, '/home/jsporter/Genomes/')
+# 
+#     """
+#     count = {"gzip": 0, "2bit": 0, "fai": 0}
+#     counter = 0
+#     pool = Pool(processes=workers)
+#     pd_list = []
+#     for path, _, files in os.walk(root_directory):
+#         # print(path, files)
+#         pd = pool.apply_async(make_fai_individual, (root_directory,
+#                                                     path,
+#                                                     files,
+#                                                     twoBitToFa,
+#                                                     leave_compressed,
+#                                                     verbose,
+#                                                     index_only))
+#         pd_list.append(pd)
+#     pool.close()
+#     pool.join()
+#     for pd in pd_list:
+#         count_local, contigs, genome_length = pd.get()
+#         accession = os.path.basename(path)
+#         if contigs is not None and genome_length is not None:
+#             index['genomes'][accession]['contig_count'] = contigs
+#             index['genomes'][accession]['contig_sum'] = genome_length
+#         else:
+#             print(path, files)
+#         for key in count_local:
+#             count[key] += count_local[key]
+#         counter += 1
+#         if counter >= 5000 and verbose >= 1:
+#             sys.stderr.write("Processed: {}\n".format(counter))
+#             sys.stderr.flush()
+#     sys.stderr.flush()
+#     return count, index
 
 
 def make_fai(root_directory, leave_compressed=False, verbose=0):

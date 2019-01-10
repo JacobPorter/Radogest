@@ -174,14 +174,12 @@ def binary_search(target, array, begin, end):
     return binary_search(target, array, mid, end)
 
 
-def uniform_samples_at_rank(taxid, index, sublevels, number):
+def uniform_samples_at_rank(index, sublevels, number, kmer_length):
     """
     Get a count of samples from each genome under the taxids given by ranks.
 
     Parameters
     ----------
-    taxid: int
-        A taxonomic id number to query from
     index: dict
         A dictionary representing genome locations and genome taxid
         associations
@@ -197,18 +195,69 @@ def uniform_samples_at_rank(taxid, index, sublevels, number):
         to sample for each taxid.
 
     """
+    taxid_accessions = {}
+    for taxid in sublevels:
+        my_accessions = [accession
+                         for accession in index['taxids'][taxid] 
+                         if include_accession(accession, 
+                                              taxid, 
+                                              index, 
+                                              kmer_length)]
+        my_sums = [index['genomes'][accession]['contig_sum']
+                   for accession in my_accessions]
+        if my_accessions:
+            taxid_accessions[taxid] = [my_accessions, 
+                                       my_sums]
+    if not taxid_accessions:
+        return None
     try:
-        uniform_number = round(number / len(sublevels))
+        uniform_number = round(number / len(taxid_accessions))
     except ZeroDivisionError:
         return None
     uniform_sample_counts = []
-    for level in sublevels:
-        uniform_sample_counts.append((level, uniform_samples(level, index,
-                                                             uniform_number)))
+    for taxid in taxid_accessions:
+        uniform_sample_counts.append((taxid, 
+                                      uniform_samples(taxid, 
+                                                      taxid_accessions[taxid],
+                                                      uniform_number)))
     return uniform_sample_counts
 
 
-def uniform_samples(taxid, index, number):
+def include_accession(accession, taxid, index, kmer_length):
+    """
+    Determine whether to include a genome in the sampling
+    
+    Parameters
+    ----------
+    accession: str
+        The genome accession id
+    taxid: int
+        The taxonomic id where sampling is desired.
+        The taxid must be in the genome's species lineage.
+    index: dict
+        The genomes index created
+    kmer_length: int
+        A positive integer representing the kmer length desired.
+        
+    Returns
+    -------
+    bool
+        Return True if the genome should be included.
+        Return False if the genome should not be included.
+
+    """
+    if not index['taxids'][taxid][accession]:
+        return False
+    mean = index['genomes'][accession]['contig_mean']
+    std = index['genomes'][accession]['contig_std']
+    mx = index['genomes'][accession]['contig_max']
+    inside_std = (kmer_length >= mean - std and 
+                  kmer_length <= mean + std and 
+                  kmer_length <= mx)
+    return inside_std
+
+
+def uniform_samples(taxid, accession_sum, number):
     """
     Get a count of samples from each genome under taxid.  Does not do any
     sampling.
@@ -230,15 +279,18 @@ def uniform_samples(taxid, index, number):
         sequences to sample from the corresponding genome.
 
     """
-    accessions = [accession for
-                  accession in index['taxids'][taxid] if
-                  index['taxids'][taxid][accession]]
-    # if len(accessions) > GENOMES_TO_KEEP:
-    #     random.shuffle(accessions)
-    #     accessions = accessions[:GENOMES_TO_KEEP]
-    genome_lengths = [index['genomes'][accession]['base_length']
-                      for accession in
-                      accessions]
+    accessions = accession_sum[0]
+    genome_lengths = accession_sum[1]
+#     accessions = [accession for
+#                   accession in index['taxids'][taxid] if
+#                   index['taxids'][taxid][accession]]
+#     # MOD: contig length
+#     # if len(accessions) > GENOMES_TO_KEEP:
+#     #     random.shuffle(accessions)
+#     #     accessions = accessions[:GENOMES_TO_KEEP]
+#     genome_lengths = [index['genomes'][accession]['contig_sum']
+#                       for accession in
+#                       accessions]
     try:
         name = ncbi.get_taxid_translator([taxid])[taxid]
     except KeyError:
@@ -316,7 +368,6 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
                 continue
-
             rand_string = "".join(random.choices(
                 string.ascii_letters + string.digits, k=8))
             my_fasta = os.path.join(temp_dir,
@@ -328,7 +379,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
             # A thresholding feature.  If the genome is too small, use the
             # whole genome.
             if thresholding and accession_counts[accession] > float(
-                index['genomes'][accession]['base_length']) / length:
+                index['genomes'][accession]['contig_sum']) / length:
                 records_written = split_genomes([accession], length,
                                                 index, genomes_dir, 
                                                 final_file,
@@ -489,8 +540,6 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     ----------
     taxid: int
         An integer representing a taxonomic id
-    rank: str
-        A rank in the taxonomic system.  Examples: genus, family, etc.
     sublevels: iterable
         A set of taxonomic ids below the taxid to sample from.
     index_dir: str
@@ -519,7 +568,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
 
     """
     index = pickle.load(open(index_dir, 'rb'))
-    accession_counts = uniform_samples_at_rank(taxid, index, sublevels, number)
+    accession_counts = uniform_samples_at_rank(index, sublevels, 
+                                               number, length)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return (0, 0)
