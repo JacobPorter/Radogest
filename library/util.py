@@ -42,8 +42,12 @@ def one_loop_stats(iterable, num_func, prefix=""):
         s += ai
         s_2 += ai * ai
         n += 1
-    mean = s / n
-    var = s_2 / n - mean * mean
+    try:
+        mean = s / n
+        var = s_2 / n - mean * mean
+    except ZeroDivisionError:
+        mean = float('inf')
+        var = float('inf')
     return {prefix + "mean": mean, prefix + "std": math.sqrt(var),
             prefix + "count": n, prefix + "sum": s, 
             prefix + "max": mx, prefix + "min": mn}

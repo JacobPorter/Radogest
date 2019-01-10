@@ -25,12 +25,17 @@ def process_fai(fai_file_fd):
 
     Returns
     -------
-        The number of contigs, the number of nucleotide bases, 
-        the max and min contig size, the average contig size, 
-        and a list of contig lengths.
+        None if the fai file indicates no contigs.
+        Otherwise, returns a dictionary of statistics.
 
     """
-    return one_loop_stats(fai_file_fd, faidx_length, prefix="contig_")
+    stat_dictionary = one_loop_stats(fai_file_fd, 
+                                     faidx_length, 
+                                     prefix="contig_")
+    if stat_dictionary["contig_count"] == 0:
+        return None
+    else:
+        return stat_dictionary
 #     contig_lengths = [int(line.split('\t')[1]) for line in fai_file_fd]
 #     if len(contig_lengths) == 0:
 #         return None, None
@@ -108,10 +113,10 @@ def update_index_path(root_directory, path, files, verbose=0):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
             fai_fd = open(os.path.join(path, name))
-            contigs_dict, contig_length_dist = process_fai(fai_fd)
-            if contigs_dict is not None:
-                return 1, contigs_dict, contig_length_dist
-    return 0, None, None
+            contigs_dict = process_fai(fai_fd)
+            if contigs_dict:
+                return 1, contigs_dict
+    return 0, None
 
 
 def update_index_root(index, root_directory, verbose=0):
@@ -144,15 +149,15 @@ def update_index_root(index, root_directory, verbose=0):
         if counter % 5000 == 0 and verbose >= 1:
             sys.stderr.write("Processed: {}\n".format(counter))
             sys.stderr.flush()
-        number, contigs_dict, contig_d = update_index_path(root_directory, 
-                                                           path, 
-                                                           files, 
-                                                           verbose=verbose)
+        number, contigs_dict = update_index_path(root_directory, 
+                                                 path, 
+                                                 files, 
+                                                 verbose=verbose)
         accession = os.path.basename(path)
         if number == 0:
             accessions_to_remove[accession] = True
         else:
-            if contigs_dict is not None and contig_d is not None:
+            if contigs_dict:
                 for key in contigs_dict:
                     index['genomes'][accession][key] = contigs_dict[key]
             count["fai"] += number
