@@ -233,10 +233,10 @@ def make_tree(index, verbose=False):
     # Add the root node for eukaryotes, bacteria, viruses, archaea
     ranks[1] = [2759, 2, 10239, 2157]
     print("Removing nodes with only one child.", file=sys.stderr)
+    children_removed = remove_only_children(ranks, [1, 12884])
     remove_domains = [domain for domain in ranks[1] if not ranks[domain]]
     for domain in remove_domains:
         ranks[1].remove(domain)
-    children_removed = remove_only_children(ranks, [1, 12884])
     print("Removing empties.", file=sys.stderr)
     empties_remove = 0
     to_delete = []
