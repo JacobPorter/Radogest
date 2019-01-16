@@ -6,7 +6,6 @@ Radogest: random genome sampler for trees.
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Handle the case in the tree where the root node does not contain some domains because they were not downloaded.
 # TODO: Handle the case where kmers without N's for a given length are too rare.  Monte Carlo simulation?
 # TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
 # TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
