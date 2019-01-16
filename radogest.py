@@ -6,10 +6,8 @@ Radogest: random genome sampler for trees.
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Allow for samples with wildcards.
-# TODO: Handle the case when contigs are too short for the kmer length desired.
-# TODO: Handle the case where kmers without N's for a given length are too rare.
 # TODO: Handle the case in the tree where the root node does not contain some domains because they were not downloaded.
+# TODO: Handle the case where kmers without N's for a given length are too rare.  Monte Carlo simulation?
 # TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
 # TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
