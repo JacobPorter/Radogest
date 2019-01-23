@@ -97,7 +97,7 @@ def argument_parser(version=None, parser=None):
                         default=NgdConfig.get_default('parallel'),
                         help='Run %(metavar)s downloads in parallel (default: %(default)s)')
     parser.add_argument('-r', '--retries', dest='retries', type=int, metavar="N",
-                        default=0,
+                        default=5, # JSP: Initially, this was set to 0.
                         help='Retry download %(metavar)s times when connection to NCBI fails ('
                              'default: %(default)s)')
     parser.add_argument('-m', '--metadata-table', type=str,
@@ -197,6 +197,7 @@ def config_download(config):
                                                            config)))
             for process_desc in process_list:
                 download_jobs.extend(process_desc.get())
+            process_list = None
             jobs = pool.map_async(worker, download_jobs)
             try:
                 # 0xFFFF is just "a really long time"

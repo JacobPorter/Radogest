@@ -233,7 +233,12 @@ def main():
     mode = args.mode
     if mode == "download":
         ret = run_ncbi(args)
-        print("{}".format(ret), file=sys.stderr)
+        if ret == 0:
+            success_string = "SUCCESSFUL"
+        else:
+            success_string = "FAILED"
+        print("The download was {} with code: {}".format(
+            success_string, ret), file=sys.stderr)
     elif mode == "faidx":
         from library.faidx import make_fai
         index_write_error = ("Something went wrong writing the index.  "
