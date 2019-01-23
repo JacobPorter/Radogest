@@ -180,15 +180,23 @@ def config_download(config):
             return 0
 
         download_jobs = []
-        for entry, group in download_candidates:
-            download_jobs.extend(create_downloadjob(entry, group, config))
-
+        #JSP: Added parallelization to create_downloadjob step.
         if config.parallel == 1:
+            for entry, group in download_candidates:
+                download_jobs.extend(create_downloadjob(entry, group, config))
             for dl_job in download_jobs:
                 worker(dl_job)
         else:  # pragma: no cover
             # Testing multiprocessing code is annoying
             pool = Pool(processes=config.parallel)
+            process_list = []
+            for entry, group in download_candidates:
+                process_list.append(pool.apply_async(create_downloadjob,
+                                                     args=(entry,
+                                                           group,
+                                                           config)))
+            for process_desc in process_list:
+                download_jobs.extend(process_desc.get())
             jobs = pool.map_async(worker, download_jobs)
             try:
                 # 0xFFFF is just "a really long time"
