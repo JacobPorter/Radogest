@@ -135,13 +135,13 @@ def main():
                           help=('Choose the genome selection strategy.  '
                                 'The choices are: ProportionalRandom (PR), '
                                 'QualitySortingTree (QST), QualitySortingLeaf '
-                                '(QSL), MinHashTree (MHT), AllGenomes (AG)'),
+                                '(QSL), GenomeHoldout (GH), AllGenomes (AG)'),
                           default='PR')
-    p_select.add_argument('--sample_amount', '-n', type=int,
-                          help=('The number of genomes to sample at '
-                                'each level. '
-                                'Does not apply with AllGenomes.'),
-                        default=10)
+    parser.add_argument('--sample_amount', '-n', nargs='+', type=int,
+                        help=('The number of genomes '
+                              'to sample at each level. '
+                              'Does not apply with AllGenomes.'),
+                        default=[10])
     p_select.add_argument('--output', '-o', type=str,
                           help=('The location to store the index with '
                                 'the down selected genomes.'),
@@ -326,7 +326,8 @@ def main():
         from library.genome_selection.strategy import ProportionalRandom
         from library.genome_selection.strategy import QualitySortingTree
         from library.genome_selection.strategy import QualitySortingLeaf
-        from library.genome_selection.strategy import AllGenomes, MinHashTree
+        from library.genome_selection.strategy import AllGenomes
+        from library.genome_selection.strategy import GenomeHoldout
         from library.genome_selection.strategy import EXCLUDED_GENOMES
         from library.genome_selection.traversal import StrategyNotFound
         from library.genome_selection.traversal import TaxTreeTraversal
@@ -334,17 +335,16 @@ def main():
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         sample_amount = args.sample_amount
-        if sample_amount <= 0:
-            parser.error('The sample amount needs to be a positive non-zero '
-                         'integer.')
+        if not min(list(map(lambda x: x > 0, sample_amount))):
+            parser.error('The sample amount needs to be a positive integer.')
         if strategy_string == 'PR':
-            strategy = ProportionalRandom(index, sample_amount)
+            strategy = ProportionalRandom(index, sample_amount[0])
         elif strategy_string == 'QST':
-            strategy = QualitySortingTree(index, sample_amount)
+            strategy = QualitySortingTree(index, sample_amount[0])
         elif strategy_string == 'QSL':
-            strategy = QualitySortingLeaf(index, sample_amount)
-        elif strategy_string == 'MHT':
-            strategy = MinHashTree(index, sample_amount)
+            strategy = QualitySortingLeaf(index, sample_amount[0])
+        elif strategy_string == 'GH':
+            strategy = GenomeHoldout(index, sample_amount)
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
         else:
