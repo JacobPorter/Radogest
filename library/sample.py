@@ -280,9 +280,7 @@ def include_accession(accession, taxid, index, genomes_dir,
     if (kmer_length >= _WILDCARD_KMER_T and not include_wild 
         and not amino_acid and inside_std):
         file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
-        # my_fasta = file_locations_d["my_fasta"]
         fai_location = file_locations_d["fai"]
-        # bedtools_file = file_locations_d["bed"]
         fasta_location = file_locations_d["fasta_location"]
         taxid_file = None
         final_file = None
@@ -327,16 +325,6 @@ def uniform_samples(taxid, accession_sum, number):
     """
     accessions = accession_sum[0]
     genome_lengths = accession_sum[1]
-#     accessions = [accession for
-#                   accession in index['taxids'][taxid] if
-#                   index['taxids'][taxid][accession]]
-#     # MOD: contig length
-#     # if len(accessions) > GENOMES_TO_KEEP:
-#     #     random.shuffle(accessions)
-#     #     accessions = accessions[:GENOMES_TO_KEEP]
-#     genome_lengths = [index['genomes'][accession]['contig_sum']
-#                       for accession in
-#                       accessions]
     try:
         name = ncbi.get_taxid_translator([taxid])[taxid]
     except KeyError:
@@ -482,37 +470,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                     taxid_file.write(str(taxid) + "\n")
                 fasta_record_count += records_written
                 continue
-            # ------
             file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
-            # my_fasta = file_locations_d["my_fasta"]
             fai_location = file_locations_d["fai"]
-            # bedtools_file = file_locations_d["bed"]
             fasta_location = file_locations_d["fasta_location"]
-#             
-#             rand_string = "".join(random.choices(
-#                 string.ascii_letters + string.digits, k=12))
-#             my_fasta = os.path.join(temp_dir,
-#                                     accession + "_" +
-#                                     rand_string +  "_random.fa")
-#             accession_location = os.path.join(genomes_dir +
-#                                               index['genomes']
-#                                               [accession]
-#                                               ['location'])
-#             onlyfiles = [f for f in os.listdir(accession_location) if
-#                          os.path.isfile(os.path.join(accession_location, f))]
-#             for f in onlyfiles:
-#                 if (f.endswith(".fna") or
-#                         f.endswith(".fasta") or
-#                         f.endswith(".fa") or
-#                         f.endswith(".faa")):
-#                     fasta_location = os.path.join(accession_location, f)
-#                 elif f.endswith(".2bit"):
-#                     twobit_location = os.path.join(accession_location, f)
-#                 elif f.endswith(".fai"):
-#                     fai_location = os.path.join(accession_location, f)
-#             bedtools_file = os.path.join(temp_dir, accession + "_" +
-#                                          rand_string + "_random.bed")
-            # -------
             get_random = True
             accession_cnt = 0
             while get_random:
@@ -600,14 +560,7 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
             suffix=".fasta",
             prefix=prefix,
             dir=temp_dir) as my_fasta_fd:
-        # bedtools_fd = open(bedtools_file, 'w')
-#         rand_string = "".join(random.choices(
-#             string.ascii_letters + string.digits, k=12))
-#         my_fasta = os.path.join(temp_dir,
-#                                 accession + "_" +
-#                                 rand_string +  "_random.fa")
         bedtools_file = bedtools_fd.name
-        # my_fasta = my_fasta_fd.name
         subprocess.run([BEDTOOLS + "bedtools", "random", "-l",
                         str(length), "-n",
                         str(my_sample), "-g",
@@ -633,10 +586,7 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
             if taxid_file:
                 taxid_file.write(taxid + "\n")
             records_written += 1
-        # bedtools_fd.close()
-        # os.remove(bedtools_file)
         intermediate_fasta_file.close()
-        # os.remove(my_fasta)
     return (records_written >= number, records_written, records_with_n)
 
 
