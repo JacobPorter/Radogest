@@ -41,9 +41,9 @@ def filter_genomes(accessions, index):
     include = []
     exclude = []
     for accession in accessions:
-        if 'base_length' not in index['genomes'][accession]:
+        if 'contig_sum' not in index['genomes'][accession]:
             exclude.append(accession)
-            EXCLUDED_GENOMES[accession] = 'the base_length does not exist'
+            EXCLUDED_GENOMES[accession] = 'the contig_sum does not exist'
         elif genbank_duplicate(index['genomes'][accession], index):
             exclude.append(accession)
             EXCLUDED_GENOMES[accession] = 'duplicate genome found in refseq'
@@ -77,7 +77,7 @@ def genome_sort(genomes, index):
 
     def contig_key(genome):
         try:
-            return float(genome['base_length'] / genome['contig_count'])
+            return float(genome['contig_sum'] / genome['contig_count'])
         except KeyError:
             print(genome, file=sys.stderr)
             raise KeyError

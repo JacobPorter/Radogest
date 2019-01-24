@@ -39,7 +39,7 @@ class TaxTreeTraversal:
     def select_genomes(self, taxid):
         """
         Perform depth-first post order traversal of the taxonomic tree that
-        selects genomes at leach level.
+        selects genomes at each level.
         """
         children = self.tree[taxid]
         levels_visited = 0
