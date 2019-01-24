@@ -14,6 +14,7 @@ import random
 import string
 import subprocess
 import sqlite3
+import tempfile
 from multiprocessing import Pool
 from collections import defaultdict
 
@@ -33,6 +34,13 @@ NUMBER_SAMPLE = 300
 # The actual number of random samples taken is multipled by this multiplier.
 # This is done so that samples with N's in them can be excluded.
 SAMPLE_MULTIPLIER = 1.2
+
+# KMERS above this size will be checked for their wildcard percentage.
+_WILDCARD_KMER_T = 250
+# The number of kmers to sample when checking the wildcard percentage.
+_WILDCARD_SAMPLE_NUM = 500
+# The percentage of kmers that have wildcards before the genome is discarded.
+_WILDCARD_PERCENT_T = 0.70
 
 # The default probability of taking the reverse complement of a DNA sequence.
 _RC_PROB = 0.5
@@ -174,7 +182,9 @@ def binary_search(target, array, begin, end):
     return binary_search(target, array, mid, end)
 
 
-def uniform_samples_at_rank(index, sublevels, number, kmer_length):
+def uniform_samples_at_rank(index, sublevels, genomes_dir,
+                            number, kmer_length, 
+                            include_wild, amino_acid, temp_dir):
     """
     Get a count of samples from each genome under the taxids given by ranks.
 
@@ -187,6 +197,11 @@ def uniform_samples_at_rank(index, sublevels, number, kmer_length):
         An iterable that gives ranks underneath taxid to sample from.
     number: int
         The number of random sequences to sample.
+    kmer_length: int
+        The length of the kmer to sample.
+    include_wild: boolean
+        True if wildcard DNA characters are desired.  False otherwise.
+    
 
     Returns
     -------
@@ -202,7 +217,11 @@ def uniform_samples_at_rank(index, sublevels, number, kmer_length):
                          if include_accession(accession, 
                                               taxid, 
                                               index, 
-                                              kmer_length)]
+                                              genomes_dir,
+                                              kmer_length,
+                                              include_wild,
+                                              amino_acid,
+                                              temp_dir)]
         my_sums = [index['genomes'][accession]['contig_sum']
                    for accession in my_accessions]
         if my_accessions:
@@ -223,7 +242,9 @@ def uniform_samples_at_rank(index, sublevels, number, kmer_length):
     return uniform_sample_counts
 
 
-def include_accession(accession, taxid, index, kmer_length):
+def include_accession(accession, taxid, index, genomes_dir, 
+                      kmer_length, include_wild,
+                      amino_acid, temp_dir):
     """
     Determine whether to include a genome in the sampling
     
@@ -238,6 +259,8 @@ def include_accession(accession, taxid, index, kmer_length):
         The genomes index created
     kmer_length: int
         A positive integer representing the kmer length desired.
+    include_wild: boolean
+        True if wildcard DNA characters are desired.  False otherwise.
         
     Returns
     -------
@@ -254,6 +277,27 @@ def include_accession(accession, taxid, index, kmer_length):
     inside_std = (kmer_length >= mean - std and 
                   kmer_length <= mean + std and 
                   kmer_length <= mx)
+    if (kmer_length >= _WILDCARD_KMER_T and not include_wild 
+        and not amino_acid and inside_std):
+        file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
+        fai_location = file_locations_d["fai"]
+        fasta_location = file_locations_d["fasta_location"]
+        taxid_file = None
+        final_file = None
+        (_, 
+         records_written, 
+         records_with_n) = get_random_bed_fast(_WILDCARD_SAMPLE_NUM, 
+                                               kmer_length, 
+                                               taxid, 
+                                               accession,
+                                               fai_location,
+                                               fasta_location,
+                                               taxid_file, 
+                                               final_file, 
+                                               include_wild=include_wild, 
+                                               amino_acid=amino_acid,
+                                               temp_dir=temp_dir)
+        return (records_with_n / records_written < _WILDCARD_PERCENT_T)
     return inside_std
 
 
@@ -281,16 +325,6 @@ def uniform_samples(taxid, accession_sum, number):
     """
     accessions = accession_sum[0]
     genome_lengths = accession_sum[1]
-#     accessions = [accession for
-#                   accession in index['taxids'][taxid] if
-#                   index['taxids'][taxid][accession]]
-#     # MOD: contig length
-#     # if len(accessions) > GENOMES_TO_KEEP:
-#     #     random.shuffle(accessions)
-#     #     accessions = accessions[:GENOMES_TO_KEEP]
-#     genome_lengths = [index['genomes'][accession]['contig_sum']
-#                       for accession in
-#                       accessions]
     try:
         name = ncbi.get_taxid_translator([taxid])[taxid]
     except KeyError:
@@ -316,6 +350,58 @@ def uniform_samples(taxid, accession_sum, number):
                           genome_lengths, 0, len(genome_lengths) - 1)
         accession_counts[accessions[i]] += 1
     return accession_counts
+
+
+def file_locations(accession, genomes_dir, index, temp_dir):
+    """
+    Get file locations for sampling from the fasta file.
+    
+    Parameters
+    ----------
+    accession: str
+        The accession id of the genome.
+    genomes_dir: str
+        The location where the genomes or fasta files are stored.
+    index: dict
+        The genomes dictionary index created by Radogest.
+    temp_dir: str
+        The temporary directory to store files
+        
+    Returns
+    -------
+    dict
+        A dictionary of file locations.
+    
+    """
+    rand_string = "".join(random.choices(
+        string.ascii_letters + string.digits, k=12))
+    my_fasta = os.path.join(temp_dir,
+                            accession + "_" +
+                            rand_string +  "_random.fa")
+    accession_location = os.path.join(genomes_dir +
+                                      index['genomes']
+                                      [accession]
+                                      ['location'])
+    onlyfiles = [f for f in os.listdir(accession_location) if
+                 os.path.isfile(os.path.join(accession_location, f))]
+    fasta_location = None
+    twobit_location = None
+    fai_location = None
+    for f in onlyfiles:
+        if (f.endswith(".fna") or
+                f.endswith(".fasta") or
+                f.endswith(".fa") or
+                f.endswith(".faa")):
+            fasta_location = os.path.join(accession_location, f)
+        elif f.endswith(".2bit"):
+            twobit_location = os.path.join(accession_location, f)
+        elif f.endswith(".fai"):
+            fai_location = os.path.join(accession_location, f)
+    bedtools_file = os.path.join(temp_dir, accession + "_" +
+                                 rand_string + "_random.bed")
+    return {"my_fasta": my_fasta, "fasta_location": fasta_location, 
+            "twobit": twobit_location, "fai": fai_location, 
+            "bed": bedtools_file}
 
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
@@ -368,11 +454,6 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
                 continue
-            rand_string = "".join(random.choices(
-                string.ascii_letters + string.digits, k=8))
-            my_fasta = os.path.join(temp_dir,
-                                    accession + "_" +
-                                    rand_string +  "_random.fa")
             if verbose:
                 sys.stderr.write("Writing fasta records for {}:\t".
                                  format(accession))
@@ -389,24 +470,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                     taxid_file.write(str(taxid) + "\n")
                 fasta_record_count += records_written
                 continue
-            accession_location = os.path.join(genomes_dir +
-                                              index['genomes']
-                                              [accession]
-                                              ['location'])
-            onlyfiles = [f for f in os.listdir(accession_location) if
-                         os.path.isfile(os.path.join(accession_location, f))]
-            for f in onlyfiles:
-                if (f.endswith(".fna") or
-                        f.endswith(".fasta") or
-                        f.endswith(".fa") or
-                        f.endswith(".faa")):
-                    fasta_location = os.path.join(accession_location, f)
-                elif f.endswith(".2bit"):
-                    twobit_location = os.path.join(accession_location, f)
-                elif f.endswith(".fai"):
-                    fai_location = os.path.join(accession_location, f)
-            bedtools_file = os.path.join(temp_dir, accession + "_" +
-                                         rand_string + "_random.bed")
+            file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
+            fai_location = file_locations_d["fai"]
+            fasta_location = file_locations_d["fasta_location"]
             get_random = True
             accession_cnt = 0
             while get_random:
@@ -416,13 +482,12 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                                       taxid,
                                                       accession,
                                                       fai_location,
-                                                      bedtools_file,
                                                       fasta_location,
-                                                      my_fasta,
                                                       taxid_file,
                                                       final_file,
                                                       include_wild,
-                                                      amino_acid)
+                                                      amino_acid,
+                                                      temp_dir)
                 get_random = not bed_2bit_counts[0]
                 accession_cnt += bed_2bit_counts[1]
                 if verbose:
@@ -441,9 +506,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 
 
 def get_random_bed_fast(number, length, taxid, accession, fai_location,
-                        bedtools_file, fasta_location, my_fasta,
-                        taxid_file, final_file, 
-                        include_wild=False, amino_acid=False):
+                        fasta_location, taxid_file, final_file, 
+                        include_wild=False, amino_acid=False,
+                        temp_dir="\tmp"):
     """
     Get random nucleotide sequences from a bed file and a fasta file.  Exclude
     sequences with N's in them.
@@ -481,39 +546,48 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
 
     """
     taxid = str(taxid)
+    prefix = taxid + "_" + accession + "_"
     if number <= NUMBER_CUTOFF:
         my_sample = NUMBER_SAMPLE
     else:
         my_sample = int(number * SAMPLE_MULTIPLIER)
-    bedtools_fd = open(bedtools_file, 'w')
-    subprocess.run([BEDTOOLS + "bedtools", "random", "-l",
-                    str(length), "-n",
-                    str(my_sample), "-g",
-                    fai_location], stdout=bedtools_fd)
-    subprocess.run([BEDTOOLS + "bedtools", "getfasta", "-fi",
-                    fasta_location, "-bed", bedtools_file, "-fo", my_fasta])
-    intermediate_fasta_file = SeqReader(my_fasta, file_type='fasta')
-    records_with_n = 0
-    records_written = 0
-    for fasta_record in intermediate_fasta_file:
-        if records_written >= number:
-            break
-        record_id, record_seq = fasta_record
-        record_seq = record_seq.upper()
-        if not amino_acid and "N" in record_seq:
-            records_with_n += 1
-            if not include_wild:
-                continue
-        record_id = accession + ":" + taxid + ":" + record_id
-        final_file.write((record_id, record_seq))
-        taxid_file.write(taxid + "\n")
-        records_written += 1
-    bedtools_fd.close()
-    os.remove(bedtools_file)
-    intermediate_fasta_file.close()
-    os.remove(my_fasta)
+    with tempfile.NamedTemporaryFile(
+        mode="w+",
+        suffix=".bed", 
+        prefix=prefix, 
+        dir=temp_dir) as bedtools_fd, tempfile.NamedTemporaryFile(
+            mode="w+",
+            suffix=".fasta",
+            prefix=prefix,
+            dir=temp_dir) as my_fasta_fd:
+        bedtools_file = bedtools_fd.name
+        subprocess.run([BEDTOOLS + "bedtools", "random", "-l",
+                        str(length), "-n",
+                        str(my_sample), "-g",
+                        fai_location], stdout=bedtools_fd)
+        subprocess.run([BEDTOOLS + "bedtools", "getfasta", "-fi",
+                        fasta_location, "-bed", bedtools_file], 
+                        stdout=my_fasta_fd)
+        intermediate_fasta_file = SeqReader(my_fasta_fd.name, file_type='fasta')
+        records_with_n = 0
+        records_written = 0
+        for fasta_record in intermediate_fasta_file:
+            if records_written >= number:
+                break
+            record_id, record_seq = fasta_record
+            record_seq = record_seq.upper()
+            if not amino_acid and "N" in record_seq:
+                records_with_n += 1
+                if not include_wild:
+                    continue
+            record_id = accession + ":" + taxid + ":" + record_id
+            if final_file:
+                final_file.write((record_id, record_seq))
+            if taxid_file:
+                taxid_file.write(taxid + "\n")
+            records_written += 1
+        intermediate_fasta_file.close()
     return (records_written >= number, records_written, records_with_n)
-
 
 
 """
@@ -568,8 +642,10 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
 
     """
     index = pickle.load(open(index_dir, 'rb'))
-    accession_counts = uniform_samples_at_rank(index, sublevels, 
-                                               number, length)
+    accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
+                                               number, length, 
+                                               include_wild, amino_acid, 
+                                               temp_dir)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return (0, 0)
