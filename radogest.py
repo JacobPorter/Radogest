@@ -230,7 +230,7 @@ def main():
 #     p_chop.add_argument(*fasta.args, **fasta.kwargs)
     args = parser.parse_args()
     print(args, file=sys.stderr)
-    sys.stdout.flush()
+    sys.stderr.flush()
     mode = args.mode
     if mode == "download":
         ret = run_ncbi(args)
