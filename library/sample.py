@@ -36,7 +36,7 @@ NUMBER_SAMPLE = 300
 SAMPLE_MULTIPLIER = 1.2
 
 # KMERS above this size will be checked for their wildcard percentage.
-_WILDCARD_KMER_T = 250
+_WILDCARD_KMER_T = 1000
 # The number of kmers to sample when checking the wildcard percentage.
 _WILDCARD_SAMPLE_NUM = 500
 # The percentage of kmers that have wildcards before the genome is discarded.
@@ -277,7 +277,7 @@ def include_accession(accession, taxid, index, genomes_dir,
     inside_std = (kmer_length >= mean - std and 
                   kmer_length <= mean + std and 
                   kmer_length <= mx)
-    if (kmer_length >= _WILDCARD_KMER_T and not include_wild 
+    if (kmer_length > _WILDCARD_KMER_T and not include_wild 
         and not amino_acid and inside_std):
         file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
         fai_location = file_locations_d["fai"]
