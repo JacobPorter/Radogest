@@ -6,10 +6,11 @@ Radogest: random genome sampler for trees.
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Handle the case where kmers without N's for a given length are too rare.  Monte Carlo simulation?
+# TODO: Handle the case where kmers without N's for a given length are too rare.  Monte Carlo simulation?  Bedtools file and temp fasta file should be temporary in get_random_bed_fast
 # TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
 # TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
+# TODO: Add better parallelism to sampling, index creation.  PySpark?  Process pool?
 # TODO: Add utility commands?  permute, split, chop, reverse_complement.
 # TODO: When finished with code, check and update comments and README documentation.
 # TODO: Write and submit a paper.
