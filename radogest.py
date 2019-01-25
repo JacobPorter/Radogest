@@ -131,16 +131,16 @@ def main():
     p_select.add_argument("taxid", type=int, help=('The taxonomic id for '
                                                    'the root.'))
     p_select.add_argument("--strategy", '-s', action='store',
-                          choices=['PR', 'QST', 'QSL', 'MHT', 'AG'],
+                          choices=['PR', 'QST', 'QSL', 'GH', 'AG'],
                           help=('Choose the genome selection strategy.  '
                                 'The choices are: ProportionalRandom (PR), '
                                 'QualitySortingTree (QST), QualitySortingLeaf '
                                 '(QSL), GenomeHoldout (GH), AllGenomes (AG)'),
                           default='PR')
-    parser.add_argument('--sample_amount', '-n', nargs='+', type=int,
+    p_select.add_argument('--sample_amount', '-n', nargs='+', type=int,
                         help=('The number of genomes '
                               'to sample at each level. '
-                              'Does not apply with AllGenomes.'),
+                              'Does not apply to AllGenomes.'),
                         default=[10])
     p_select.add_argument('--output', '-o', type=str,
                           help=('The location to store the index with '
@@ -349,13 +349,16 @@ def main():
             strategy = AllGenomes(index)
         else:
             raise StrategyNotFound()
+        index["select"] = {"strategy": strategy_string, 
+                           "sample_amount": sample_amount}
         traversal = TaxTreeTraversal(tree, strategy)
         levels_visited = traversal.select_genomes(args.taxid)
         for accession in EXCLUDED_GENOMES:
             print("WARNING: {} excluded because {}.".format(
                 accession, EXCLUDED_GENOMES[accession]), file=sys.stderr)
         print("Levels visited: {}".format(levels_visited), file=sys.stderr)
-        print("Creating a pickled index.", file=sys.stderr)
+        print("Creating a pickled index at {}.".format(args.output),
+               file=sys.stderr)
         write_ds(index, args.output)
     elif mode == "sample":
         from library.sample import parallel_sample
