@@ -42,8 +42,7 @@ def name_ends(name, endings, addition=""):
     return False
 
 
-def make_fai_individual(root_directory, path, files,
-                        leave_compressed=False, verbose=0):
+def make_fai_individual(path, files, leave_compressed=False, verbose=0):
     """
     Make the fai files and decompress the fasta files.
 
@@ -76,104 +75,60 @@ def make_fai_individual(root_directory, path, files,
             break
     if not fasta_exists:
         return None
-    for name in files:  # Should we always delete FAI files.
+    for name in files:  # Should we always delete FAI files.  Yes.
         if (name.endswith('fai')):
             os.remove(os.path.join(path, name))
+    returncode = 0
     for name in files:
         if (not leave_compressed and
                 name_ends(name, FASTA_ENDINGS, addition='.gz')):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
-            subprocess.run(["gunzip", os.path.join(path, name)])
+            complete_p = subprocess.run(["gunzip", os.path.join(path, name)])
+            returncode = returncode ^ complete_p.returncode
             name = name[0:len(name) - 3]
-            count["gzip"] += 1
+            if not complete_p.returncode:
+                count["gzip"] += 1
         if (name_ends(name, FASTA_ENDINGS)):
             fa_file = os.path.join(path, name)
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
-            subprocess.run([SAMTOOLS + "samtools", "faidx", fa_file])
-            count["fai"] += 1
-    return count
+            complete_p = subprocess.run([
+                SAMTOOLS + "samtools", "faidx", fa_file])
+            returncode = returncode ^ complete_p.returncode
+            if not complete_p.returncode:
+                count["fai"] += 1
+    return count, returncode, path
 
 
-# def make_fai_multi(index, root_directory, twoBitToFa=False,
-#                    leave_compressed=False, verbose=0,
-#                    index_only=False, workers=16):
-#     """
-#     Make fai files for all fasta files under the root_directory.  Add contig
-#     counts and fasta base length to the index.
-# 
-#     Parameters
-#     ----------
-#     index: dict
-#         A python dictionary representing indexed genome information.
-#     root_directory: str
-#         A string representing the location of the root directory to search.
-#     twoBitToFasta: bool
-#         If true, convert 2bit files to fasta.  Does not create a fai index.
-#     leave_compressed: bool
-#         Does not gunzip anything.
-#     verbose: int
-#         If larger than one, print additional output.
-#     index_only: bool
-#         Updates the index in index only.  Assumes that the fai files have
-#         already been created.
-#     workers: int
-#         The number of workers to use for multiprocessing.
-# 
-#     Returns
-#     -------
-#     int, index
-#         A count of the fasta files processed and the index.
-# 
-#     Examples
-#     --------
-#         make_fai({}, '/home/jsporter/Genomes/')
-# 
-#     """
-#     count = {"gzip": 0, "2bit": 0, "fai": 0}
-#     counter = 0
-#     pool = Pool(processes=workers)
-#     pd_list = []
-#     for path, _, files in os.walk(root_directory):
-#         # print(path, files)
-#         pd = pool.apply_async(make_fai_individual, (root_directory,
-#                                                     path,
-#                                                     files,
-#                                                     twoBitToFa,
-#                                                     leave_compressed,
-#                                                     verbose,
-#                                                     index_only))
-#         pd_list.append(pd)
-#     pool.close()
-#     pool.join()
-#     for pd in pd_list:
-#         count_local, contigs, genome_length = pd.get()
-#         accession = os.path.basename(path)
-#         if contigs is not None and genome_length is not None:
-#             index['genomes'][accession]['contig_count'] = contigs
-#             index['genomes'][accession]['contig_sum'] = genome_length
-#         else:
-#             print(path, files)
-#         for key in count_local:
-#             count[key] += count_local[key]
-#         counter += 1
-#         if counter >= 5000 and verbose >= 1:
-#             sys.stderr.write("Processed: {}\n".format(counter))
-#             sys.stderr.flush()
-#     sys.stderr.flush()
-#     return count, index
+def fai_fail_message(returncode, path):
+    """
+    Prints out an error message for when faidx or when gzip fails.
+
+    Parameters
+    ----------
+    returncode: int
+        A 0 if the process existed normally.  Something else otherwise.
+    path: str
+        A string representing the location of the genome accession's files.
+
+    Returns
+    -------
+    None
+
+    """
+    if returncode:
+        print("Making the fai file for {} failed with return code {}.".format(
+            returncode, path), file=sys.stderr)
 
 
-def make_fai(root_directory, leave_compressed=False, verbose=0):
+def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
     """
     Make fai files for all fasta files under the root_directory.  Add contig
     counts and fasta base length to the index.
 
     Parameters
     ----------
-    index: dict
-        A python dictionary representing indexed genome information.
     root_directory: str
         A string representing the location of the root directory to search.
     leave_compressed: bool
@@ -183,26 +138,46 @@ def make_fai(root_directory, leave_compressed=False, verbose=0):
 
     Returns
     -------
-    int, index
-        A count of the fasta files processed and the index.
-
-    Examples
-    --------
-        make_fai({}, '/home/jsporter/Genomes/')
+    int
+        A count of the fasta files processed.
 
     """
-    count = {"gzip": 0, "fai": 0}
-    counter = 0
-    for path, _, files in os.walk(root_directory):
-        counter += 1
-        if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
-            sys.stderr.write("Processed: {}\n".format(counter))
-            sys.stderr.flush()
-        count_local = make_fai_individual(
-            root_directory, path, files,
-            leave_compressed, verbose)
+    def _count_add(count_local, count):
         if count_local:
             for key in count_local:
                 count[key] += count_local[key]
+    count = {"gzip": 0, "fai": 0}
+    counter = 0
+    if processes > 1:
+        pool = Pool(processes=processes)
+        pd_list = []
+    for path, _, files in os.walk(root_directory):
+        if processes > 1:
+            pd = pool.apply_async(make_fai_individual,
+                                  args=(path,
+                                        files,
+                                        leave_compressed,
+                                        verbose))
+            pd_list.append(pd)
+        else:
+            counter += 1
+            if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
+                sys.stderr.write("Processed: {}\n".format(counter))
+                sys.stderr.flush()
+            count_local, returncode, _ = make_fai_individual(path,
+                                                             files,
+                                                             leave_compressed,
+                                                             verbose)
+            fai_fail_message(returncode, path)
+            _count_add(count_local, count)
+    if processes > 1:
+        for pd in pd_list:
+            count_local, returncode, path = pd.get()
+            fai_fail_message(returncode, path)
+            _count_add(count_local, count)
+            counter += 1
+            if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
+                sys.stderr.write("Processed: {}\n".format(counter))
+                sys.stderr.flush()
     sys.stderr.flush()
     return count

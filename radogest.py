@@ -96,6 +96,8 @@ def main():
     p_fai.add_argument(*genomes.args, **genomes.kwargs)
     p_fai.add_argument(*leave_compressed.args, **leave_compressed.kwargs)
     p_fai.add_argument(*verbose.args, **verbose.kwargs)
+    p_fai.add_argument("--processes", "-p", type=int, default=2,
+                       help=("The number of processes to use."))
     p_index = subparsers.add_parser("index",
                                     help=("Make a genomes and taxid index "
                                           "necessary for sampling."),
@@ -232,6 +234,8 @@ def main():
     print(args, file=sys.stderr)
     sys.stderr.flush()
     mode = args.mode
+    index_write_error = ("Something went wrong writing the index.  "
+                             "Check that the path is correct and writable.")
     if mode == "download":
         ret = run_ncbi(args)
         if ret == 0:
@@ -242,16 +246,16 @@ def main():
             success_string, ret), file=sys.stderr)
     elif mode == "faidx":
         from library.faidx import make_fai
-        index_write_error = ("Something went wrong writing the index.  "
-                             "Check that the path is correct and writable.")
         sys.stderr.write("Starting to go down {} to create fai files. "
                          " leave_compressed: {}, "
                          "verbose: {}.\n"
                          .format(args.genomes,
                                  args.leave_compressed,
                                  args.verbose))
-        count = make_fai(args.genomes,
-                         args.leave_compressed, verbose=args.verbose)
+        count = make_fai(args.genomes, 
+                         processes=args.processes,
+                         leave_compressed=args.leave_compressed, 
+                         verbose=args.verbose)
         print(count, file=sys.stderr)
     elif mode == "index":
         from library.index import create_initial_index, update_index_root
