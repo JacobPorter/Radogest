@@ -6,7 +6,6 @@ Radogest: random genome sampler for trees.
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Handle the case where kmers without N's for a given length are too rare.  Monte Carlo simulation?  Bedtools file and temp fasta file should be temporary in get_random_bed_fast
 # TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
 # TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
@@ -252,9 +251,9 @@ def main():
                          .format(args.genomes,
                                  args.leave_compressed,
                                  args.verbose))
-        count = make_fai(args.genomes, 
+        count = make_fai(args.genomes,
                          processes=args.processes,
-                         leave_compressed=args.leave_compressed, 
+                         leave_compressed=args.leave_compressed,
                          verbose=args.verbose)
         print(count, file=sys.stderr)
     elif mode == "index":
@@ -290,9 +289,9 @@ def main():
         index, count_update = update_index_root(index,
                                                 args.genomes,
                                                 args.verbose)
-        print("The initial index counts were: {}".format(count), 
+        print("The initial index counts were: {}".format(count),
               file=sys.stderr)
-        print("The index update counts were: {}".format(count_update), 
+        print("The index update counts were: {}".format(count_update),
               file=sys.stderr)
         try:
             write_ds(index, args.index)
@@ -379,10 +378,10 @@ def main():
             parser.error("The reverse complement probability {} "
                          "is not a valid probability.".format(args.prob))
         parallel_sample(taxid_list, args.genomes,
-                        tree, args.index, args.number, 
+                        tree, args.index, args.number,
                         args.kmer_size, args.data_dir,
                         args.split, args.split_amount,
-                        args.processes, 
+                        args.processes,
                         args.include_wild,
                         args.prob, args.thresholding,
                         args.window_length, args.amino_acid,

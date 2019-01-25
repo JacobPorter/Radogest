@@ -443,7 +443,7 @@ def parse_checksums(checksums_string):
 def has_file_changed(directory, checksums, filetype='genbank'):
     """Check if the checksum of a given file has changed."""
     pattern = NgdConfig.get_fileending(filetype)
-    filename, expected_checksum = get_name_and_checksum(checksums, pattern)
+    filename, expected_checksum = get_name_and_checksum(checksums, pattern, directory)
     full_filename = os.path.join(directory, filename)
     # if file doesn't exist, it has changed
     if not os.path.isfile(full_filename):
@@ -460,7 +460,7 @@ def need_to_create_symlink(directory, checksums, filetype, symlink_path):
         return False
 
     pattern = NgdConfig.get_fileending(filetype)
-    filename, _ = get_name_and_checksum(checksums, pattern)
+    filename, _ = get_name_and_checksum(checksums, pattern, directory)
     full_filename = os.path.join(directory, filename)
     symlink_name = os.path.join(symlink_path, filename)
 
@@ -472,7 +472,7 @@ def need_to_create_symlink(directory, checksums, filetype, symlink_path):
     return True
 
 
-def get_name_and_checksum(checksums, end):
+def get_name_and_checksum(checksums, end, directory):
     """Extract a full filename and checksum from the checksums list for a file ending in given end."""
     for entry in checksums:
         if not entry['file'].endswith(end):
@@ -486,7 +486,7 @@ def get_name_and_checksum(checksums, end):
         filename = entry['file']
         expected_checksum = entry['checksum']
         return filename, expected_checksum
-    raise ValueError('No entry for file ending in {!r}'.format(end))
+    raise ValueError('No entry in {!r} for file ending in {!r}'.format(directory, end))
 
 
 def md5sum(filename):
@@ -503,7 +503,7 @@ def md5sum(filename):
 def download_file_job(entry, directory, checksums, filetype='genbank', symlink_path=None):
     """Generate a DownloadJob that actually triggers a file download."""
     pattern = NgdConfig.get_fileending(filetype)
-    filename, expected_checksum = get_name_and_checksum(checksums, pattern)
+    filename, expected_checksum = get_name_and_checksum(checksums, pattern, directory)
     base_url = convert_ftp_url(entry['ftp_path'])
     full_url = '{}/{}'.format(base_url, filename)
     local_file = os.path.join(directory, filename)
@@ -522,7 +522,7 @@ def download_file_job(entry, directory, checksums, filetype='genbank', symlink_p
 def create_symlink_job(directory, checksums, filetype, symlink_path):
     """Create a symlink-creating DownloadJob for an already downloaded file."""
     pattern = NgdConfig.get_fileending(filetype)
-    filename, _ = get_name_and_checksum(checksums, pattern)
+    filename, _ = get_name_and_checksum(checksums, pattern, directory)
     local_file = os.path.join(directory, filename)
     full_symlink = os.path.join(symlink_path, filename)
     return DownloadJob(None, local_file, None, full_symlink)
