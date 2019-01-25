@@ -96,6 +96,8 @@ def main():
     p_fai.add_argument(*genomes.args, **genomes.kwargs)
     p_fai.add_argument(*leave_compressed.args, **leave_compressed.kwargs)
     p_fai.add_argument(*verbose.args, **verbose.kwargs)
+    p_fai.add_argument("--processes", "-p", type=int, default=2,
+                       help=("The number of processes to use."))
     p_index = subparsers.add_parser("index",
                                     help=("Make a genomes and taxid index "
                                           "necessary for sampling."),
@@ -250,8 +252,10 @@ def main():
                          .format(args.genomes,
                                  args.leave_compressed,
                                  args.verbose))
-        count = make_fai(args.genomes,
-                         args.leave_compressed, verbose=args.verbose)
+        count = make_fai(args.genomes, 
+                         processes=args.processes,
+                         leave_compressed=args.leave_compressed, 
+                         verbose=args.verbose)
         print(count, file=sys.stderr)
     elif mode == "index":
         from library.index import create_initial_index, update_index_root
