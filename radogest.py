@@ -154,7 +154,11 @@ def main():
                                            "and the genomes index."),
                                      formatter_class=argparse.
                                      ArgumentDefaultsHelpFormatter)
-    p_sample.add_argument(*taxid.args, **taxid.kwargs)
+    p_sample.add_argument("taxid",
+                          help=("The file location that lists taxonomic ids."
+                                "One id per file.  "
+                                "Or, a taxonomic id when sampling "
+                                "from one taxonomic id."))
     p_sample.add_argument(*index.args, **index.kwargs)
     p_sample.add_argument(*tree.args, **tree.kwargs)
     p_sample.add_argument(*genomes.args, **genomes.kwargs)
@@ -366,7 +370,10 @@ def main():
             parser.error("The tree object or the index object could not be "
                          "found.  Check the paths.\n")
         tree = read_ds(args.tree)
-        taxid_list = [int(taxid.strip()) for taxid in open(args.taxid, "r")]
+        try:
+            taxid_list = [int(args.taxid)]
+        except ValueError:
+            taxid_list = [int(taxid.strip()) for taxid in open(args.taxid, "r")]
         begin, end = args.range
         if end == -1:
             end = len(taxid_list)
@@ -385,7 +392,8 @@ def main():
                         args.include_wild,
                         args.prob, args.thresholding,
                         args.window_length, args.amino_acid,
-                        args.temp_dir)
+                        args.temp_dir,
+                        args.verbose)
 #     elif mode == "permute":
 #         pass
 #     elif mode == "chop":
