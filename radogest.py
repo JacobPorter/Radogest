@@ -234,6 +234,8 @@ def main():
     print(args, file=sys.stderr)
     sys.stderr.flush()
     mode = args.mode
+    index_write_error = ("Something went wrong writing the index.  "
+                             "Check that the path is correct and writable.")
     if mode == "download":
         ret = run_ncbi(args)
         if ret == 0:
@@ -244,8 +246,6 @@ def main():
             success_string, ret), file=sys.stderr)
     elif mode == "faidx":
         from library.faidx import make_fai
-        index_write_error = ("Something went wrong writing the index.  "
-                             "Check that the path is correct and writable.")
         sys.stderr.write("Starting to go down {} to create fai files. "
                          " leave_compressed: {}, "
                          "verbose: {}.\n"
