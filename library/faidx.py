@@ -75,24 +75,51 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
             break
     if not fasta_exists:
         return None
-    for name in files:  # Should we always delete FAI files.
+    for name in files:  # Should we always delete FAI files.  Yes.
         if (name.endswith('fai')):
             os.remove(os.path.join(path, name))
+    returncode = 0
     for name in files:
         if (not leave_compressed and
                 name_ends(name, FASTA_ENDINGS, addition='.gz')):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
-            subprocess.run(["gunzip", os.path.join(path, name)])
+            complete_p = subprocess.run(["gunzip", os.path.join(path, name)])
+            returncode = returncode ^ complete_p.returncode
             name = name[0:len(name) - 3]
-            count["gzip"] += 1
+            if not complete_p.returncode:
+                count["gzip"] += 1
         if (name_ends(name, FASTA_ENDINGS)):
             fa_file = os.path.join(path, name)
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
-            subprocess.run([SAMTOOLS + "samtools", "faidx", fa_file])
-            count["fai"] += 1
-    return count
+            complete_p = subprocess.run([
+                SAMTOOLS + "samtools", "faidx", fa_file])
+            returncode = returncode ^ complete_p.returncode
+            if not complete_p.returncode:
+                count["fai"] += 1
+    return count, returncode, path
+
+
+def fai_fail_message(returncode, path):
+    """
+    Prints out an error message for when faidx or when gzip fails.
+
+    Parameters
+    ----------
+    returncode: int
+        A 0 if the process existed normally.  Something else otherwise.
+    path: str
+        A string representing the location of the genome accession's files.
+
+    Returns
+    -------
+    None
+
+    """
+    if returncode:
+        print("Making the fai file for {} failed with return code {}.".format(
+            returncode, path), file=sys.stderr)
 
 
 def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
@@ -126,7 +153,7 @@ def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
         pd_list = []
     for path, _, files in os.walk(root_directory):
         if processes > 1:
-            pd = pool.apply_async(make_fai_individual, 
+            pd = pool.apply_async(make_fai_individual,
                                   args=(path,
                                         files,
                                         leave_compressed,
@@ -137,14 +164,16 @@ def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
             if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
                 sys.stderr.write("Processed: {}\n".format(counter))
                 sys.stderr.flush()
-            count_local = make_fai_individual(path, 
-                                              files, 
-                                              leave_compressed, 
-                                              verbose)
+            count_local, returncode, _ = make_fai_individual(path,
+                                                             files,
+                                                             leave_compressed,
+                                                             verbose)
+            fai_fail_message(returncode, path)
             _count_add(count_local, count)
     if processes > 1:
         for pd in pd_list:
-            count_local = pd.get()
+            count_local, returncode, path = pd.get()
+            fai_fail_message(returncode, path)
             _count_add(count_local, count)
             counter += 1
             if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
