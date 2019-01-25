@@ -18,6 +18,7 @@ FASTA_ENDINGS = ['fasta', 'fa', 'fna', 'faa']
 
 VERBOSE_COUNTER = 5000
 
+
 def name_ends(name, endings, addition=""):
     """
     Determine if a string ends with something.
@@ -74,7 +75,7 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
             fasta_exists = True
             break
     if not fasta_exists:
-        return None
+        return None, None, None
     for name in files:  # Should we always delete FAI files.  Yes.
         if (name.endswith('fai')):
             os.remove(os.path.join(path, name))
@@ -103,7 +104,7 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
 
 def fai_fail_message(returncode, path):
     """
-    Prints out an error message for when faidx or when gzip fails.
+    Print out an error message for when faidx or when gzip fails.
 
     Parameters
     ----------
@@ -160,22 +161,24 @@ def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
                                         verbose))
             pd_list.append(pd)
         else:
-            counter += 1
-            if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
-                sys.stderr.write("Processed: {}\n".format(counter))
-                sys.stderr.flush()
             count_local, returncode, _ = make_fai_individual(path,
                                                              files,
                                                              leave_compressed,
                                                              verbose)
-            fai_fail_message(returncode, path)
-            _count_add(count_local, count)
+            counter += 1
+            if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
+                sys.stderr.write("Processed: {}\n".format(counter))
+                sys.stderr.flush()
+            if returncode is not None:
+                fai_fail_message(returncode, path)
+                _count_add(count_local, count)
     if processes > 1:
         for pd in pd_list:
             count_local, returncode, path = pd.get()
-            fai_fail_message(returncode, path)
-            _count_add(count_local, count)
             counter += 1
+            if returncode is not None:
+                fai_fail_message(returncode, path)
+                _count_add(count_local, count)
             if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
                 sys.stderr.write("Processed: {}\n".format(counter))
                 sys.stderr.flush()
