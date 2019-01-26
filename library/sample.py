@@ -51,24 +51,29 @@ _RC_PROB = 0.5
 # from config import GENOMES_NT, GENOMES_AA, GENOMES_CD
 
 # The reverse complement mapping.
-reverse_mapping = {"A": "T",
-                   "T": "A",
-                   "C": "G",
-                   "G": "C",
-                   "N": "N",
-                   "Y": "R",
-                   "R": "Y",
-                   "W": "W",
-                   "S": "S",
-                   "K": "M",
-                   "M": "K",
-                   "D": "H",
-                   "V": "B",
-                   "H": "D",
-                   "B": "V",
-                   "X": "X",
-                   "-": "-",
-                   }
+reverse_mapping_init = {"A": "T",
+                        "T": "A",
+                        "C": "G",
+                        "G": "C",
+                        "N": "N",
+                        "Y": "R",
+                        "R": "Y",
+                        "W": "W",
+                        "S": "S",
+                        "K": "M",
+                        "M": "K",
+                        "D": "H",
+                        "V": "B",
+                        "H": "D",
+                        "B": "V",
+                        "X": "X",
+                        "-": "-",
+                        }
+
+reverse_mapping = defaultdict(lambda: "N")
+
+for key in reverse_mapping_init:
+    reverse_mapping[key] = reverse_mapping_init[key]
 
 
 def get_reverse_complement(seq):
@@ -114,7 +119,7 @@ def random_reverse(seq_id, seq, prob=_RC_PROB):
         try:
             rc_seq = get_reverse_complement(seq)
         except KeyError:
-            print(seq_id, seq)
+            print((seq_id, seq), file=sys.stderr)
             raise KeyError
         return (seq_id + ":-", rc_seq)
 
