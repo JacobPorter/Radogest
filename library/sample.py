@@ -425,7 +425,7 @@ def file_locations(accession, genomes_dir, index, temp_dir):
 def get_fasta(accession_counts_list, length, index, genomes_dir,
               output, taxid_file, include_wild=False, 
               window_length=50, thresholding=False, amino_acid=False,
-              temp_dir='/localscratch/', verbose=False):
+              temp_dir='/localscratch/', verbose=0):
     """
     Save randomly sampled sequences in a fasta file written to output.
 
@@ -471,9 +471,10 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
                 continue
-            if verbose:
-                sys.stderr.write("Writing fasta records for {}:\t".
-                                 format(accession))
+            if verbose > 1:
+                sys.stderr.write("Writing fasta records for "
+                                 "taxid {} from genome accession {}:\t".
+                                 format(taxid, accession))
             # A thresholding feature.  If the genome is too small, use the
             # whole genome.
             if thresholding and accession_counts[accession] > float(
@@ -507,12 +508,12 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                                       temp_dir)
                 get_random = not bed_2bit_counts[0]
                 accession_cnt += bed_2bit_counts[1]
-                if verbose:
-                    sys.stderr.write(str(bed_2bit_counts[1]) +
+                if verbose > 1:
+                    sys.stderr.write("amount: " + str(bed_2bit_counts[1]) +
                                      "  " +
-                                     str(bed_2bit_counts[2] /
-                                         (bed_2bit_counts[1] +
-                                          bed_2bit_counts[2])) +
+                                     "N freq: " + str(bed_2bit_counts[2] /
+                                                      (bed_2bit_counts[1] +
+                                                       bed_2bit_counts[2])) +
                                      " ")
                     sys.stderr.flush()
             fasta_record_count += accession_cnt
