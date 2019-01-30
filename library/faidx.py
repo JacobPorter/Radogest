@@ -119,7 +119,7 @@ def fai_fail_message(returncode, path):
     """
     if returncode:
         print("Making the fai file for {} failed with return code {}.".format(
-            returncode, path), file=sys.stderr)
+            path, returncode), file=sys.stderr)
 
 
 def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
