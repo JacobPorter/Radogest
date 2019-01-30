@@ -292,9 +292,13 @@ def include_accession(accession, taxid, index, genomes_dir,
     mean = index['genomes'][accession]['contig_mean']
     std = index['genomes'][accession]['contig_std']
     mx = index['genomes'][accession]['contig_max']
-    inside_std = (kmer_length >= mean - _STD_DEV * std and 
-                  kmer_length <= mean + _STD_DEV * std and 
-                  kmer_length <= mx)
+    cnt = index['genomes'][accession]['contig_count']
+    if cnt > 5:
+        inside_std = (kmer_length >= mean - _STD_DEV * std and 
+                      kmer_length <= mean + _STD_DEV * std and 
+                      kmer_length <= mx)
+    else:
+        inside_std = kmer_length <= mx
     if (kmer_length > _WILDCARD_KMER_T and not include_wild 
         and not amino_acid and inside_std):
         file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
