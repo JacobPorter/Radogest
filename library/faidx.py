@@ -84,7 +84,7 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
                 name_ends(name, FASTA_ENDINGS, addition='.gz')):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
-            complete_p = subprocess.run(["gunzip", os.path.join(path, name)])
+            complete_p = subprocess.run(["gunzip", "-f", os.path.join(path, name)])
             returncode = returncode ^ complete_p.returncode
             name = name[0:len(name) - 3]
             if not complete_p.returncode:
