@@ -36,7 +36,7 @@ NUMBER_SAMPLE = 300
 SAMPLE_MULTIPLIER = 1.2
 
 # Standard deviations to take for kmer size checking
-_STD_DEV = 1.25
+_STD_DEV = 1.5
 
 # KMERS above this size will be checked for their wildcard percentage.
 _WILDCARD_KMER_T = 1000
@@ -96,22 +96,22 @@ def get_reverse_complement(seq):
 def random_reverse(seq_id, seq, prob=_RC_PROB):
     """
     Randomly compute the reverse complement of a sequence and modify the id.
-    
+
     Parameters
     ----------
     seq_id: str
         The id of the sequence for a fasta record.
     seq: str
         The DNA sequence.
-    prob: float 0 
+    prob: float 0
         The probability of taking the reverse complement.
         0.0 <= prob <= 1.0
-        
+
     Returns
     -------
     (str, str)
         A tuple representing a sequence id followed by a DNA sequence.
-    
+
     """
     if random.random() >= prob:
         return (seq_id + ":+", seq)
@@ -124,10 +124,10 @@ def random_reverse(seq_id, seq, prob=_RC_PROB):
         return (seq_id + ":-", rc_seq)
 
 
-def get_rc_fasta(filename_input, 
-                 filename_output, 
-                 prob=_RC_PROB, 
-                 remove=False, 
+def get_rc_fasta(filename_input,
+                 filename_output,
+                 prob=_RC_PROB,
+                 remove=False,
                  verbose=0):
     """
     Randomly do the reverse comlement for DNA sequences in a fasta file.
@@ -201,7 +201,7 @@ def binary_search(target, array, begin, end):
 
 
 def uniform_samples_at_rank(index, sublevels, genomes_dir,
-                            number, kmer_length, 
+                            number, kmer_length,
                             include_wild, amino_acid, temp_dir):
     """
     Get a count of samples from each genome under the taxids given by ranks.
@@ -219,7 +219,7 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         The length of the kmer to sample.
     include_wild: boolean
         True if wildcard DNA characters are desired.  False otherwise.
-    
+
 
     Returns
     -------
@@ -231,10 +231,10 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
     taxid_accessions = {}
     for taxid in sublevels:
         my_accessions = [accession
-                         for accession in index['taxids'][taxid] 
-                         if include_accession(accession, 
-                                              taxid, 
-                                              index, 
+                         for accession in index['taxids'][taxid]
+                         if include_accession(accession,
+                                              taxid,
+                                              index,
                                               genomes_dir,
                                               kmer_length,
                                               include_wild,
@@ -243,7 +243,7 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         my_sums = [index['genomes'][accession]['contig_sum']
                    for accession in my_accessions]
         if my_accessions:
-            taxid_accessions[taxid] = [my_accessions, 
+            taxid_accessions[taxid] = [my_accessions,
                                        my_sums]
     if not taxid_accessions:
         return None
@@ -253,19 +253,19 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         return None
     uniform_sample_counts = []
     for taxid in taxid_accessions:
-        uniform_sample_counts.append((taxid, 
-                                      uniform_samples(taxid, 
+        uniform_sample_counts.append((taxid,
+                                      uniform_samples(taxid,
                                                       taxid_accessions[taxid],
                                                       uniform_number)))
     return uniform_sample_counts
 
 
-def include_accession(accession, taxid, index, genomes_dir, 
+def include_accession(accession, taxid, index, genomes_dir,
                       kmer_length, include_wild,
                       amino_acid, temp_dir):
     """
     Determine whether to include a genome in the sampling
-    
+
     Parameters
     ----------
     accession: str
@@ -279,7 +279,7 @@ def include_accession(accession, taxid, index, genomes_dir,
         A positive integer representing the kmer length desired.
     include_wild: boolean
         True if wildcard DNA characters are desired.  False otherwise.
-        
+
     Returns
     -------
     bool
@@ -294,29 +294,29 @@ def include_accession(accession, taxid, index, genomes_dir,
     mx = index['genomes'][accession]['contig_max']
     cnt = index['genomes'][accession]['contig_count']
     if cnt > 5:
-        inside_std = (kmer_length >= mean - _STD_DEV * std and 
-                      kmer_length <= mean + _STD_DEV * std and 
+        inside_std = (kmer_length >= mean - _STD_DEV * std and
+                      kmer_length <= mean + _STD_DEV * std and
                       kmer_length <= mx)
     else:
         inside_std = kmer_length <= mx
-    if (kmer_length > _WILDCARD_KMER_T and not include_wild 
+    if (kmer_length > _WILDCARD_KMER_T and not include_wild
         and not amino_acid and inside_std):
         file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
         fai_location = file_locations_d["fai"]
         fasta_location = file_locations_d["fasta_location"]
         taxid_file = None
         final_file = None
-        (_, 
-         records_written, 
-         records_with_n) = get_random_bed_fast(_WILDCARD_SAMPLE_NUM, 
-                                               kmer_length, 
-                                               taxid, 
+        (_,
+         records_written,
+         records_with_n) = get_random_bed_fast(_WILDCARD_SAMPLE_NUM,
+                                               kmer_length,
+                                               taxid,
                                                accession,
                                                fai_location,
                                                fasta_location,
-                                               taxid_file, 
-                                               final_file, 
-                                               include_wild=include_wild, 
+                                               taxid_file,
+                                               final_file,
+                                               include_wild=include_wild,
                                                amino_acid=amino_acid,
                                                temp_dir=temp_dir)
         return (records_with_n / records_written < _WILDCARD_PERCENT_T)
@@ -377,7 +377,7 @@ def uniform_samples(taxid, accession_sum, number):
 def file_locations(accession, genomes_dir, index, temp_dir):
     """
     Get file locations for sampling from the fasta file.
-    
+
     Parameters
     ----------
     accession: str
@@ -388,12 +388,12 @@ def file_locations(accession, genomes_dir, index, temp_dir):
         The genomes dictionary index created by Radogest.
     temp_dir: str
         The temporary directory to store files
-        
+
     Returns
     -------
     dict
         A dictionary of file locations.
-    
+
     """
     rand_string = "".join(random.choices(
         string.ascii_letters + string.digits, k=12))
@@ -421,13 +421,13 @@ def file_locations(accession, genomes_dir, index, temp_dir):
             fai_location = os.path.join(accession_location, f)
     bedtools_file = os.path.join(temp_dir, accession + "_" +
                                  rand_string + "_random.bed")
-    return {"my_fasta": my_fasta, "fasta_location": fasta_location, 
-            "twobit": twobit_location, "fai": fai_location, 
+    return {"my_fasta": my_fasta, "fasta_location": fasta_location,
+            "twobit": twobit_location, "fai": fai_location,
             "bed": bedtools_file}
 
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
-              output, taxid_file, include_wild=False, 
+              output, taxid_file, include_wild=False,
               window_length=50, thresholding=False, amino_acid=False,
               temp_dir='/localscratch/', verbose=0):
     """
@@ -484,9 +484,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
             if thresholding and accession_counts[accession] > float(
                 index['genomes'][accession]['contig_sum']) / length:
                 records_written = split_genomes([accession], length,
-                                                index, genomes_dir, 
+                                                index, genomes_dir,
                                                 final_file,
-                                                include_wild=include_wild, 
+                                                include_wild=include_wild,
                                                 window_length=window_length)
                 for _ in range(records_written):
                     taxid_file.write(str(taxid) + "\n")
@@ -528,7 +528,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 
 
 def get_random_bed_fast(number, length, taxid, accession, fai_location,
-                        fasta_location, taxid_file, final_file, 
+                        fasta_location, taxid_file, final_file,
                         include_wild=False, amino_acid=False,
                         temp_dir="/localscratch/"):
     """
@@ -575,8 +575,8 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
         my_sample = int(number * SAMPLE_MULTIPLIER)
     with tempfile.NamedTemporaryFile(
         mode="w+",
-        suffix=".bed", 
-        prefix=prefix, 
+        suffix=".bed",
+        prefix=prefix,
         dir=temp_dir) as bedtools_fd, tempfile.NamedTemporaryFile(
             mode="w+",
             suffix=".fasta",
@@ -588,7 +588,7 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
                         str(my_sample), "-g",
                         fai_location], stdout=bedtools_fd)
         subprocess.run([BEDTOOLS + "bedtools", "getfasta", "-fi",
-                        fasta_location, "-bed", bedtools_file], 
+                        fasta_location, "-bed", bedtools_file],
                         stdout=my_fasta_fd)
         intermediate_fasta_file = SeqReader(my_fasta_fd.name, file_type='fasta')
         records_with_n = 0
@@ -624,7 +624,7 @@ and testing data and puts them in directories that Plinko expects.
 
 def get_sample(taxid, sublevels, index_dir, genomes_dir,
                number, length, data_dir,
-               split=True, split_amount='0.8,0.1,0.1', 
+               split=True, split_amount='0.8,0.1,0.1',
                include_wild=False,
                prob=_RC_PROB, thresholding=False, window_length=50,
                amino_acid=False, temp_dir="/localscratch/",
@@ -668,8 +668,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     print("Determining accessions to sample from.", file=sys.stderr)
     sys.stderr.flush()
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
-                                               number, length, 
-                                               include_wild, amino_acid, 
+                                               number, length,
+                                               include_wild, amino_acid,
                                                temp_dir)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
@@ -713,7 +713,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                                  taxid_path,
                                                  split=split,
                                                  split_amount=split_amount)
-    print("Writing the fasta file(s) to their final destination.", 
+    print("Writing the fasta file(s) to their final destination.",
           file=sys.stderr)
     sys.stderr.flush()
     for ext, ml_path in [(".train", "train"),
@@ -778,9 +778,9 @@ def create_directories(data_dir):
 
 
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
-                    data_dir, split, split_amount, processes, 
-                    include_wild=False, prob=_RC_PROB, 
-                    thresholding=False, window_length=100, 
+                    data_dir, split, split_amount, processes,
+                    include_wild=False, prob=_RC_PROB,
+                    thresholding=False, window_length=100,
                     amino_acid=False, temp_dir="/localscratch/",
                     verbose=0):
     """

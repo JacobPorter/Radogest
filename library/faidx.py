@@ -74,7 +74,7 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
             fasta_exists = True
             break
     if not fasta_exists:
-        return None
+        return count, 1, path
     for name in files:  # Should we always delete FAI files.  Yes.
         if (name.endswith('fai')):
             os.remove(os.path.join(path, name))
