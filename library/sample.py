@@ -436,7 +436,7 @@ def file_locations(accession, genomes_dir, index, temp_dir):
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
               output, taxid_file, include_wild=False, 
-              window_length=50, verbose=False,
+              window_length=50,
               thresholding=False, chop=False,
               amino_acid=False,
               temp_dir='/localscratch/', verbose=0):
@@ -640,7 +640,9 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                thresholding=False, 
                chop=False,
                window_length=50,
-               amino_acid=False, temp_dir="/localscratch/"):
+               amino_acid=False, 
+               temp_dir="/localscratch/",
+               verbose=0):
     index = pickle.load(open(index_dir, 'rb'))
     try: 
         strategy = index['select']['strategy']
@@ -659,7 +661,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                        window_length=window_length,
                                        amino_acid=amino_acid, 
                                        temp_dir=temp_dir,
-                                       include_list=[_TEST])
+                                       include_list=[_TEST],
+                                       verbose=verbose)
         shutil.move(os.path.join(data_dir, str(taxid), "train"), 
                     os.path.join(data_dir, str(taxid), "test"))
         print("Getting the training data with genome holdout.", 
@@ -674,7 +677,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         window_length=window_length,
                                         amino_acid=amino_acid, 
                                         temp_dir=temp_dir,
-                                        include_list=[_TRAIN])
+                                        include_list=[_TRAIN],
+                                        verbose=verbose)
         return tuple(map(operator.add, test_count, train_count))
     else:
         return get_sample_worker(taxid, sublevels, index, genomes_dir,
@@ -684,7 +688,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                  thresholding=thresholding, 
                                  chop=chop,
                                  window_length=window_length,
-                                 amino_acid=amino_acid, temp_dir=temp_dir)
+                                 amino_acid=amino_acid, temp_dir=temp_dir,
+                                 verbose=verbose)
         
 
 def get_sample_worker(taxid, sublevels, index, genomes_dir,
@@ -694,7 +699,8 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                       prob=_RC_PROB, thresholding=False, chop=False,
                       window_length=50,
                       amino_acid=False, temp_dir="/localscratch/",
-                      include_list=[True]):
+                      include_list=[True],
+                      verbose=0):
     """
     Get a random sample.  Create training, validation, and testing data sets
     and put them in the appropriate folders.
