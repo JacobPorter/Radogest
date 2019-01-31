@@ -37,6 +37,9 @@ NUMBER_SAMPLE = 300
 # This is done so that samples with N's in them can be excluded.
 SAMPLE_MULTIPLIER = 1.2
 
+# Standard deviations to take for kmer size checking
+_STD_DEV = 1.5
+
 # KMERS above this size will be checked for their wildcard percentage.
 _WILDCARD_KMER_T = 1000
 # The number of kmers to sample when checking the wildcard percentage.
@@ -53,24 +56,29 @@ _TEST = 2
 # from config import GENOMES_NT, GENOMES_AA, GENOMES_CD
 
 # The reverse complement mapping.
-reverse_mapping = {"A": "T",
-                   "T": "A",
-                   "C": "G",
-                   "G": "C",
-                   "N": "N",
-                   "Y": "R",
-                   "R": "Y",
-                   "W": "W",
-                   "S": "S",
-                   "K": "M",
-                   "M": "K",
-                   "D": "H",
-                   "V": "B",
-                   "H": "D",
-                   "B": "V",
-                   "X": "X",
-                   "-": "-",
-                   }
+reverse_mapping_init = {"A": "T",
+                        "T": "A",
+                        "C": "G",
+                        "G": "C",
+                        "N": "N",
+                        "Y": "R",
+                        "R": "Y",
+                        "W": "W",
+                        "S": "S",
+                        "K": "M",
+                        "M": "K",
+                        "D": "H",
+                        "V": "B",
+                        "H": "D",
+                        "B": "V",
+                        "X": "X",
+                        "-": "-",
+                        }
+
+reverse_mapping = defaultdict(lambda: "N")
+
+for key in reverse_mapping_init:
+    reverse_mapping[key] = reverse_mapping_init[key]
 
 
 def get_reverse_complement(seq):
@@ -93,22 +101,22 @@ def get_reverse_complement(seq):
 def random_reverse(seq_id, seq, prob=_RC_PROB):
     """
     Randomly compute the reverse complement of a sequence and modify the id.
-    
+
     Parameters
     ----------
     seq_id: str
         The id of the sequence for a fasta record.
     seq: str
         The DNA sequence.
-    prob: float 0 
+    prob: float 0
         The probability of taking the reverse complement.
         0.0 <= prob <= 1.0
-        
+
     Returns
     -------
     (str, str)
         A tuple representing a sequence id followed by a DNA sequence.
-    
+
     """
     if random.random() >= prob:
         return (seq_id + ":+", seq)
@@ -116,12 +124,16 @@ def random_reverse(seq_id, seq, prob=_RC_PROB):
         try:
             rc_seq = get_reverse_complement(seq)
         except KeyError:
-            print(seq_id, seq)
+            print((seq_id, seq), file=sys.stderr)
             raise KeyError
         return (seq_id + ":-", rc_seq)
 
 
-def get_rc_fasta(filename_input, filename_output, prob=_RC_PROB, remove=True):
+def get_rc_fasta(filename_input,
+                 filename_output,
+                 prob=_RC_PROB,
+                 remove=False,
+                 verbose=0):
     """
     Randomly do the reverse comlement for DNA sequences in a fasta file.
 
@@ -134,6 +146,8 @@ def get_rc_fasta(filename_input, filename_output, prob=_RC_PROB, remove=True):
     prob: float
         A number between 0 and 1.0 that represents the probability that the
         reverse complement will be done.
+    remove: boolean
+        If True, remove sequences with N's in them.
 
     Returns
     -------
@@ -152,6 +166,10 @@ def get_rc_fasta(filename_input, filename_output, prob=_RC_PROB, remove=True):
             continue
         output_writer.write(random_reverse(seq_id, seq_seq, prob=prob))
         write_counter += 1
+        if verbose > 1 and write_counter % 1000 == 0:
+            print("Reverse complement: {} records written so far.".format(
+                write_counter),
+                 file=sys.stderr)
     return read_counter, write_counter
 
 
@@ -207,7 +225,7 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         The length of the kmer to sample.
     include_wild: boolean
         True if wildcard DNA characters are desired.  False otherwise.
-    
+
 
     Returns
     -------
@@ -219,10 +237,10 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
     taxid_accessions = {}
     for taxid in sublevels:
         my_accessions = [accession
-                         for accession in index['taxids'][taxid] 
-                         if include_accession(accession, 
-                                              taxid, 
-                                              index, 
+                         for accession in index['taxids'][taxid]
+                         if include_accession(accession,
+                                              taxid,
+                                              index,
                                               genomes_dir,
                                               kmer_length,
                                               include_wild,
@@ -232,7 +250,7 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         my_sums = [index['genomes'][accession]['contig_sum']
                    for accession in my_accessions]
         if my_accessions:
-            taxid_accessions[taxid] = [my_accessions, 
+            taxid_accessions[taxid] = [my_accessions,
                                        my_sums]
     if not taxid_accessions:
         return None
@@ -242,20 +260,20 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         return None
     uniform_sample_counts = []
     for taxid in taxid_accessions:
-        uniform_sample_counts.append((taxid, 
-                                      uniform_samples(taxid, 
+        uniform_sample_counts.append((taxid,
+                                      uniform_samples(taxid,
                                                       taxid_accessions[taxid],
                                                       uniform_number)))
     return uniform_sample_counts
 
 
-def include_accession(accession, taxid, index, genomes_dir, 
+def include_accession(accession, taxid, index, genomes_dir,
                       kmer_length, include_wild,
                       amino_acid, temp_dir="/localscratch", 
                       include_list=[True]):
     """
     Determine whether to include a genome in the sampling
-    
+
     Parameters
     ----------
     accession: str
@@ -269,7 +287,7 @@ def include_accession(accession, taxid, index, genomes_dir,
         A positive integer representing the kmer length desired.
     include_wild: boolean
         True if wildcard DNA characters are desired.  False otherwise.
-        
+
     Returns
     -------
     bool
@@ -279,32 +297,34 @@ def include_accession(accession, taxid, index, genomes_dir,
     """
     if not index['taxids'][taxid][accession] in include_list:
         return False
-#     if not index['taxids'][taxid][accession]:
-#         return False
     mean = index['genomes'][accession]['contig_mean']
     std = index['genomes'][accession]['contig_std']
     mx = index['genomes'][accession]['contig_max']
-    inside_std = (kmer_length >= mean - std and 
-                  kmer_length <= mean + std and 
-                  kmer_length <= mx)
-    if (kmer_length > _WILDCARD_KMER_T and not include_wild 
+    cnt = index['genomes'][accession]['contig_count']
+    if cnt > 5:
+        inside_std = (kmer_length >= mean - _STD_DEV * std and
+                      kmer_length <= mean + _STD_DEV * std and
+                      kmer_length <= mx)
+    else:
+        inside_std = kmer_length <= mx
+    if (kmer_length > _WILDCARD_KMER_T and not include_wild
         and not amino_acid and inside_std):
         file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
         fai_location = file_locations_d["fai"]
         fasta_location = file_locations_d["fasta_location"]
         taxid_file = None
         final_file = None
-        (_, 
-         records_written, 
-         records_with_n) = get_random_bed_fast(_WILDCARD_SAMPLE_NUM, 
-                                               kmer_length, 
-                                               taxid, 
+        (_,
+         records_written,
+         records_with_n) = get_random_bed_fast(_WILDCARD_SAMPLE_NUM,
+                                               kmer_length,
+                                               taxid,
                                                accession,
                                                fai_location,
                                                fasta_location,
-                                               taxid_file, 
-                                               final_file, 
-                                               include_wild=include_wild, 
+                                               taxid_file,
+                                               final_file,
+                                               include_wild=include_wild,
                                                amino_acid=amino_acid,
                                                temp_dir=temp_dir)
         return (records_with_n / records_written < _WILDCARD_PERCENT_T)
@@ -341,8 +361,8 @@ def uniform_samples(taxid, accession_sum, number):
         name = ""
     except sqlite3.DatabaseError:
         name = ""
-    sys.stderr.write("For {}:{}, sampling from "
-                     "{} genomes.\n".format(taxid, name, len(accessions)))
+    sys.stderr.write("For {}:{}, will sample from "
+                     "{} fasta files.\n".format(taxid, name, len(accessions)))
     sys.stderr.flush()
     for i, _ in enumerate(genome_lengths):
         if i == 0:
@@ -365,7 +385,7 @@ def uniform_samples(taxid, accession_sum, number):
 def file_locations(accession, genomes_dir, index, temp_dir):
     """
     Get file locations for sampling from the fasta file.
-    
+
     Parameters
     ----------
     accession: str
@@ -376,12 +396,12 @@ def file_locations(accession, genomes_dir, index, temp_dir):
         The genomes dictionary index created by Radogest.
     temp_dir: str
         The temporary directory to store files
-        
+
     Returns
     -------
     dict
         A dictionary of file locations.
-    
+
     """
     rand_string = "".join(random.choices(
         string.ascii_letters + string.digits, k=12))
@@ -409,8 +429,8 @@ def file_locations(accession, genomes_dir, index, temp_dir):
             fai_location = os.path.join(accession_location, f)
     bedtools_file = os.path.join(temp_dir, accession + "_" +
                                  rand_string + "_random.bed")
-    return {"my_fasta": my_fasta, "fasta_location": fasta_location, 
-            "twobit": twobit_location, "fai": fai_location, 
+    return {"my_fasta": my_fasta, "fasta_location": fasta_location,
+            "twobit": twobit_location, "fai": fai_location,
             "bed": bedtools_file}
 
 
@@ -419,7 +439,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
               window_length=50, verbose=False,
               thresholding=False, chop=False,
               amino_acid=False,
-              temp_dir='/localscratch/'):
+              temp_dir='/localscratch/', verbose=0):
     """
     Save randomly sampled sequences in a fasta file written to output.
 
@@ -465,9 +485,10 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
                 continue
-            if verbose:
-                sys.stderr.write("Writing fasta records for {}:\t".
-                                 format(accession))
+            if verbose > 1:
+                sys.stderr.write("Writing fasta records for "
+                                 "taxid {} from genome accession {}:\t".
+                                 format(taxid, accession))
             # A thresholding feature.  If the genome is too small, use the
             # whole genome.
             if (thresholding and accession_counts[accession] > float(
@@ -475,7 +496,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 records_written = chop_genomes([accession], length,
                                                 index, genomes_dir, 
                                                 final_file,
-                                                include_wild=include_wild, 
+                                                include_wild=include_wild,
                                                 window_length=window_length)
                 for _ in range(records_written):
                     taxid_file.write(str(taxid) + "\n")
@@ -501,12 +522,12 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                                       temp_dir)
                 get_random = not bed_2bit_counts[0]
                 accession_cnt += bed_2bit_counts[1]
-                if verbose:
-                    sys.stderr.write(str(bed_2bit_counts[1]) +
+                if verbose > 1:
+                    sys.stderr.write("amount: " + str(bed_2bit_counts[1]) +
                                      "  " +
-                                     str(bed_2bit_counts[2] /
-                                         (bed_2bit_counts[1] +
-                                          bed_2bit_counts[2])) +
+                                     "N freq: " + str(bed_2bit_counts[2] /
+                                                      (bed_2bit_counts[1] +
+                                                       bed_2bit_counts[2])) +
                                      " ")
                     sys.stderr.flush()
             fasta_record_count += accession_cnt
@@ -517,9 +538,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 
 
 def get_random_bed_fast(number, length, taxid, accession, fai_location,
-                        fasta_location, taxid_file, final_file, 
+                        fasta_location, taxid_file, final_file,
                         include_wild=False, amino_acid=False,
-                        temp_dir="\tmp"):
+                        temp_dir="/localscratch/"):
     """
     Get random nucleotide sequences from a bed file and a fasta file.  Exclude
     sequences with N's in them.
@@ -564,8 +585,8 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
         my_sample = int(number * SAMPLE_MULTIPLIER)
     with tempfile.NamedTemporaryFile(
         mode="w+",
-        suffix=".bed", 
-        prefix=prefix, 
+        suffix=".bed",
+        prefix=prefix,
         dir=temp_dir) as bedtools_fd, tempfile.NamedTemporaryFile(
             mode="w+",
             suffix=".fasta",
@@ -577,7 +598,7 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
                         str(my_sample), "-g",
                         fai_location], stdout=bedtools_fd)
         subprocess.run([BEDTOOLS + "bedtools", "getfasta", "-fi",
-                        fasta_location, "-bed", bedtools_file], 
+                        fasta_location, "-bed", bedtools_file],
                         stdout=my_fasta_fd)
         intermediate_fasta_file = SeqReader(my_fasta_fd.name, file_type='fasta')
         records_with_n = 0
@@ -709,6 +730,8 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         A tuple of fasta records sampled and permuted records written.
 
     """
+    print("Determining accessions to sample from.", file=sys.stderr)
+    sys.stderr.flush()
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
                                                number, length, 
                                                include_wild, amino_acid, 
@@ -716,6 +739,8 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return (0, 0)
+    print("Getting the kmer samples.", file=sys.stderr)
+    sys.stderr.flush()
     fasta_path_init = os.path.join(temp_dir, str(taxid) + ".init.fasta")
     taxid_path = os.path.join(temp_dir, str(taxid) + ".taxid")
     fasta_file = open(fasta_path_init, "w")
@@ -727,25 +752,36 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                     temp_dir=temp_dir,
                                     thresholding=thresholding,
                                     chop=chop,
-                                    amino_acid=amino_acid)
+                                    amino_acid=amino_acid,
+                                    verbose=verbose)
     fasta_file.close()
     taxid_file.close()
+    print("Finished getting the kmer samples.", file=sys.stderr)
+    sys.stderr.flush()
     if not amino_acid:
+        print("Getting the reverse complements.", file=sys.stderr)
+        sys.stderr.flush()
         fasta_path = os.path.join(temp_dir, str(taxid) + ".fasta")
         _, _ = get_rc_fasta(fasta_path_init,
                             fasta_path,
                             prob=prob,
-                            remove=False)
+                            remove=False,
+                            verbose=verbose)
         if os.path.isfile(fasta_path_init):
             os.remove(fasta_path_init)
     else:
         fasta_path = fasta_path_init
+    print("Permuting the fasta records.", file=sys.stderr)
+    sys.stderr.flush()
     permute_count = randomly_permute_fasta_taxid(fasta_path,
                                                  taxid_path,
                                                  fasta_path,
                                                  taxid_path,
                                                  split=split,
                                                  split_amount=split_amount)
+    print("Writing the fasta file(s) to their final destination.",
+          file=sys.stderr)
+    sys.stderr.flush()
     for ext, ml_path in [(".train", "train"),
                          (".validate", "validate"),
                          (".test", "test")]:
@@ -778,41 +814,14 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         os.remove(taxid_path)
     return fasta_records_count, permute_count
 
-
-def create_directories(data_dir):
-    """
-    Create directories to put the data if they do not exist.
-
-    Parameters
-    ----------
-    data_dir: str
-        A path to the top level of the directory to put the data.
-
-    Returns
-    -------
-    None
-
-    """
-    # ranks = ["superkingdom", "kingdom", "phylum",
-    #         "class", "order", "family", "genus"]
-    # data_sets = ["train", "test", "validate"]
-    # for rank in ranks:
-    # for data_set in data_sets:
-    #     path = os.path.join(data_dir, rank, data_set)
-    #     if not os.path.exists(path):
-    #         try:
-    #             os.makedirs(path)
-    #         except OSError as e:
-    #             if e.errno != errno.EEXIST:
-    #                 raise
-
-
+  
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                     data_dir, split, split_amount, processes, 
                     include_wild=False, prob=_RC_PROB, 
                     thresholding=False, chop=False,
                     window_length=100, 
-                    amino_acid=False, temp_dir="/tmp"):
+                    amino_acid=False, temp_dir="/localscratch/",
+                    verbose=0):
     """
     Get samples of data in parallel and writes them into files and a data
     directory that Plinko expects.
@@ -871,7 +880,8 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                                                        chop,
                                                        window_length,
                                                        amino_acid,
-                                                       temp_dir)))
+                                                       temp_dir,
+                                                       verbose)))
         output = []
         for taxid, process_desc in zip(taxid_list, process_list):
             counts = process_desc.get()

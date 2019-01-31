@@ -75,7 +75,7 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
             fasta_exists = True
             break
     if not fasta_exists:
-        return None, None, None
+        return count, 1, path
     for name in files:  # Should we always delete FAI files.  Yes.
         if (name.endswith('fai')):
             os.remove(os.path.join(path, name))
@@ -85,7 +85,7 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
                 name_ends(name, FASTA_ENDINGS, addition='.gz')):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
-            complete_p = subprocess.run(["gunzip", os.path.join(path, name)])
+            complete_p = subprocess.run(["gunzip", "-f", os.path.join(path, name)])
             returncode = returncode ^ complete_p.returncode
             name = name[0:len(name) - 3]
             if not complete_p.returncode:
@@ -120,7 +120,7 @@ def fai_fail_message(returncode, path):
     """
     if returncode:
         print("Making the fai file for {} failed with return code {}.".format(
-            returncode, path), file=sys.stderr)
+            path, returncode), file=sys.stderr)
 
 
 def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):

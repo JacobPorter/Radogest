@@ -6,6 +6,7 @@ Radogest: random genome sampler for trees.
     Jacob Porter <jsporter@vt.edu>
 """
 
+
 # TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.  Handle case where a taxid has only one genome?  See 8892 for vertebrate refseq data.
 # TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
@@ -154,7 +155,11 @@ def main():
                                            "and the genomes index."),
                                      formatter_class=argparse.
                                      ArgumentDefaultsHelpFormatter)
-    p_sample.add_argument(*taxid.args, **taxid.kwargs)
+    p_sample.add_argument("taxid",
+                          help=("The file location that lists taxonomic ids."
+                                "One id per file.  "
+                                "Or, a taxonomic id when sampling "
+                                "from one taxonomic id."))
     p_sample.add_argument(*index.args, **index.kwargs)
     p_sample.add_argument(*tree.args, **tree.kwargs)
     p_sample.add_argument(*genomes.args, **genomes.kwargs)
@@ -379,7 +384,10 @@ def main():
             parser.error("The tree object or the index object could not be "
                          "found.  Check the paths.\n")
         tree = read_ds(args.tree)
-        taxid_list = [int(taxid.strip()) for taxid in open(args.taxid, "r")]
+        try:
+            taxid_list = [int(args.taxid)]
+        except ValueError:
+            taxid_list = [int(taxid.strip()) for taxid in open(args.taxid, "r")]
         begin, end = args.range
         if end == -1:
             end = len(taxid_list)
@@ -401,7 +409,8 @@ def main():
                         args.thresholding,
                         args.chop,
                         args.window_length, args.amino_acid,
-                        args.temp_dir)
+                        args.temp_dir,
+                        args.verbose)
 #     elif mode == "permute":
 #         pass
 #     elif mode == "chop":
