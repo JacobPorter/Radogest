@@ -6,7 +6,8 @@ Radogest: random genome sampler for trees.
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
+
+# TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.  Handle case where a taxid has only one genome?  See 8892 for vertebrate refseq data.
 # TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
 # TODO: Add better parallelism to sampling, index creation.  PySpark?  Process pool?
@@ -132,17 +133,17 @@ def main():
     p_select.add_argument("taxid", type=int, help=('The taxonomic id for '
                                                    'the root.'))
     p_select.add_argument("--strategy", '-s', action='store',
-                          choices=['PR', 'QST', 'QSL', 'MHT', 'AG'],
+                          choices=['PR', 'QST', 'QSL', 'GH', 'AG'],
                           help=('Choose the genome selection strategy.  '
                                 'The choices are: ProportionalRandom (PR), '
                                 'QualitySortingTree (QST), QualitySortingLeaf '
-                                '(QSL), MinHashTree (MHT), AllGenomes (AG)'),
+                                '(QSL), GenomeHoldout (GH), AllGenomes (AG)'),
                           default='PR')
-    p_select.add_argument('--sample_amount', '-n', type=int,
-                          help=('The number of genomes to sample at '
-                                'each level. '
-                                'Does not apply with AllGenomes.'),
-                        default=10)
+    p_select.add_argument('--sample_amount', '-n', nargs='+', type=int,
+                          help=('The number of genomes '
+                                'to sample at each level. '
+                                'Does not apply to AllGenomes.'),
+                          default=[10])
     p_select.add_argument('--output', '-o', type=str,
                           help=('The location to store the index with '
                                 'the down selected genomes.'),
@@ -163,7 +164,8 @@ def main():
     p_sample.add_argument(*tree.args, **tree.kwargs)
     p_sample.add_argument(*genomes.args, **genomes.kwargs)
     p_sample.add_argument("--kmer_size", "-k", type=int,
-                          help=("The length in base pairs of the kmers to take."),
+                          help=("The length in base pairs i "
+                                "of the kmers to take."),
                           default=100)
     p_sample.add_argument("--number", "-n", type=int,
                           help=("The number of samples to take."),
@@ -176,7 +178,8 @@ def main():
                                 "Use -1 to denote the end of the file. "),
                           default=[0, -1])
     p_sample.add_argument("--include_wild", "-x",
-                          help=("Include wild card characters in the samples.  "
+                          help=("Include wild card characters "
+                                "in the samples.  "
                                 "When this is not used, samples with "
                                 "wild card characters will be discarded."),
                           action='store_true', default=False)
@@ -186,6 +189,12 @@ def main():
                                 "file, chop up the fasta file rather than "
                                 "randomly sample from it."),
                           action='store_true', default=False)
+    p_sample.add_argument("--chop", "-c", action="store_true", default=False,
+                          help=("Chop up the set of genomes in "
+                                "the sample set.  "
+                                "This will NOT randomly sample kmers.  "
+                                "The kmers in the sample set "
+                                "may not be balanced."))
     p_sample.add_argument("--window_length", "-w", type=int,
                           help=("The window length to use when using "
                                 "thresholding."),
@@ -238,7 +247,7 @@ def main():
     sys.stderr.flush()
     mode = args.mode
     index_write_error = ("Something went wrong writing the index.  "
-                             "Check that the path is correct and writable.")
+                         "Check that the path is correct and writable.")
     if mode == "download":
         ret = run_ncbi(args)
         if ret == 0:
@@ -264,6 +273,8 @@ def main():
         from library.index import create_initial_index, update_index_root
         from library.index import ncbi
         index = {'taxids': defaultdict(dict), 'genomes': defaultdict(dict)}
+        index["select"] = {"strategy": "INIT",
+                           "sample_amount": None}
         try:
             write_ds(index, args.index)
         except IOError:
@@ -333,7 +344,8 @@ def main():
         from library.genome_selection.strategy import ProportionalRandom
         from library.genome_selection.strategy import QualitySortingTree
         from library.genome_selection.strategy import QualitySortingLeaf
-        from library.genome_selection.strategy import AllGenomes, MinHashTree
+        from library.genome_selection.strategy import AllGenomes
+        from library.genome_selection.strategy import GenomeHoldout
         from library.genome_selection.strategy import EXCLUDED_GENOMES
         from library.genome_selection.traversal import StrategyNotFound
         from library.genome_selection.traversal import TaxTreeTraversal
@@ -341,28 +353,30 @@ def main():
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         sample_amount = args.sample_amount
-        if sample_amount <= 0:
-            parser.error('The sample amount needs to be a positive non-zero '
-                         'integer.')
+        if not min(list(map(lambda x: x > 0, sample_amount))):
+            parser.error('The sample amount needs to be a positive integer.')
         if strategy_string == 'PR':
-            strategy = ProportionalRandom(index, sample_amount)
+            strategy = ProportionalRandom(index, sample_amount[0])
         elif strategy_string == 'QST':
-            strategy = QualitySortingTree(index, sample_amount)
+            strategy = QualitySortingTree(index, sample_amount[0])
         elif strategy_string == 'QSL':
-            strategy = QualitySortingLeaf(index, sample_amount)
-        elif strategy_string == 'MHT':
-            strategy = MinHashTree(index, sample_amount)
+            strategy = QualitySortingLeaf(index, sample_amount[0])
+        elif strategy_string == 'GH':
+            strategy = GenomeHoldout(index, sample_amount)
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
         else:
             raise StrategyNotFound()
+        index["select"] = {"strategy": strategy_string,
+                           "sample_amount": sample_amount}
         traversal = TaxTreeTraversal(tree, strategy)
         levels_visited = traversal.select_genomes(args.taxid)
         for accession in EXCLUDED_GENOMES:
             print("WARNING: {} excluded because {}.".format(
                 accession, EXCLUDED_GENOMES[accession]), file=sys.stderr)
         print("Levels visited: {}".format(levels_visited), file=sys.stderr)
-        print("Creating a pickled index.", file=sys.stderr)
+        print("Creating a pickled index at {}.".format(args.output),
+              file=sys.stderr)
         write_ds(index, args.output)
     elif mode == "sample":
         from library.sample import parallel_sample
@@ -378,9 +392,10 @@ def main():
         if end == -1:
             end = len(taxid_list)
         taxid_list = taxid_list[begin:end]
-        if not os.path.isdir(args.temp_dir) or not os.path.exists(args.temp_dir):
-            parser.error("The temporary directory could not be found or does not "
-                         "exist.")
+        if (not os.path.isdir(args.temp_dir) or not
+                os.path.exists(args.temp_dir)):
+            parser.error("The temporary directory could not be found "
+                         "or does not exist.")
         if args.prob < 0.0 or args.prob > 1.0:
             parser.error("The reverse complement probability {} "
                          "is not a valid probability.".format(args.prob))
@@ -390,7 +405,9 @@ def main():
                         args.split, args.split_amount,
                         args.processes,
                         args.include_wild,
-                        args.prob, args.thresholding,
+                        args.prob, 
+                        args.thresholding,
+                        args.chop,
                         args.window_length, args.amino_acid,
                         args.temp_dir,
                         args.verbose)

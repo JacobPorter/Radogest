@@ -1,12 +1,10 @@
-"""
-Make index.
-"""
+"""Make index."""
 
 import os
 import sys
 from tqdm import tqdm
 from ete3 import NCBITaxa
-from library.util import one_loop_stats, faidx_length 
+from library.util import one_loop_stats, faidx_length
 
 ncbi = NCBITaxa()
 
@@ -29,8 +27,8 @@ def process_fai(fai_file_fd):
         Otherwise, returns a dictionary of statistics.
 
     """
-    stat_dictionary = one_loop_stats(fai_file_fd, 
-                                     faidx_length, 
+    stat_dictionary = one_loop_stats(fai_file_fd,
+                                     faidx_length,
                                      prefix="contig_")
     if stat_dictionary["contig_count"] == 0:
         return None
@@ -42,7 +40,7 @@ def process_fai(fai_file_fd):
 #     else:
 #         return ({"contig_count": len(contig_lengths),
 #                  "base_length": sum(contig_lengths),
-#                  "contig_max": max(contig_lengths), 
+#                  "contig_max": max(contig_lengths),
 #                  "contig_min": min(contig_lengths),
 #                  "contig_avg": sum(contig_lengths) / len(contig_lengths)},
 #                  contig_lengths)
@@ -107,6 +105,7 @@ def update_index_path(root_directory, path, files, verbose=0):
         A 1 if an fai file was successfully found and a 0 otherwise.
         A dictionary of contig statistics.
         The length distribution of contigs.
+
     """
     for name in files:
         if name.endswith('.fai'):
@@ -137,9 +136,6 @@ def update_index_root(index, root_directory, verbose=0):
     int, index
         A count of the fasta files processed and the index.
 
-    Examples
-    --------
-
     """
     count = {"fai": 0}
     counter = 0
@@ -149,9 +145,9 @@ def update_index_root(index, root_directory, verbose=0):
         if counter % 5000 == 0 and verbose >= 1:
             sys.stderr.write("Processed: {}\n".format(counter))
             sys.stderr.flush()
-        number, contigs_dict = update_index_path(root_directory, 
-                                                 path, 
-                                                 files, 
+        number, contigs_dict = update_index_path(root_directory,
+                                                 path,
+                                                 files,
                                                  verbose=verbose)
         accession = os.path.basename(path)
         if number == 0:

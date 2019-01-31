@@ -15,6 +15,7 @@ import string
 import subprocess
 import sqlite3
 import tempfile
+import operator
 from multiprocessing import Pool
 from collections import defaultdict
 
@@ -22,9 +23,10 @@ from ete3 import NCBITaxa
 
 from SeqIterator.SeqIterator import SeqReader, SeqWriter
 from library.permute import randomly_permute_fasta_taxid
-from library.chop import split_genomes
+from library.chop import chop_genomes
 
 from config import BEDTOOLS
+from _ast import Or
 
 ncbi = NCBITaxa()
 
@@ -47,6 +49,9 @@ _WILDCARD_PERCENT_T = 0.70
 
 # The default probability of taking the reverse complement of a DNA sequence.
 _RC_PROB = 0.5
+
+_TRAIN = 1
+_TEST = 2
 
 # from config import GENOMES_NT, GENOMES_AA, GENOMES_CD
 
@@ -201,8 +206,9 @@ def binary_search(target, array, begin, end):
 
 
 def uniform_samples_at_rank(index, sublevels, genomes_dir,
-                            number, kmer_length,
-                            include_wild, amino_acid, temp_dir):
+                            number, kmer_length, 
+                            include_wild, amino_acid,
+                            temp_dir, include_list):
     """
     Get a count of samples from each genome under the taxids given by ranks.
 
@@ -239,7 +245,8 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
                                               kmer_length,
                                               include_wild,
                                               amino_acid,
-                                              temp_dir)]
+                                              temp_dir,
+                                              include_list)]
         my_sums = [index['genomes'][accession]['contig_sum']
                    for accession in my_accessions]
         if my_accessions:
@@ -262,7 +269,8 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
 
 def include_accession(accession, taxid, index, genomes_dir,
                       kmer_length, include_wild,
-                      amino_acid, temp_dir):
+                      amino_acid, temp_dir="/localscratch", 
+                      include_list=[True]):
     """
     Determine whether to include a genome in the sampling
 
@@ -287,7 +295,7 @@ def include_accession(accession, taxid, index, genomes_dir,
         Return False if the genome should not be included.
 
     """
-    if not index['taxids'][taxid][accession]:
+    if not index['taxids'][taxid][accession] in include_list:
         return False
     mean = index['genomes'][accession]['contig_mean']
     std = index['genomes'][accession]['contig_std']
@@ -427,8 +435,10 @@ def file_locations(accession, genomes_dir, index, temp_dir):
 
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
-              output, taxid_file, include_wild=False,
-              window_length=50, thresholding=False, amino_acid=False,
+              output, taxid_file, include_wild=False, 
+              window_length=50, verbose=False,
+              thresholding=False, chop=False,
+              amino_acid=False,
               temp_dir='/localscratch/', verbose=0):
     """
     Save randomly sampled sequences in a fasta file written to output.
@@ -481,10 +491,10 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                  format(taxid, accession))
             # A thresholding feature.  If the genome is too small, use the
             # whole genome.
-            if thresholding and accession_counts[accession] > float(
-                index['genomes'][accession]['contig_sum']) / length:
-                records_written = split_genomes([accession], length,
-                                                index, genomes_dir,
+            if (thresholding and accession_counts[accession] > float(
+                index['genomes'][accession]['contig_sum']) / length) or chop:
+                records_written = chop_genomes([accession], length,
+                                                index, genomes_dir, 
                                                 final_file,
                                                 include_wild=include_wild,
                                                 window_length=window_length)
@@ -626,9 +636,65 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                number, length, data_dir,
                split=True, split_amount='0.8,0.1,0.1',
                include_wild=False,
-               prob=_RC_PROB, thresholding=False, window_length=50,
-               amino_acid=False, temp_dir="/localscratch/",
-               verbose=0):
+               prob=_RC_PROB, 
+               thresholding=False, 
+               chop=False,
+               window_length=50,
+               amino_acid=False, temp_dir="/localscratch/"):
+    index = pickle.load(open(index_dir, 'rb'))
+    try: 
+        strategy = index['select']['strategy']
+    except KeyError:
+        strategy = None
+    print("The index selection strategy is {}".format(strategy), file=sys.stderr)
+    if strategy == "GH":
+        print("Getting the testing data with genome holdout.", 
+              file=sys.stderr)
+        test_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
+                                       number, length, data_dir,
+                                       split=False, split_amount=split_amount,
+                                       include_wild=include_wild, prob=prob,
+                                       thresholding=thresholding,
+                                       chop=chop,
+                                       window_length=window_length,
+                                       amino_acid=amino_acid, 
+                                       temp_dir=temp_dir,
+                                       include_list=[_TEST])
+        shutil.move(os.path.join(data_dir, str(taxid), "train"), 
+                    os.path.join(data_dir, str(taxid), "test"))
+        print("Getting the training data with genome holdout.", 
+              file=sys.stderr)
+        train_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
+                                        number, length, data_dir,
+                                        split=False, 
+                                        split_amount=split_amount,
+                                        include_wild=include_wild, prob=prob,
+                                        thresholding=thresholding,
+                                        chop=chop,
+                                        window_length=window_length,
+                                        amino_acid=amino_acid, 
+                                        temp_dir=temp_dir,
+                                        include_list=[_TRAIN])
+        return tuple(map(operator.add, test_count, train_count))
+    else:
+        return get_sample_worker(taxid, sublevels, index, genomes_dir,
+                                 number, length, data_dir,
+                                 split=split, split_amount=split_amount, 
+                                 include_wild=include_wild, prob=prob, 
+                                 thresholding=thresholding, 
+                                 chop=chop,
+                                 window_length=window_length,
+                                 amino_acid=amino_acid, temp_dir=temp_dir)
+        
+
+def get_sample_worker(taxid, sublevels, index, genomes_dir,
+                      number, length, data_dir,
+                      split=True, split_amount='0.8,0.1,0.1', 
+                      include_wild=False,
+                      prob=_RC_PROB, thresholding=False, chop=False,
+                      window_length=50,
+                      amino_acid=False, temp_dir="/localscratch/",
+                      include_list=[True]):
     """
     Get a random sample.  Create training, validation, and testing data sets
     and put them in the appropriate folders.
@@ -664,13 +730,12 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
         A tuple of fasta records sampled and permuted records written.
 
     """
-    index = pickle.load(open(index_dir, 'rb'))
     print("Determining accessions to sample from.", file=sys.stderr)
     sys.stderr.flush()
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
-                                               number, length,
-                                               include_wild, amino_acid,
-                                               temp_dir)
+                                               number, length, 
+                                               include_wild, amino_acid, 
+                                               temp_dir, include_list)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return (0, 0)
@@ -686,6 +751,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                     window_length=window_length,
                                     temp_dir=temp_dir,
                                     thresholding=thresholding,
+                                    chop=chop,
                                     amino_acid=amino_acid,
                                     verbose=verbose)
     fasta_file.close()
@@ -748,39 +814,12 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
         os.remove(taxid_path)
     return fasta_records_count, permute_count
 
-
-def create_directories(data_dir):
-    """
-    Create directories to put the data if they do not exist.
-
-    Parameters
-    ----------
-    data_dir: str
-        A path to the top level of the directory to put the data.
-
-    Returns
-    -------
-    None
-
-    """
-    # ranks = ["superkingdom", "kingdom", "phylum",
-    #         "class", "order", "family", "genus"]
-    # data_sets = ["train", "test", "validate"]
-    # for rank in ranks:
-    # for data_set in data_sets:
-    #     path = os.path.join(data_dir, rank, data_set)
-    #     if not os.path.exists(path):
-    #         try:
-    #             os.makedirs(path)
-    #         except OSError as e:
-    #             if e.errno != errno.EEXIST:
-    #                 raise
-
-
+  
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
-                    data_dir, split, split_amount, processes,
-                    include_wild=False, prob=_RC_PROB,
-                    thresholding=False, window_length=100,
+                    data_dir, split, split_amount, processes, 
+                    include_wild=False, prob=_RC_PROB, 
+                    thresholding=False, chop=False,
+                    window_length=100, 
                     amino_acid=False, temp_dir="/localscratch/",
                     verbose=0):
     """
@@ -838,6 +877,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                                                        include_wild,
                                                        prob,
                                                        thresholding,
+                                                       chop,
                                                        window_length,
                                                        amino_acid,
                                                        temp_dir,

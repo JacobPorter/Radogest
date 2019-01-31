@@ -12,7 +12,7 @@ from SeqIterator.SeqIterator import SeqReader, SeqWriter
 # from config import GENOMES_NT, GENOMES_AA, GENOMES_CD
 
 
-def split_genomes(accessions_list, 
+def chop_genomes(accessions_list, 
                   length, 
                   index, 
                   genomes_dir, 
