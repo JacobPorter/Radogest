@@ -6,7 +6,7 @@ Radogest: random genome sampler for trees.
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.
+# TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.  Handle case where a taxid has only one genome?  See 8892 for vertebrate refseq data.
 # TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
 # TODO: Add better parallelism to sampling, index creation.  PySpark?  Process pool?
@@ -184,6 +184,12 @@ def main():
                                 "file, chop up the fasta file rather than "
                                 "randomly sample from it."),
                           action='store_true', default=False)
+    p_sample.add_argument("--chop", "-c", action="store_true", default=False,
+                          help=("Chop up the set of genomes in "
+                                "the sample set.  "
+                                "This will NOT randomly sample kmers.  "
+                                "The kmers in the sample set "
+                                "may not be balanced."))
     p_sample.add_argument("--window_length", "-w", type=int,
                           help=("The window length to use when using "
                                 "thresholding."),
@@ -391,7 +397,9 @@ def main():
                         args.split, args.split_amount,
                         args.processes,
                         args.include_wild,
-                        args.prob, args.thresholding,
+                        args.prob, 
+                        args.thresholding,
+                        args.chop,
                         args.window_length, args.amino_acid,
                         args.temp_dir)
 #     elif mode == "permute":
