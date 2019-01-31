@@ -649,7 +649,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     except KeyError:
         strategy = None
     print("The index selection strategy is {}".format(strategy), file=sys.stderr)
-    if strategy == "GH":
+    if strategy.startswith("GH"):
         print("Getting the testing data with genome holdout.", 
               file=sys.stderr)
         test_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
