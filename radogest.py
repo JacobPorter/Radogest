@@ -142,7 +142,12 @@ def main():
     p_select.add_argument('--sample_amount', '-n', nargs='+', type=int,
                           help=('The number of genomes '
                                 'to sample at each level. '
-                                'Does not apply to AllGenomes.'),
+                                'Does not apply to AllGenomes.  '
+                                'Genome holdout requires '
+                                'two sample amounts.  '
+                                'The first one for training '
+                                'data, and the second one for '
+                                'testing data.'),
                           default=[10])
     p_select.add_argument('--output', '-o', type=str,
                           help=('The location to store the index with '
@@ -362,6 +367,11 @@ def main():
         elif strategy_string == 'QSL':
             strategy = QualitySortingLeaf(index, sample_amount[0])
         elif strategy_string == 'GH':
+            if len(sample_amount) != 2:
+                p_select.error("There must be two and only two sample amounts "
+                               "when using the genome holdout strategy: "
+                               "The first for the training set, "
+                               "the second for the testing set.")
             strategy = GenomeHoldout(index, sample_amount)
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
