@@ -433,7 +433,7 @@ class AllGenomes(GenomeSelection):
 
 class GenomeHoldout(GenomeSelection):
     """
-    Include whole genomes into separate train, validate, and test data sets.
+    Include whole genomes into separate train and test data sets.
     """
 
     def __init__(self, index, sample_number):
@@ -457,6 +457,14 @@ class GenomeHoldout(GenomeSelection):
         # 3 means train, test, and validate.  (May not work well.)
         self.num_categories = 2
         self.set_all_genomes(boolean=0)
+
+
+class GenomeHoldoutLeaf(GenomeHoldout):
+    """
+    Include whole genomes into separate train and test data sets.
+    Down select only at leaves and propagate the selected genomes up the tree.
+    """
+
 
     def sample(self, parent, children):
         """
@@ -488,7 +496,6 @@ class GenomeHoldout(GenomeSelection):
                             'taxids'][child][accession]
                         samples += 1
         else:
-            samples = 0
             include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
             my_genomes = genome_sort(include, self.index)
@@ -500,6 +507,62 @@ class GenomeHoldout(GenomeSelection):
                 samples += 1
             self.sample_type = (self.sample_type + 1) % self.num_categories
         return samples
+
+
+class GenomeHoldoutTree(GenomeHoldout):
+    """
+    Include whole genomes into separate train and test data sets.
+    Down select genomes at each level of the tree.
+    """
+
+
+    def sample(self, parent, children):
+        """
+        Alternately choose species for the 
+        train, validate, and test data sets.
+
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+
+        Returns
+        -------
+        samples: int
+            The number of genomes sampled.
+
+        """
+        samples = 0
+        if children: # Inner node
+            for i in range(self.num_categories):
+                my_category = i + 1
+                children_genomes = []
+                for child in children:
+                    include, _ = filter_genomes(self.index['taxids'][child].keys(),
+                                                self.index)
+                    include = [accession for accession in include 
+                               if self.index['taxids'][child][accession] == 
+                               my_category]
+                    child_genomes = genome_sort(include, self.index)
+                    children_genomes.append(child_genomes)
+                my_genomes = select_equal(children_genomes, self.sample_number[i])
+                for accession in my_genomes:
+                    self.index['taxids'][parent][accession] = my_category
+        else: # Leaf node
+            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                        self.index)
+            my_genomes = genome_sort(include, self.index)
+            for accession in my_genomes:
+                if samples >= self.sample_number[self.sample_type]:
+                    break
+                self.index['taxids'][parent][accession] = self.sample_type + 1
+                samples += 1
+            self.sample_type = (self.sample_type + 1) % self.num_categories
+        return samples    
+
 
 
 class MinHashTree(GenomeSelection):

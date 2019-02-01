@@ -13,12 +13,13 @@ from SeqIterator.SeqIterator import SeqReader, SeqWriter
 
 
 def chop_genomes(accessions_list, 
-                  length, 
-                  index, 
-                  genomes_dir, 
-                  output,
-                  include_wild=False, 
-                  window_length=50):
+                 length, 
+                 index, 
+                 genomes_dir, 
+                 taxid,
+                 output,
+                 include_wild=False, 
+                 window_length=50):
     """
     Partition the DNA strings in a list of genomes and write to a fasta file.
 
@@ -68,7 +69,8 @@ def chop_genomes(accessions_list,
                 substring = sequence[i:i+length].upper()
                 if (len(substring) == length and (
                         include_wild or 'N' not in substring)):
-                    writer.write(("{}_{}_[{}:{}]".format(
-                        accession, header, i, i+length), substring))
+                    writer.write(("{}:{}:{}:{}-{}".format(
+                        accession, taxid, header.split()[0], 
+                        i, i+length), substring))
                     number_written += 1
     return number_written

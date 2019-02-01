@@ -26,7 +26,6 @@ from library.permute import randomly_permute_fasta_taxid
 from library.chop import chop_genomes
 
 from config import BEDTOOLS
-from _ast import Or
 
 ncbi = NCBITaxa()
 
@@ -495,6 +494,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 index['genomes'][accession]['contig_sum']) / length) or chop:
                 records_written = chop_genomes([accession], length,
                                                 index, genomes_dir, 
+                                                taxid,
                                                 final_file,
                                                 include_wild=include_wild,
                                                 window_length=window_length)
@@ -600,7 +600,8 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
         subprocess.run([BEDTOOLS + "bedtools", "getfasta", "-fi",
                         fasta_location, "-bed", bedtools_file],
                         stdout=my_fasta_fd)
-        intermediate_fasta_file = SeqReader(my_fasta_fd.name, file_type='fasta')
+        intermediate_fasta_file = SeqReader(my_fasta_fd.name, 
+                                            file_type='fasta')
         records_with_n = 0
         records_written = 0
         for fasta_record in intermediate_fasta_file:
@@ -649,7 +650,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     except KeyError:
         strategy = None
     print("The index selection strategy is {}".format(strategy), file=sys.stderr)
-    if strategy == "GH":
+    if strategy.startswith("GH"):
         print("Getting the testing data with genome holdout.", 
               file=sys.stderr)
         test_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
