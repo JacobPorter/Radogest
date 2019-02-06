@@ -236,18 +236,21 @@ def main():
                           default=16)
     p_sample.add_argument(*verbose.args, **verbose.kwargs)
 #     p_permute = subparsers.add_parser("permute",
-#                                       help=("Permutes a fasta file "
-#                                             "and writes it to stdout"),
-#                                       formatter_class=argparse.
-#                                       ArgumentDefaultsHelpFormatter)
-#     p_permute.add_argument(*fasta.args, **fasta.kwargs)
+#                                            help=("Permutes a fasta file "
+#                                                  "and writes it to stdout"),
+#                                            formatter_class=argparse.
+#                                            ArgumentDefaultsHelpFormatter)
+#     p_split = subparsers.add_parser("split",
+#                                     help=("Split a fasta file "
+#                                           "and a taxid file."),
+#                                     formatter_class=argparse.
+#                                     ArgumentDefaultsHelpFormatter)
 #     p_chop = subparsers.add_parser("chop",
 #                                    help=("Chop a complete genome "
 #                                          "into kmers and writes it "
 #                                          "to stdout."),
 #                                    formatter_class=argparse.
 #                                    ArgumentDefaultsHelpFormatter)
-#     p_chop.add_argument(*fasta.args, **fasta.kwargs)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
