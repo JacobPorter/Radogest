@@ -9,8 +9,88 @@ import sys
 import os
 from SeqIterator.SeqIterator import SeqReader, SeqWriter
 
-# from config import GENOMES_NT, GENOMES_AA, GENOMES_CD
 
+def chop_a_genome(location,
+                  accession,
+                  length,
+                  taxid,
+                  writer,
+                  include_wild=False,
+                  window_length=50):
+    """
+    Cut up a single genome into kmers.
+    
+    Parameters
+    ----------
+    location: str
+        The location of a fasta file.
+    accession: str
+        The accession id of a genome in the genomes directory.
+    length: int
+        The length of the kmer to get.
+    taxid: int
+        The taxid to use for the fasta record.
+    writer: SeqWriter
+        The SeqWriter object to write fasta records to.
+    include_wild: boolean
+        Determines whether to include kmers with wildcard characters.
+    window_length: int
+        The amount to slide the window when taking kmers.
+    
+    
+    Returns
+    -------
+    int
+        The number of records written.
+
+    """
+    number_written = 0
+    only_files = [f for f in os.listdir(location) if
+                      os.path.isfile(os.path.join(location, f))
+                      and f.endswith('fna')]
+    if len(only_files) == 0:
+        print("Skipping {}.  Fasta file not found.".format(accession),
+              file=sys.stderr)
+        return 0
+    location = os.path.join(location, only_files[0])
+    reader = SeqReader(location, file_type='fasta')
+    for header, sequence in reader:
+        for i in range(0, len(sequence), window_length):
+            substring = sequence[i:i+length].upper()
+            if (len(substring) == length and (
+                    include_wild or 'N' not in substring)):
+                writer.write(("{}:{}:{}:{}-{}".format(
+                    accession, taxid, header.split()[0], 
+                    i, i+length), substring))
+                number_written += 1
+    return number_written
+
+
+def get_output_writer(output):
+    """
+    Get a SeqWriter object.
+    
+    Parameters
+    ----------
+    output: str, sys.stdout
+        The type of writable object to use.  
+        Either a file location or sys.stdout.
+    
+    Returns
+    -------
+    A SeqWriter object.
+    """
+    if isinstance(output, str):
+        if not output:
+            output = sys.stdout
+        else:
+            output = open(output, 'w')
+    if isinstance(output, SeqWriter):
+        writer = output
+    else:
+        writer = SeqWriter(output, file_type='fasta')
+    return writer
+    
 
 def chop_genomes(accessions_list, 
                  length, 
@@ -31,9 +111,17 @@ def chop_genomes(accessions_list,
         The length of the partition to take.
     index: dict
         The genomes index.
+    genomes_dir: str
+        The location of the genomes storage.
+    taxid: int
+        The taxid to use for the fasta record.
     output: str or writable
         The location of the output file as a string path or a writable object.
-
+    include_wild: boolean
+        Determines whether to include kmers with wildcard characters.
+    window_length: int
+        The amount to slide the window when taking kmers.
+    
     Returns
     -------
     int
@@ -42,35 +130,16 @@ def chop_genomes(accessions_list,
     """
     if window_length < 0:
         window_length = length
-    if isinstance(output, str):
-        if not output:
-            output = sys.stdout
-        else:
-            output = open(output, 'w')
-    if isinstance(output, SeqWriter):
-        writer = output
-    else:
-        writer = SeqWriter(output, file_type='fasta')
+    writer = get_output_writer(output)
     number_written = 0
     for accession in accessions_list:
         location = genomes_dir + index['genomes'][accession]['location']
         # print(location, file=sys.stderr)
-        only_files = [f for f in os.listdir(location) if
-                      os.path.isfile(os.path.join(location, f))
-                      and f.endswith('fna')]
-        if len(only_files) == 0:
-            print("Skipping {}.  Fasta file not found.".format(accession),
-                  file=sys.stderr)
-            continue
-        location = os.path.join(location, only_files[0])
-        reader = SeqReader(location, file_type='fasta')
-        for header, sequence in reader:
-            for i in range(0, len(sequence), window_length):
-                substring = sequence[i:i+length].upper()
-                if (len(substring) == length and (
-                        include_wild or 'N' not in substring)):
-                    writer.write(("{}:{}:{}:{}-{}".format(
-                        accession, taxid, header.split()[0], 
-                        i, i+length), substring))
-                    number_written += 1
+        number_written += chop_a_genome(location,
+                                        accession,
+                                        length, 
+                                        taxid, 
+                                        writer,
+                                        include_wild=include_wild,
+                                        window_length=window_length)
     return number_written

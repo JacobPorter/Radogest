@@ -7,12 +7,10 @@ Radogest: random genome sampler for trees.
 """
 
 
-# TODO: Get a set of maximally distant genomes as a sampling strategy.  Per Andrew.  Handle case where a taxid has only one genome?  See 8892 for vertebrate refseq data.
-# TODO: Provide annotation mapping (Coding domain, etc. info from gbff file)?
-# TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
 # TODO: Add better parallelism to sampling, index creation.  PySpark?  Process pool?
-# TODO: Add utility commands?  permute, split, chop, reverse_complement.
+# TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
 # TODO: When finished with code, check and update comments and README documentation.
+# TODO: Determine license issues, notices, etc.  Need to indicate on ncbi-genome-download that the files were modified.
 # TODO: Write and submit a paper.
 
 import argparse
@@ -79,6 +77,34 @@ def main():
                                 action='store_true',
                                 help="Leave gzip files compressed.",
                                 default=False)
+    window_length = ArgClass("--window_length", "-w", type=int,
+                             help=("The window length to use when using "
+                                "thresholding."),
+                             default=50)
+    kmer_size = ArgClass("--kmer_size", "-k", type=int,
+                         help=("The length in base pairs i "
+                               "of the kmers to take."),
+                         default=100)
+    split = ArgClass("--split",
+                     help=("If set, splits the data into "
+                           "training, test sets, etc."),
+                     action='store_true', default=False)
+    split_amount = ArgClass("--split_amount", "-s", type=str,
+                            help=("A comma seperated list of "
+                                  "three percentages.  "
+                                  "The percentages to split the data into "
+                                  "for training, validation, and test sets."),
+                          default="0.8,0.10,0.10")
+    include_wild = ArgClass("--include_wild", "-x",
+                            help=("Include wild card characters "
+                                  "in the samples.  "
+                                  "When this is not used, samples with "
+                                  "wild card characters will be discarded."),
+                          action='store_true', default=False)
+    prob = ArgClass("--prob", "-b", type=float,
+                    help=("The probability that a sequence will be "
+                          "converted to the reverse complement."),
+                    default=0.5)
 #     fasta = ArgClass("fasta", type=str,
 #                      help="The location of a fasta file.")
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
@@ -169,10 +195,7 @@ def main():
     p_sample.add_argument(*index.args, **index.kwargs)
     p_sample.add_argument(*tree.args, **tree.kwargs)
     p_sample.add_argument(*genomes.args, **genomes.kwargs)
-    p_sample.add_argument("--kmer_size", "-k", type=int,
-                          help=("The length in base pairs i "
-                                "of the kmers to take."),
-                          default=100)
+    p_sample.add_argument(*kmer_size.args, **kmer_size.kwargs)
     p_sample.add_argument("--number", "-n", type=int,
                           help=("The number of samples to take."),
                           default=3200000)
@@ -183,12 +206,6 @@ def main():
                                 "compute nodes using the same taxid file.  "
                                 "Use -1 to denote the end of the file. "),
                           default=[0, -1])
-    p_sample.add_argument("--include_wild", "-x",
-                          help=("Include wild card characters "
-                                "in the samples.  "
-                                "When this is not used, samples with "
-                                "wild card characters will be discarded."),
-                          action='store_true', default=False)
     p_sample.add_argument("--thresholding", "-m",
                           help=("If the number of kmers requested is larger "
                                 "than the number of kmers in the fasta "
@@ -201,23 +218,10 @@ def main():
                                 "This will NOT randomly sample kmers.  "
                                 "The kmers in the sample set "
                                 "may not be balanced."))
-    p_sample.add_argument("--window_length", "-w", type=int,
-                          help=("The window length to use when using "
-                                "thresholding."),
-                          default=50)
-    p_sample.add_argument("--split",
-                          help=("If set, splits the data into "
-                                "training, test sets, etc."),
-                          action='store_true', default=False)
-    p_sample.add_argument("--split_amount", "-s", type=str,
-                          help=("A comma seperated list of three percentages."
-                                "The percentages to split the data into "
-                                "for training, validation, and test sets."),
-                          default="0.8,0.10,0.10")
-    p_sample.add_argument("--prob", "-b", type=float,
-                        help=("The probability that a sequence will be "
-                              "converted to the reverse complement."),
-                        default=0.5)
+    p_sample.add_argument(*window_length.args, **window_length.kwargs)
+    p_sample.add_argument(*split.args, **split.kwargs)
+    p_sample.add_argument(*include_wild.args, **include_wild.kwargs)
+    p_sample.add_argument(*prob.args, **prob.kwargs)
     p_sample.add_argument("--amino_acid", "-a", action="store_true",
                           help=("Turn this switch on when sampling amino "
                                 "acids."),
@@ -235,22 +239,64 @@ def main():
                           help=("The number of processes to use."),
                           default=16)
     p_sample.add_argument(*verbose.args, **verbose.kwargs)
-#     p_permute = subparsers.add_parser("permute",
-#                                            help=("Permutes a fasta file "
-#                                                  "and writes it to stdout"),
-#                                            formatter_class=argparse.
-#                                            ArgumentDefaultsHelpFormatter)
+    input_fasta = ArgClass("input_fasta", type=str,
+                           help=("The input fasta file."))
+    input_taxid = ArgClass("input_taxid", type=str,
+                           help=("The input taxid file."))
+    output_fasta = ArgClass("output_fasta", type=str,
+                            help=("The output fasta file."))
+    output_taxid = ArgClass("output_taxid", type=str,
+                            help=("The output taxid file."))
+    p_permute = subparsers.add_parser("util_permute",
+                                           help=("Permute a fasta file "
+                                                 "and a taxid file."),
+                                           formatter_class=argparse.
+                                           ArgumentDefaultsHelpFormatter)
+    p_permute.add_argument(*input_fasta.args, **input_fasta.kwargs)
+    p_permute.add_argument(*input_taxid.args, **input_taxid.kwargs)
+    p_permute.add_argument(*output_fasta.args, **output_fasta.kwargs)
+    p_permute.add_argument(*output_taxid.args, **output_taxid.kwargs)
+    p_permute.add_argument(*split.args, **split.kwargs)
+    p_permute.add_argument(*split_amount.args, **split_amount.kwargs)
 #     p_split = subparsers.add_parser("split",
 #                                     help=("Split a fasta file "
 #                                           "and a taxid file."),
 #                                     formatter_class=argparse.
 #                                     ArgumentDefaultsHelpFormatter)
-#     p_chop = subparsers.add_parser("chop",
-#                                    help=("Chop a complete genome "
-#                                          "into kmers and writes it "
-#                                          "to stdout."),
-#                                    formatter_class=argparse.
-#                                    ArgumentDefaultsHelpFormatter)
+#     p_split.add_argument(*input_fasta.args, **input_fasta.kwargs)
+#     p_split.add_argument(*input_taxid.args, **input_taxid.kwargs)
+#     p_split.add_argument(*output_fasta.args, **output_fasta.kwargs)
+#     p_split.add_argument(*output_taxid.args, **output_taxid.kwargs)
+    p_chop = subparsers.add_parser("util_chop",
+                                   help=("Chop a complete genome "
+                                         "into kmers and write it out"),
+                                   formatter_class=argparse.
+                                   ArgumentDefaultsHelpFormatter)
+    # accession, taxid, output, index, genomes_dir, kmer, include_wild, window_length
+    p_chop.add_argument("taxid", type=int,
+                        help=("The taxonomic id to include in the "
+                              "fasta record id."))
+    p_chop.add_argument(*output_fasta.args, **output_fasta.kwargs)
+    p_chop.add_argument("accessions", type=str, nargs='+',
+                        help=("The accession id of the genome."))
+    p_chop.add_argument(*index.args, **index.kwargs)
+    p_chop.add_argument(*genomes.args, **genomes.kwargs)
+    p_chop.add_argument(*kmer_size.args, **kmer_size.kwargs)
+    p_chop.add_argument(*include_wild.args, **include_wild.kwargs)
+    p_chop.add_argument(*window_length.args, **window_length.kwargs)
+    p_rc = subparsers.add_parser("util_rc",
+                                 help=("Randomly take the reverse "
+                                       "complement of DNA sequences "
+                                       "in a fasta file."),
+                                 formatter_class=argparse.
+                                 ArgumentDefaultsHelpFormatter)
+    p_rc.add_argument(*input_fasta.args, **input_fasta.kwargs)
+    p_rc.add_argument(*output_fasta.args, **output_fasta.kwargs)
+    p_rc.add_argument("--exclude_wild", "-x", action="store_true",
+                      help=("Remove DNA sequences with wildcard characters."),
+                      default=False)
+    p_rc.add_argument(*prob.args, **prob.kwargs)
+    p_rc.add_argument(*verbose.args, **verbose.kwargs)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -429,10 +475,39 @@ def main():
                         args.window_length, args.amino_acid,
                         args.temp_dir,
                         args.verbose)
-#     elif mode == "permute":
-#         pass
-#     elif mode == "chop":
-#         pass
+    elif mode == "util_permute":
+        from library.permute import randomly_permute_fasta_taxid
+        permute_count = randomly_permute_fasta_taxid(args.input_fasta, 
+                                                     args.input_taxid,
+                                                     args.output_fasta,
+                                                     args.output_taxid,
+                                                     split=args.split, 
+                                                     split_amount=
+                                                     args.split_amount)
+        print("There were {} records written.".format(permute_count), 
+              file=sys.stderr)
+    elif mode == "util_chop":
+        from library.chop import chop_genomes
+        index = read_ds(args.index)
+        number_written = chop_genomes(args.accessions, 
+                                      args.kmer_size, 
+                                      index, 
+                                      args.genomes, 
+                                      args.taxid,
+                                      args.output_fasta,
+                                      args.include_wild, 
+                                      args.window_length)
+        print("There were {} records written.".format(number_written), 
+              file=sys.stderr)
+    elif mode == "util_rc":  # reverse complement 
+        from library.sample import get_rc_fasta
+        read_counter, write_counter = get_rc_fasta(args.input_fasta,
+                                                   args.output_fasta,
+                                                   prob=args.prob,
+                                                   remove=args.exclude_wild,
+                                                   verbose=args.verbose)
+        print("There were {} records read and {} records written.".format(
+            read_counter, write_counter), file=sys.stderr)
     else:
         parser.print_usage()
         print("There was no command specified.", file=sys.stderr)
