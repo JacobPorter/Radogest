@@ -10,7 +10,7 @@ Radogest: random genome sampler for trees.
 # TODO: Add better parallelism to sampling, index creation.  PySpark?  Process pool?
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
 # TODO: When finished with code, check and update comments and README documentation.
-# TODO: Determine license issues, notices, etc.
+# TODO: Determine license issues, notices, etc.  Need to indicate on ncbi-genome-download that the files were modified.
 # TODO: Write and submit a paper.
 
 import argparse
@@ -101,6 +101,10 @@ def main():
                                   "When this is not used, samples with "
                                   "wild card characters will be discarded."),
                           action='store_true', default=False)
+    prob = ArgClass("--prob", "-b", type=float,
+                    help=("The probability that a sequence will be "
+                          "converted to the reverse complement."),
+                    default=0.5)
 #     fasta = ArgClass("fasta", type=str,
 #                      help="The location of a fasta file.")
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
@@ -217,10 +221,7 @@ def main():
     p_sample.add_argument(*window_length.args, **window_length.kwargs)
     p_sample.add_argument(*split.args, **split.kwargs)
     p_sample.add_argument(*include_wild.args, **include_wild.kwargs)
-    p_sample.add_argument("--prob", "-b", type=float,
-                        help=("The probability that a sequence will be "
-                              "converted to the reverse complement."),
-                        default=0.5)
+    p_sample.add_argument(*prob.args, **prob.kwargs)
     p_sample.add_argument("--amino_acid", "-a", action="store_true",
                           help=("Turn this switch on when sampling amino "
                                 "acids."),
@@ -283,6 +284,19 @@ def main():
     p_chop.add_argument(*kmer_size.args, **kmer_size.kwargs)
     p_chop.add_argument(*include_wild.args, **include_wild.kwargs)
     p_chop.add_argument(*window_length.args, **window_length.kwargs)
+    p_rc = subparsers.add_parser("util_rc",
+                                 help=("Randomly take the reverse "
+                                       "complement of DNA sequences "
+                                       "in a fasta file."),
+                                 formatter_class=argparse.
+                                 ArgumentDefaultsHelpFormatter)
+    p_rc.add_argument(*input_fasta.args, **input_fasta.kwargs)
+    p_rc.add_argument(*output_fasta.args, **output_fasta.kwargs)
+    p_rc.add_argument("--exclude_wild", "-x", action="store_true",
+                      help=("Remove DNA sequences with wildcard characters."),
+                      default=False)
+    p_rc.add_argument(*prob.args, **prob.kwargs)
+    p_rc.add_argument(*verbose.args, **verbose.kwargs)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -485,6 +499,15 @@ def main():
                                       args.window_length)
         print("There were {} records written.".format(number_written), 
               file=sys.stderr)
+    elif mode == "util_rc":  # reverse complement 
+        from library.sample import get_rc_fasta
+        read_counter, write_counter = get_rc_fasta(args.input_fasta,
+                                                   args.output_fasta,
+                                                   prob=args.prob,
+                                                   remove=args.exclude_wild,
+                                                   verbose=args.verbose)
+        print("There were {} records read and {} records written.".format(
+            read_counter, write_counter), file=sys.stderr)
     else:
         parser.print_usage()
         print("There was no command specified.", file=sys.stderr)
