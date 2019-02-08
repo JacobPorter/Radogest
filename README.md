@@ -1,15 +1,17 @@
 # Radogest: random genome sampler for trees
-This is a random sampler for selecting fixed length nucleotide substrings from a taxonomic tree of genomes.  
+Radogest randomly samples fixed length nucleotide substrings (kmers) for given taxonomic ids from a data store of genomes downloaded from the National Center for Biotechnology Information (NCBI).  There is support for whole genomes, coding domain nucleotide data, and amino acid data.  Radogest is useful for generating kmers to train and analyze metagenomic classifiers, and it labels each kmer sampled with the taxonomic id that it represents.  Radogest can generate data for any NCBI taxonomic id that is present in NCBI that is of a conventional rank.  Conventional ranks include superkingdom, kingdom, phylum, class, order, genus, species. 
 
-It requires Python 3 and ete3.  This requires downloading samtools and BED tools.
 
 ## Install Radogest
 
+Radogest source can be found on github.  It requires the SeqIterator submodule, which can be downloaded at the same time with recursion.
+
+
 ```
-git clone ....
-git submodule init
-git submodule update
+git --recurse-submodules clone ...
 ```
+
+It is written in Python 3, and it requires the Python packages ete3, tqdm, appdirs, and requests.  Radogest requires installing SAMtools (https://github.com/samtools/samtools) and bedtools (https://bedtools.readthedocs.io/en/latest/).  SAMtools is used to generate fasta files, and bedtools is used to generate the locations of randomly drawn kmers.  The location where SAMtools and bedtools are stored can be documented in config.py.
 
 ## Important Files
 
@@ -47,10 +49,15 @@ Given a taxonomic id file and a fasta file, this creates up to three sets of ran
 
 Given a list of taxonomic ids, this can randomly sample DNA substrings for each taxonomic id in parallel using multiprocessing.
 
-## Other Files
+### util_permute
+Randomly permutes and optionally splits a fasta file and a taxid file.
 
-### SeqIterator.py and Constants.py
-A utility file for iterating through fasta files.  Used by other components.
+### util_chop
+Cuts up a genome into kmers based on a sliding window.  Outputs a fasta file.
+
+### util_rc
+Randomly applies the reverse complement to DNA sequences in a fasta file.  Outputs a new fasta file.
+
 
 ## Workflow
 
