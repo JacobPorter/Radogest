@@ -7,9 +7,7 @@ Genome selection strategies.
 
 import sys
 from random import shuffle
-# from ete3 import NCBITaxa
 
-# ncbi = NCBITaxa()
 
 EXCLUDED_GENOMES = {}
 
@@ -17,7 +15,6 @@ EXCLUDED_GENOMES = {}
 def filter_genomes(accessions, index):
     """
     Filter unwanted genomes.
-    Should genomes with unclassified in their lineage be excluded?
 
     Parameters
     ----------
@@ -56,7 +53,7 @@ def genome_sort(genomes, index):
     """
     Sort the genomes based on the quality of the assembly, etc.
     First, representative genomes are chosen.  This list is sorted by
-    assembly level and then in reverse order by the number of genomes
+    assembly level and then in reverse order by the number of bases
     divided by the number of contigs.  Second, the same is done for
     reference genomes.  Third, the same is done for all other genomes.
 
@@ -191,8 +188,8 @@ class GenomeSelection:
 
 class ProportionalRandom(GenomeSelection):
     """
-    For a given level in the taxonomy tree, sample a fixed number of genomes
-    proportional to the sublevel.
+    For a given level in the taxonomy tree, sample a random fixed number
+    of genomes at each level.
     """
 
     def __init__(self, index, sample_number):
@@ -263,7 +260,7 @@ class ProportionalRandom(GenomeSelection):
 class QualitySortingTree(GenomeSelection):
     """
     For a given level in the taxonomy tree, sample a fixed number of genomes
-    based on the quality of the genomes.
+    at each level based on the sorted quality of the genomes.
     """
 
     def __init__(self, index, sample_number):
@@ -408,7 +405,7 @@ class AllGenomes(GenomeSelection):
 
     def sample(self, parent, children):
         """
-        Set all genomes in the index to true.
+        Set all genomes in the index to true.  Filter out some genomes.
 
         Parameters
         ----------
@@ -432,9 +429,7 @@ class AllGenomes(GenomeSelection):
 
 
 class GenomeHoldout(GenomeSelection):
-    """
-    Include whole genomes into separate train and test data sets.
-    """
+    """Include whole genomes into separate train anid test data sets."""
 
     def __init__(self, index, sample_number):
         """
@@ -445,7 +440,7 @@ class GenomeHoldout(GenomeSelection):
         index: dict
             A dictionary representing the index of genomes.
         sample_number: dict
-            The number of genomes to include in test, validate, train 
+            The number of genomes to include in test and train
             to sample at each level.
 
         """
@@ -465,11 +460,9 @@ class GenomeHoldoutLeaf(GenomeHoldout):
     Down select only at leaves and propagate the selected genomes up the tree.
     """
 
-
     def sample(self, parent, children):
         """
-        Alternately choose species for the 
-        train, validate, and test data sets.
+        Alternately choose species for the train and test data sets.
 
         Parameters
         ----------
@@ -515,11 +508,9 @@ class GenomeHoldoutTree(GenomeHoldout):
     Down select genomes at each level of the tree.
     """
 
-
     def sample(self, parent, children):
         """
-        Alternately choose species for the 
-        train, validate, and test data sets.
+        Alternately choose species for the train and test data sets.
 
         Parameters
         ----------
@@ -536,22 +527,23 @@ class GenomeHoldoutTree(GenomeHoldout):
 
         """
         samples = 0
-        if children: # Inner node
+        if children:  # Inner node
             for i in range(self.num_categories):
                 my_category = i + 1
                 children_genomes = []
                 for child in children:
-                    include, _ = filter_genomes(self.index['taxids'][child].keys(),
-                                                self.index)
-                    include = [accession for accession in include 
-                               if self.index['taxids'][child][accession] == 
+                    include, _ = filter_genomes(self.index['taxids'][child].
+                                                keys(), self.index)
+                    include = [accession for accession in include
+                               if self.index['taxids'][child][accession] ==
                                my_category]
                     child_genomes = genome_sort(include, self.index)
                     children_genomes.append(child_genomes)
-                my_genomes = select_equal(children_genomes, self.sample_number[i])
+                my_genomes = select_equal(children_genomes,
+                                          self.sample_number[i])
                 for accession in my_genomes:
                     self.index['taxids'][parent][accession] = my_category
-        else: # Leaf node
+        else:  # Leaf node
             include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
             my_genomes = genome_sort(include, self.index)
@@ -561,8 +553,7 @@ class GenomeHoldoutTree(GenomeHoldout):
                 self.index['taxids'][parent][accession] = self.sample_type + 1
                 samples += 1
             self.sample_type = (self.sample_type + 1) % self.num_categories
-        return samples    
-
+        return samples
 
 
 class MinHashTree(GenomeSelection):

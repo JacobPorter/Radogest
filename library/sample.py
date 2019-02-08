@@ -1,6 +1,7 @@
 """
-Produces a fasta file of randomly chosen sequences corresponding to the
-given taxonomic id.
+Produces a fasta file of randomly chosen kmer sequences corresponding to the
+given taxonomic id(s).
+
 :Authors:
     Jacob Porter <jsporter@vt.edu>
 """
@@ -49,10 +50,10 @@ _WILDCARD_PERCENT_T = 0.70
 # The default probability of taking the reverse complement of a DNA sequence.
 _RC_PROB = 0.5
 
+# For the genome holdout selection strategy, these constants indicate
+# the data set that a genome will be in.
 _TRAIN = 1
 _TEST = 2
-
-# from config import GENOMES_NT, GENOMES_AA, GENOMES_CD
 
 # The reverse complement mapping.
 reverse_mapping_init = {"A": "T",
@@ -147,11 +148,13 @@ def get_rc_fasta(filename_input,
         reverse complement will be done.
     remove: boolean
         If True, remove sequences with N's in them.
+    verbose: int
+        Controls the verbosity.
 
     Returns
     -------
-    counter: int
-        A count of the records processed.
+    counter: int, int
+        A count of the records read and written.
 
     """
     input_iterator = SeqReader(filename_input, file_type="fasta")
@@ -174,7 +177,7 @@ def get_rc_fasta(filename_input,
 
 def binary_search(target, array, begin, end):
     """
-    Binary search
+    Perform a generic binary search for an array.
 
     Parameters
     ----------
@@ -205,7 +208,7 @@ def binary_search(target, array, begin, end):
 
 
 def uniform_samples_at_rank(index, sublevels, genomes_dir,
-                            number, kmer_length, 
+                            number, kmer_length,
                             include_wild, amino_acid,
                             temp_dir, include_list):
     """
@@ -218,13 +221,23 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         associations
     sublevels: iterable
         An iterable that gives ranks underneath taxid to sample from.
+    genomes_dir: str
+        The location of the directory where the genomes are stored.
     number: int
         The number of random sequences to sample.
     kmer_length: int
         The length of the kmer to sample.
     include_wild: boolean
         True if wildcard DNA characters are desired.  False otherwise.
-
+    amino_acid: boolean
+        Set to True if sampling amino acid data.
+    temp_dir: str
+        The location of a directory to write temporary files.
+    include_list: list
+        Determines the value from the genomes index that determines
+        if the genome will be included for consideration.  Ordinarily,
+        this will be set to [True], but for the genome holdout strategy,
+        it could be [1] or [2].
 
     Returns
     -------
@@ -268,7 +281,7 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
 
 def include_accession(accession, taxid, index, genomes_dir,
                       kmer_length, include_wild,
-                      amino_acid, temp_dir="/localscratch", 
+                      amino_acid, temp_dir="/localscratch",
                       include_list=[True]):
     """
     Determine whether to include a genome in the sampling
@@ -280,16 +293,28 @@ def include_accession(accession, taxid, index, genomes_dir,
     taxid: int
         The taxonomic id where sampling is desired.
         The taxid must be in the genome's species lineage.
+    genomes_dir: str
+        The location of the directory where the genomes are stored.
     index: dict
         The genomes index created
     kmer_length: int
         A positive integer representing the kmer length desired.
     include_wild: boolean
         True if wildcard DNA characters are desired.  False otherwise.
+    amino_acid: boolean
+        Set to True if sampling amino acid data.
+    temp_dir: str
+        The location of a directory to write temporary files.
+    include_list: list
+        Determines the value from the genomes index that determines
+        if the genome will be included for consideration.  Ordinarily,
+        this will be set to [True], but for the genome holdout strategy,
+        it could be [1] or [2].
+
 
     Returns
     -------
-    bool
+    boolean
         Return True if the genome should be included.
         Return False if the genome should not be included.
 
@@ -307,8 +332,9 @@ def include_accession(accession, taxid, index, genomes_dir,
     else:
         inside_std = kmer_length <= mx
     if (kmer_length > _WILDCARD_KMER_T and not include_wild
-        and not amino_acid and inside_std):
-        file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
+            and not amino_acid and inside_std):
+        file_locations_d = file_locations(accession, genomes_dir,
+                                          index, temp_dir)
         fai_location = file_locations_d["fai"]
         fasta_location = file_locations_d["fasta_location"]
         taxid_file = None
@@ -339,9 +365,9 @@ def uniform_samples(taxid, accession_sum, number):
     ----------
     taxid: int
         A taxonomic id number to query from
-    index: dict
-        A dictionary representing genome locations and genome taxid
-        associations
+    accession_sum: iterable
+        This data structure contains two items: a list of accessions
+        and a corresponding list of genome lengths.
     number: int
         The number of random sequences to sample.
 
@@ -406,7 +432,7 @@ def file_locations(accession, genomes_dir, index, temp_dir):
         string.ascii_letters + string.digits, k=12))
     my_fasta = os.path.join(temp_dir,
                             accession + "_" +
-                            rand_string +  "_random.fa")
+                            rand_string + "_random.fa")
     accession_location = os.path.join(genomes_dir +
                                       index['genomes']
                                       [accession]
@@ -434,7 +460,7 @@ def file_locations(accession, genomes_dir, index, temp_dir):
 
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
-              output, taxid_file, include_wild=False, 
+              output, taxid_file, include_wild=False,
               window_length=50,
               thresholding=False, chop=False,
               amino_acid=False,
@@ -461,16 +487,24 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
     taxid_file: writable
         A file-like object to store taxonomic ids that correspond to each
         sampled sequence.  Each taxonomic id will be on its own line.
-    tmp: str
-        A path to a directory to store temporary files.
-    verbose: bool
-        If True, print messages.
+    include_wild: boolean
+        Determines if sequences with wild card characters will be kept.
+    window_length: int
+        The length of the offset for the sliding window
+        if thresholding or chopping is used.
     thresholding: bool
         If True, use the whole genome if the samples requested is larger
         than the genome.  If False, and the genome is smaller than the
         samples requested, portions of the genome will be over represented
         because of random sampling.
-
+    chop: bool
+        If True, chop up the genome into kmers based on a sliding window.
+    amino_acid: bool
+        If True, the data is amino acid data.
+    temp_dir: str
+        A path to a directory to store temporary files.
+    verbose: bool
+        If True, print messages.
 
     Returns
     -------
@@ -488,21 +522,25 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 sys.stderr.write("Writing fasta records for "
                                  "taxid {} from genome accession {}:\t".
                                  format(taxid, accession))
-            # A thresholding feature.  If the genome is too small, use the
-            # whole genome.
+            # A thresholding and chopping feature.
+            # If thresholding and the genome is too small,
+            # use the whole genome.
+            # Or chop the genome up.
             if (thresholding and accession_counts[accession] > float(
-                index['genomes'][accession]['contig_sum']) / length) or chop:
+                    index['genomes'][
+                        accession]['contig_sum']) / length) or chop:
                 records_written = chop_genomes([accession], length,
-                                                index, genomes_dir, 
-                                                taxid,
-                                                final_file,
-                                                include_wild=include_wild,
-                                                window_length=window_length)
+                                               index, genomes_dir,
+                                               taxid,
+                                               final_file,
+                                               include_wild=include_wild,
+                                               window_length=window_length)
                 for _ in range(records_written):
                     taxid_file.write(str(taxid) + "\n")
                 fasta_record_count += records_written
                 continue
-            file_locations_d = file_locations(accession, genomes_dir, index, temp_dir)
+            file_locations_d = file_locations(accession, genomes_dir,
+                                              index, temp_dir)
             fai_location = file_locations_d["fai"]
             fasta_location = file_locations_d["fasta_location"]
             get_random = True
@@ -557,24 +595,26 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
         A string indicating the accession id for a genome
     fai_location: str
         The location of the .fai faidx samtools index for the genome
-    bedtoods_file: str
-        The location to store the bedtools output file too.
     fasta_location: str
         The location of the fasta genome file
-    my_fasta: str
-        The location to store a temporary fasta file for random sampling.
     taxid_file: writable
         A writable object where taxids are written for each random sample.
     final_file: writable
         A writable object that stores the fasta records.  This file represents
         the end product of all of the random sampling.
+    include_wild: boolean
+        Determines if sequences with wild card characters will be kept.
+    amino_acid: bool
+        If True, the data is amino acid data.
+    temp_dir: str
+        A path to a directory to store temporary files.
 
     Returns
     -------
     (boolean, int, int)
-        A boolean to indicated if the records written is equal to number.
+        A boolean to indicate if the records written is equal to number.
         An integer counting the records written,
-        and an integer of the records that had indeterminate N characters.
+        and an integer of the records that had 'N' characters.
 
     """
     taxid = str(taxid)
@@ -599,8 +639,8 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
                         fai_location], stdout=bedtools_fd)
         subprocess.run([BEDTOOLS + "bedtools", "getfasta", "-fi",
                         fasta_location, "-bed", bedtools_file],
-                        stdout=my_fasta_fd)
-        intermediate_fasta_file = SeqReader(my_fasta_fd.name, 
+                       stdout=my_fasta_fd)
+        intermediate_fasta_file = SeqReader(my_fasta_fd.name,
                                             file_type='fasta')
         records_with_n = 0
         records_written = 0
@@ -623,35 +663,86 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
     return (records_written >= number, records_written, records_with_n)
 
 
-"""
-Runs multiple taxonomic id sampling instances in parallel.
-Creates training, validation,
-and testing data and puts them in directories that Plinko expects.
-
-:Authors:
-    Jacob Porter <jsporter@vt.edu>
-"""
-
-
 def get_sample(taxid, sublevels, index_dir, genomes_dir,
                number, length, data_dir,
                split=True, split_amount='0.8,0.1,0.1',
                include_wild=False,
-               prob=_RC_PROB, 
-               thresholding=False, 
+               prob=_RC_PROB,
+               thresholding=False,
                chop=False,
                window_length=50,
-               amino_acid=False, 
+               amino_acid=False,
                temp_dir="/localscratch/",
                verbose=0):
+    """
+    Get a random sample.  Create training, validation, and testing data sets
+    and put them in the appropriate folders.  
+    Assesses the genome sampling strategy.
+
+    Parameters
+    ----------
+    taxid: int
+        An integer representing a taxonomic id
+    sublevels: iterable
+        A set of taxonomic ids below the taxid to sample from.
+    index: dict
+        The genomes index object.
+    genomes_dir: str
+        The location of the root of where the fasta files are stored.
+    number: int
+        The number of samples to take.
+    length: int
+        The number of bases for each sample
+    data_dir: str
+        The path to the data directory where fasta files will be written.
+    split: bool
+        Determine whether to split the data or not.
+    split_amount: str
+        A comma seperated list of floats representing the percentage of the
+        data to be used for training, validation, and testing data
+    include_wild: boolean
+        Determines if sequences with wild card characters will be kept.
+    prob: float
+        A number between 0 and 1.0 that represents the probability that the
+        reverse complement will be done.
+    thresholding: bool
+        If True, use the whole genome if the samples requested is larger
+        than the genome.  If False, and the genome is smaller than the
+        samples requested, portions of the genome will be over represented
+        because of random sampling.
+    chop: bool
+        If True, chop up the genome into kmers based on a sliding window.
+    window_length: int
+        The length of the offset for the sliding window
+        if thresholding or chopping is used.
+    amino_acid: bool
+        If True, the data is amino acid data.
+    temp_dir: str
+        A path to write temporary files to.  This could be on the local hard
+        drive for better speed.
+    include_list: list
+        Determines the value from the genomes index that determines
+        if the genome will be included for consideration.  Ordinarily,
+        this will be set to [True], but for the genome holdout strategy,
+        it could be [1] or [2].
+    verbose: int
+        Determines the verbosity.
+
+    Returns
+    -------
+    (int, int)
+        A tuple of the number of fasta records sampled 
+        and permuted records written.
+
+    """
     index = pickle.load(open(index_dir, 'rb'))
-    try: 
+    try:
         strategy = index['select']['strategy']
     except KeyError:
         strategy = None
     print("The index selection strategy is {}".format(strategy), file=sys.stderr)
     if strategy.startswith("GH"):
-        print("Getting the testing data with genome holdout.", 
+        print("Getting the testing data with genome holdout.",
               file=sys.stderr)
         test_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                        number, length, data_dir,
@@ -660,23 +751,23 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                        thresholding=thresholding,
                                        chop=chop,
                                        window_length=window_length,
-                                       amino_acid=amino_acid, 
+                                       amino_acid=amino_acid,
                                        temp_dir=temp_dir,
                                        include_list=[_TEST],
                                        verbose=verbose)
-        shutil.move(os.path.join(data_dir, str(taxid), "train"), 
+        shutil.move(os.path.join(data_dir, str(taxid), "train"),
                     os.path.join(data_dir, str(taxid), "test"))
-        print("Getting the training data with genome holdout.", 
+        print("Getting the training data with genome holdout.",
               file=sys.stderr)
         train_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                         number, length, data_dir,
-                                        split=False, 
+                                        split=False,
                                         split_amount=split_amount,
                                         include_wild=include_wild, prob=prob,
                                         thresholding=thresholding,
                                         chop=chop,
                                         window_length=window_length,
-                                        amino_acid=amino_acid, 
+                                        amino_acid=amino_acid,
                                         temp_dir=temp_dir,
                                         include_list=[_TRAIN],
                                         verbose=verbose)
@@ -684,18 +775,18 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     else:
         return get_sample_worker(taxid, sublevels, index, genomes_dir,
                                  number, length, data_dir,
-                                 split=split, split_amount=split_amount, 
-                                 include_wild=include_wild, prob=prob, 
-                                 thresholding=thresholding, 
+                                 split=split, split_amount=split_amount,
+                                 include_wild=include_wild, prob=prob,
+                                 thresholding=thresholding,
                                  chop=chop,
                                  window_length=window_length,
                                  amino_acid=amino_acid, temp_dir=temp_dir,
                                  verbose=verbose)
-        
+
 
 def get_sample_worker(taxid, sublevels, index, genomes_dir,
                       number, length, data_dir,
-                      split=True, split_amount='0.8,0.1,0.1', 
+                      split=True, split_amount='0.8,0.1,0.1',
                       include_wild=False,
                       prob=_RC_PROB, thresholding=False, chop=False,
                       window_length=50,
@@ -712,8 +803,8 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         An integer representing a taxonomic id
     sublevels: iterable
         A set of taxonomic ids below the taxid to sample from.
-    index_dir: str
-        A path to the pickled genomes index object.
+    index: dict
+        The genomes index object.
     genomes_dir: str
         The location of the root of where the fasta files are stored.
     number: int
@@ -727,21 +818,46 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     split_amount: str
         A comma seperated list of floats representing the percentage of the
         data to be used for training, validation, and testing data
-    tmp_dir: str
+    include_wild: boolean
+        Determines if sequences with wild card characters will be kept.
+    prob: float
+        A number between 0 and 1.0 that represents the probability that the
+        reverse complement will be done.
+    thresholding: bool
+        If True, use the whole genome if the samples requested is larger
+        than the genome.  If False, and the genome is smaller than the
+        samples requested, portions of the genome will be over represented
+        because of random sampling.
+    chop: bool
+        If True, chop up the genome into kmers based on a sliding window.
+    window_length: int
+        The length of the offset for the sliding window
+        if thresholding or chopping is used.
+    amino_acid: bool
+        If True, the data is amino acid data.
+    temp_dir: str
         A path to write temporary files to.  This could be on the local hard
         drive for better speed.
+    include_list: list
+        Determines the value from the genomes index that determines
+        if the genome will be included for consideration.  Ordinarily,
+        this will be set to [True], but for the genome holdout strategy,
+        it could be [1] or [2].
+    verbose: int
+        Determines the verbosity.
 
     Returns
     -------
     (int, int)
-        A tuple of fasta records sampled and permuted records written.
+        A tuple of the number of fasta records sampled 
+        and permuted records written.
 
     """
     print("Determining accessions to sample from.", file=sys.stderr)
     sys.stderr.flush()
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
-                                               number, length, 
-                                               include_wild, amino_acid, 
+                                               number, length,
+                                               include_wild, amino_acid,
                                                temp_dir, include_list)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
@@ -821,17 +937,17 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         os.remove(taxid_path)
     return fasta_records_count, permute_count
 
-  
+
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
-                    data_dir, split, split_amount, processes, 
-                    include_wild=False, prob=_RC_PROB, 
+                    data_dir, split, split_amount, processes,
+                    include_wild=False, prob=_RC_PROB,
                     thresholding=False, chop=False,
-                    window_length=100, 
+                    window_length=100,
                     amino_acid=False, temp_dir="/localscratch/",
                     verbose=0):
     """
     Get samples of data in parallel and writes them into files and a data
-    directory that Plinko expects.
+    directory.
 
     Parameters
     ----------
@@ -840,7 +956,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
     genomes_dir: str
         The location of the root of where the fasta files are stored.
     ranks: dict
-        The ranks object giving taxonomic ids at every rank.
+        The tree object giving taxonomic ids at every rank.
     index_dir: str
         The path to the genomes index object.
     number: int
@@ -849,9 +965,6 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
         The number of bases for each sample.
     data_dir: str
         The path to the data directory where fasta files will be written.
-    include_wild: bool
-        When true, samples will include wild card characters.
-        When false, samples will not include wild card characters.
     split: bool
         Determine whether to split the data or not.
     split_amount: str
@@ -860,12 +973,39 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
     processes: int
         The number of processes to use.  This should be at or less than the
         number of physical cores that the CPU has.
+    include_wild: bool
+        When true, samples will include wild card characters.
+        When false, samples will not include wild card characters.
+        prob: float
+        A number between 0 and 1.0 that represents the probability that the
+        reverse complement will be done.
+    prob: float
+        A number between 0 and 1.0 that represents the probability that the
+        reverse complement will be done.
+    thresholding: bool
+        If True, use the whole genome if the samples requested is larger
+        than the genome.  If False, and the genome is smaller than the
+        samples requested, portions of the genome will be over represented
+        because of random sampling.
+    chop: bool
+        If True, chop up the genome into kmers based on a sliding window.
+    window_length: int
+        The length of the offset for the sliding window
+        if thresholding or chopping is used.
+    amino_acid: bool
+        If True, the data is amino acid data.
+    temp_dir: str
+        A path to write temporary files to.  This could be on the local hard
+        drive for better speed.
+    verbose: int
+        Determines the verbosity.
+    
 
     Returns
     -------
     list<(int, int)>
-        A list of fasta records written by each process in the same order as
-        the taxid_list.
+        A list of the number of fasta records written by each process
+        in the same order as the taxid_list.
 
     """
     with Pool(processes=processes) as pool:

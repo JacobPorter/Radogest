@@ -1,5 +1,6 @@
 """
 Construct a taxonomic rank tree hierarchy from the genomes index.
+
 :Authors:
     Jacob Porter <jsporter@vt.edu>
 """
@@ -10,6 +11,7 @@ from collections import defaultdict
 from ete3 import NCBITaxa
 
 ncbi = NCBITaxa()
+
 
 def count_levels(tree, roots):
     """
@@ -156,9 +158,13 @@ def make_tree(index, verbose=False):
 
     Returns
     -------
-    (dict, dict)
-        1. A dictionary object that represents the subranks below each rank.
-        2. A dictionary that gives a list of missing ranks for species.
+    tuple: (dict, int, int, int, dict, list<str>)
+        1. ranks: The tree dictionary
+        2. unclassified_to_remove: A count of the unclassified species removed.
+        3. empties_remove: Empty ranks removed.
+        4. children_removed: The amount of children removed.
+        5. counter_dict: A dictionary of counts.
+        6. taxid_list: The non-leaf taxonomic id in a random order.
 
     """
     rank_list = ["superkingdom", "kingdom", "phylum", "class", "order",
@@ -251,6 +257,6 @@ def make_tree(index, verbose=False):
     counter_dict, taxid_list = count_levels(ranks, ranks[1])
     taxid_list = [1] + taxid_list
     shuffle(taxid_list)
-    return (ranks, 
+    return (ranks,
             unclassified_to_remove,
             empties_remove, children_removed, counter_dict, taxid_list)

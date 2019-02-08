@@ -64,8 +64,9 @@ def randomly_permute_fasta_taxid(fasta_file, taxid_file, fasta_out,
         The location to store the output taxid file.
     split: bool
         If True, split the data.
-    split_amount: tuple of floats or float
-        Percentage(s) to split into.
+    split_amount: float, string of floats seperated by a comma
+        Up to three percentage(s) to determine how much of the data to use
+        for each file.
 
     Returns
     -------
@@ -75,7 +76,7 @@ def randomly_permute_fasta_taxid(fasta_file, taxid_file, fasta_out,
     """
     both_records = []
     for fasta, taxid in zip(SeqReader(fasta_file,
-                                                    file_type='fasta'),
+                                      file_type='fasta'),
                             open(taxid_file, 'r')):
         both_records.append((fasta, taxid.strip()))
     shuffle(both_records)

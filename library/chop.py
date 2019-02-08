@@ -19,7 +19,7 @@ def chop_a_genome(location,
                   window_length=50):
     """
     Cut up a single genome into kmers.
-    
+
     Parameters
     ----------
     location: str
@@ -36,8 +36,8 @@ def chop_a_genome(location,
         Determines whether to include kmers with wildcard characters.
     window_length: int
         The amount to slide the window when taking kmers.
-    
-    
+
+
     Returns
     -------
     int
@@ -46,8 +46,8 @@ def chop_a_genome(location,
     """
     number_written = 0
     only_files = [f for f in os.listdir(location) if
-                      os.path.isfile(os.path.join(location, f))
-                      and f.endswith('fna')]
+                  os.path.isfile(os.path.join(location, f))
+                  and f.endswith('fna')]
     if len(only_files) == 0:
         print("Skipping {}.  Fasta file not found.".format(accession),
               file=sys.stderr)
@@ -60,7 +60,7 @@ def chop_a_genome(location,
             if (len(substring) == length and (
                     include_wild or 'N' not in substring)):
                 writer.write(("{}:{}:{}:{}-{}".format(
-                    accession, taxid, header.split()[0], 
+                    accession, taxid, header.split()[0],
                     i, i+length), substring))
                 number_written += 1
     return number_written
@@ -69,16 +69,17 @@ def chop_a_genome(location,
 def get_output_writer(output):
     """
     Get a SeqWriter object.
-    
+
     Parameters
     ----------
     output: str, sys.stdout
-        The type of writable object to use.  
+        The type of writable object to use.
         Either a file location or sys.stdout.
-    
+
     Returns
     -------
     A SeqWriter object.
+
     """
     if isinstance(output, str):
         if not output:
@@ -90,18 +91,19 @@ def get_output_writer(output):
     else:
         writer = SeqWriter(output, file_type='fasta')
     return writer
-    
 
-def chop_genomes(accessions_list, 
-                 length, 
-                 index, 
-                 genomes_dir, 
+
+def chop_genomes(accessions_list,
+                 length,
+                 index,
+                 genomes_dir,
                  taxid,
                  output,
-                 include_wild=False, 
+                 include_wild=False,
                  window_length=50):
     """
-    Partition the DNA strings in a list of genomes and write to a fasta file.
+    Chop the DNA strings from fasta files from a list of genomes and
+    write them to a fasta file.
 
     Parameters
     ----------
@@ -121,7 +123,7 @@ def chop_genomes(accessions_list,
         Determines whether to include kmers with wildcard characters.
     window_length: int
         The amount to slide the window when taking kmers.
-    
+
     Returns
     -------
     int
@@ -137,8 +139,8 @@ def chop_genomes(accessions_list,
         # print(location, file=sys.stderr)
         number_written += chop_a_genome(location,
                                         accession,
-                                        length, 
-                                        taxid, 
+                                        length,
+                                        taxid,
                                         writer,
                                         include_wild=include_wild,
                                         window_length=window_length)

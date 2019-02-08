@@ -1,8 +1,8 @@
 """
 Run faidx from samtools on all genomes below the given directory.
-Decompress gzip comressed fasta files.  Create an index
-of genomic and taxonomic information.
-This program requires SAMTOOLS and UCSC tools.
+Decompress gzip comressed fasta files.
+This module requires SAMTOOLS.
+
 :Authors:
     Jacob Porter <jsporter@vt.edu>
 """
@@ -49,11 +49,8 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
 
     Parameters
     ----------
-    root_directory: str
-        A string giving the location of the root directory where genomes
-        are found.
     path: str
-        The path to a directory containing files
+        The path to a directory containing files.
     files: iterable
         An iterable of files under the path.
     leave_compressed: bool
@@ -85,7 +82,9 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
                 name_ends(name, FASTA_ENDINGS, addition='.gz')):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
-            complete_p = subprocess.run(["gunzip", "-f", os.path.join(path, name)])
+            complete_p = subprocess.run(["gunzip",
+                                         "-f",
+                                         os.path.join(path, name)])
             returncode = returncode ^ complete_p.returncode
             name = name[0:len(name) - 3]
             if not complete_p.returncode:
@@ -109,7 +108,7 @@ def fai_fail_message(returncode, path):
     Parameters
     ----------
     returncode: int
-        A 0 if the process existed normally.  Something else otherwise.
+        A 0 if the process exited normally.  Something else otherwise.
     path: str
         A string representing the location of the genome accession's files.
 
@@ -125,13 +124,15 @@ def fai_fail_message(returncode, path):
 
 def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
     """
-    Make fai files for all fasta files under the root_directory.  Add contig
-    counts and fasta base length to the index.
+    Make fai files for all fasta files under the root_directory.
+    Decompress fasta files.
 
     Parameters
     ----------
     root_directory: str
         A string representing the location of the root directory to search.
+    processes: int
+        The number of processes to use.  This allows for parallelism.
     leave_compressed: bool
         Does not gunzip anything.
     verbose: int

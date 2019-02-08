@@ -1,4 +1,9 @@
-"""Make index."""
+"""
+Make a genomes index.
+
+:Authors:
+    Jacob Porter <jsporter@vt.edu>
+"""
 
 import os
 import sys
@@ -7,9 +12,6 @@ from ete3 import NCBITaxa
 from library.util import one_loop_stats, faidx_length
 
 ncbi = NCBITaxa()
-
-# May need to update the ncbi taxonomy database.
-# ncbi.update_taxonomy_database()
 
 
 def process_fai(fai_file_fd):
@@ -34,16 +36,6 @@ def process_fai(fai_file_fd):
         return None
     else:
         return stat_dictionary
-#     contig_lengths = [int(line.split('\t')[1]) for line in fai_file_fd]
-#     if len(contig_lengths) == 0:
-#         return None, None
-#     else:
-#         return ({"contig_count": len(contig_lengths),
-#                  "base_length": sum(contig_lengths),
-#                  "contig_max": max(contig_lengths),
-#                  "contig_min": min(contig_lengths),
-#                  "contig_avg": sum(contig_lengths) / len(contig_lengths)},
-#                  contig_lengths)
 
 
 def create_initial_index(index, genome_info, verbose=True):
@@ -120,7 +112,7 @@ def update_index_path(root_directory, path, files, verbose=0):
 
 def update_index_root(index, root_directory, verbose=0):
     """
-    Add contig counts and fasta base length to the index.
+    Add contig counts, fasta base length, and other statistics to the index.
 
     Parameters
     ----------
@@ -174,11 +166,13 @@ def remove_accessions(index, accessions_to_remove, verbose=0):
         The genomes index.
     accessions_to_remove: dict
         A dict keyed on accessions to remove from the index.
+    verbose: int
+        A 0 gives no extra verbosity.  A higher number gives more verbosity.
 
     Returns
     -------
     dict
-        The genomes index is returned.
+        The genomes index.
 
     """
     remove_count = 0

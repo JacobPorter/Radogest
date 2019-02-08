@@ -7,26 +7,27 @@ Some utility files.
 
 import math
 
+
 def one_loop_stats(iterable, num_func, prefix=""):
     """
-    Calcualte the mean, standard deviation, 
+    Calcualte the mean, standard deviation,
     count, sum, max, and min in one loop.
-    
+
     Parameters
     ----------
     iterable: iterable
         An object that can be iterated through such as a list or an open file.
     name_func: function
-        A function that when given an input line from iterable 
+        A function that when given an input line from iterable
         will return a number.  This allows this function to be more generic.
     prefix: str
         A string prefix to add to each statistic.
-        
+
     Returns
     -------
     dict
         A dictionary of the statistics.
-    
+
     """
     s = 0.0
     s_2 = 0.0
@@ -49,23 +50,23 @@ def one_loop_stats(iterable, num_func, prefix=""):
         mean = float('inf')
         var = float('inf')
     return {prefix + "mean": mean, prefix + "std": math.sqrt(var),
-            prefix + "count": n, prefix + "sum": s, 
+            prefix + "count": n, prefix + "sum": s,
             prefix + "max": mx, prefix + "min": mn}
 
 
 def faidx_length(line):
     """
     Get the base length for a contig from a fai file.
-    
+
     Parameters
     ----------
     line: str
         A fai file line.
-        
+
     Returns
     -------
     int
         The number of bases in the contig.
-    
+
     """
     return float(line.split('\t')[1])
