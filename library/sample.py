@@ -676,7 +676,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                verbose=0):
     """
     Get a random sample.  Create training, validation, and testing data sets
-    and put them in the appropriate folders.  
+    and put them in the appropriate folders.
     Assesses the genome sampling strategy.
 
     Parameters
@@ -731,7 +731,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     Returns
     -------
     (int, int)
-        A tuple of the number of fasta records sampled 
+        A tuple of the number of fasta records sampled
         and permuted records written.
 
     """
@@ -740,7 +740,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
         strategy = index['select']['strategy']
     except KeyError:
         strategy = None
-    print("The index selection strategy is {}".format(strategy), file=sys.stderr)
+    print("The index selection strategy is {}".format(strategy),
+          file=sys.stderr)
     if strategy.startswith("GH"):
         print("Getting the testing data with genome holdout.",
               file=sys.stderr)
@@ -849,7 +850,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     Returns
     -------
     (int, int)
-        A tuple of the number of fasta records sampled 
+        A tuple of the number of fasta records sampled
         and permuted records written.
 
     """
@@ -999,7 +1000,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
         drive for better speed.
     verbose: int
         Determines the verbosity.
-    
+
 
     Returns
     -------
