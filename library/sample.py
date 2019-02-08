@@ -868,7 +868,6 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
         the taxid_list.
 
     """
-    # create_directories(data_dir)
     with Pool(processes=processes) as pool:
         process_list = []
         for taxid in taxid_list:
@@ -895,4 +894,4 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
             output.append(counts)
             print("{}: {} samples drawn, {} samples written".
                   format(taxid, counts[0], counts[1]), file=sys.stderr)
-        return output
+    return output
