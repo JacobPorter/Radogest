@@ -1,4 +1,8 @@
-"""Configuration for the downloader."""
+"""
+Configuration for the downloader.
+
+Modified by Jacob Porter, 2018-2019.  <jsporter@virginia.edu>
+"""
 
 import codecs
 from collections import OrderedDict

@@ -1,4 +1,8 @@
-'''Parse NCBI RefSeq/GenBank summary files'''
+'''
+Parse NCBI RefSeq/GenBank summary files
+
+Modified by Jacob Porter, 2018-2019.  <jsporter@virginia.edu>
+'''
 
 import logging
 

@@ -220,6 +220,7 @@ def main():
                                 "may not be balanced."))
     p_sample.add_argument(*window_length.args, **window_length.kwargs)
     p_sample.add_argument(*split.args, **split.kwargs)
+    p_sample.add_argument(*split_amount.args, **split_amount.kwargs)
     p_sample.add_argument(*include_wild.args, **include_wild.kwargs)
     p_sample.add_argument(*prob.args, **prob.kwargs)
     p_sample.add_argument("--amino_acid", "-a", action="store_true",

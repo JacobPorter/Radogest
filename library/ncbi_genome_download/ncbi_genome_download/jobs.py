@@ -1,4 +1,8 @@
-"""Module for download and symlink jobs."""
+"""
+Module for download and symlink jobs.
+
+Modified by Jacob Porter, 2018-2019.  <jsporter@virginia.edu>
+"""
 
 
 class DownloadJob(object):

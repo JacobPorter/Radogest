@@ -1,0 +1,183 @@
+nohup: ignoring input
+srun: job 3110237 queued and waiting for resources
+srun: job 3110237 has been allocated resources
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_bacteria/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_bacteria/archaea.taxid')
+Records processed: 1800000, records written: 449646
+The process took time: 0:00:03.340326
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_bacteria/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_bacteria/bacteria.taxid')
+Records processed: 1800000, records written: 450810
+The process took time: 0:00:03.478832
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_bacteria/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_bacteria/1.taxid.
+The total number of records to write: 900456
+900456 records written.
+The process took time:	0:00:04.496964.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_bacteria/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_bacteria/archaea.taxid')
+Records processed: 1800000, records written: 450352
+The process took time: 0:00:03.422046
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_bacteria/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_bacteria/bacteria.taxid')
+Records processed: 1800000, records written: 449693
+The process took time: 0:00:03.244241
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_bacteria/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_bacteria/1.taxid.
+The total number of records to write: 900045
+900045 records written.
+The process took time:	0:00:04.717700.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_bacteria/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_bacteria/archaea.taxid')
+Records processed: 14400000, records written: 3600002
+The process took time: 0:00:26.269428
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_bacteria/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_bacteria/bacteria.taxid')
+Records processed: 14400000, records written: 3599497
+The process took time: 0:00:26.398431
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_bacteria/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_bacteria/1.taxid.
+The total number of records to write: 7199499
+7199499 records written.
+The process took time:	0:00:50.921319.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_eukaryotes/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_eukaryotes/archaea.taxid')
+Records processed: 1800000, records written: 449646
+The process took time: 0:00:03.272210
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_eukaryotes/eukaryotes.taxid')
+Records processed: 1800000, records written: 449601
+The process took time: 0:00:03.525267
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_eukaryotes/1.taxid.
+The total number of records to write: 899247
+899247 records written.
+The process took time:	0:00:04.464636.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_eukaryotes/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_eukaryotes/archaea.taxid')
+Records processed: 1800000, records written: 450352
+The process took time: 0:00:03.302402
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_eukaryotes/eukaryotes.taxid')
+Records processed: 1800000, records written: 449723
+The process took time: 0:00:03.202390
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_eukaryotes/1.taxid.
+The total number of records to write: 900075
+900075 records written.
+The process took time:	0:00:04.576258.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_eukaryotes/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_eukaryotes/archaea.taxid')
+Records processed: 14400000, records written: 3600002
+The process took time: 0:00:26.138774
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_eukaryotes/eukaryotes.taxid')
+Records processed: 14400000, records written: 3600676
+The process took time: 0:00:25.973259
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_eukaryotes/1.taxid.
+The total number of records to write: 7200678
+7200678 records written.
+The process took time:	0:00:51.586976.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_virus/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_virus/archaea.taxid')
+Records processed: 1800000, records written: 449646
+The process took time: 0:00:03.367893
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_virus/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_virus/virus.taxid')
+Records processed: 1800000, records written: 449943
+The process took time: 0:00:03.286308
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_virus/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//archaea_virus/1.taxid.
+The total number of records to write: 899589
+899589 records written.
+The process took time:	0:00:04.554014.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_virus/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_virus/archaea.taxid')
+Records processed: 1800000, records written: 450352
+The process took time: 0:00:03.382864
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_virus/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_virus/virus.taxid')
+Records processed: 1800000, records written: 450232
+The process took time: 0:00:03.376247
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_virus/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//archaea_virus/1.taxid.
+The total number of records to write: 900584
+900584 records written.
+The process took time:	0:00:04.495200.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_virus/archaea.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//archaea/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_virus/archaea.taxid')
+Records processed: 14400000, records written: 3600002
+The process took time: 0:00:28.035988
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_virus/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_virus/virus.taxid')
+Records processed: 14400000, records written: 3599825
+The process took time: 0:00:25.192445
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_virus/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//archaea_virus/1.taxid.
+The total number of records to write: 7199827
+7199827 records written.
+The process took time:	0:00:51.923507.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_eukaryotes/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_eukaryotes/bacteria.taxid')
+Records processed: 1800000, records written: 450810
+The process took time: 0:00:03.197568
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_eukaryotes/eukaryotes.taxid')
+Records processed: 1800000, records written: 449601
+The process took time: 0:00:03.397374
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_eukaryotes/1.taxid.
+The total number of records to write: 900411
+900411 records written.
+The process took time:	0:00:04.353770.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_eukaryotes/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_eukaryotes/bacteria.taxid')
+Records processed: 1800000, records written: 449693
+The process took time: 0:00:03.306587
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_eukaryotes/eukaryotes.taxid')
+Records processed: 1800000, records written: 449723
+The process took time: 0:00:03.390260
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_eukaryotes/1.taxid.
+The total number of records to write: 899416
+899416 records written.
+The process took time:	0:00:04.441173.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_eukaryotes/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_eukaryotes/bacteria.taxid')
+Records processed: 14400000, records written: 3599497
+The process took time: 0:00:25.997857
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_eukaryotes/eukaryotes.taxid')
+Records processed: 14400000, records written: 3600676
+The process took time: 0:00:25.956769
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_eukaryotes/1.taxid.
+The total number of records to write: 7200173
+7200173 records written.
+The process took time:	0:00:50.766741.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_virus/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_virus/bacteria.taxid')
+Records processed: 1800000, records written: 450810
+The process took time: 0:00:03.304989
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_virus/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_virus/virus.taxid')
+Records processed: 1800000, records written: 449943
+The process took time: 0:00:03.209794
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_virus/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//bacteria_virus/1.taxid.
+The total number of records to write: 900753
+900753 records written.
+The process took time:	0:00:04.293919.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_virus/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_virus/bacteria.taxid')
+Records processed: 1800000, records written: 449693
+The process took time: 0:00:03.382294
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_virus/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_virus/virus.taxid')
+Records processed: 1800000, records written: 450232
+The process took time: 0:00:03.545456
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_virus/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//bacteria_virus/1.taxid.
+The total number of records to write: 899925
+899925 records written.
+The process took time:	0:00:04.358728.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_virus/bacteria.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//bacteria/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_virus/bacteria.taxid')
+Records processed: 14400000, records written: 3599497
+The process took time: 0:00:25.265439
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_virus/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_virus/virus.taxid')
+Records processed: 14400000, records written: 3599825
+The process took time: 0:00:26.077247
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_virus/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//bacteria_virus/1.taxid.
+The total number of records to write: 7199322
+7199322 records written.
+The process took time:	0:00:52.050840.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//virus_eukaryotes/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//virus_eukaryotes/virus.taxid')
+Records processed: 1800000, records written: 449943
+The process took time: 0:00:03.351641
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//virus_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/test//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//virus_eukaryotes/eukaryotes.taxid')
+Records processed: 1800000, records written: 449601
+The process took time: 0:00:03.268173
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//virus_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/test//virus_eukaryotes/1.taxid.
+The total number of records to write: 899544
+899544 records written.
+The process took time:	0:00:04.488447.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//virus_eukaryotes/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//virus_eukaryotes/virus.taxid')
+Records processed: 1800000, records written: 450232
+The process took time: 0:00:03.262106
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//virus_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/validate//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//virus_eukaryotes/eukaryotes.taxid')
+Records processed: 1800000, records written: 449723
+The process took time: 0:00:03.320642
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//virus_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/validate//virus_eukaryotes/1.taxid.
+The total number of records to write: 899955
+899955 records written.
+The process took time:	0:00:04.474360.
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//virus_eukaryotes/virus.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//virus/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//virus_eukaryotes/virus.taxid')
+Records processed: 14400000, records written: 3599825
+The process took time: 0:00:26.091353
+Namespace(fasta_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//1.fasta', fasta_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//virus_eukaryotes/eukaryotes.fasta', mode='extract', taxid_input='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ova/train//eukaryotes/1.taxid', taxid_output='/project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//virus_eukaryotes/eukaryotes.taxid')
+Records processed: 14400000, records written: 3600676
+The process took time: 0:00:25.948493
+Permuting the fasta file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//virus_eukaryotes/1.fasta and the taxid file /project/biocomplexity/fungcat/genomes/Genomes_CD/Data/1_ovo/train//virus_eukaryotes/1.taxid.
+The total number of records to write: 7200501
+7200501 records written.
+The process took time:	0:00:52.334097.

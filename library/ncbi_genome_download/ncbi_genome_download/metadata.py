@@ -1,4 +1,8 @@
-"""Keep track of download entry metadata."""
+"""
+Keep track of download entry metadata.
+
+Modified by Jacob Porter, 2018-2019.  <jsporter@virginia.edu>
+"""
 import os
 
 _METADATA = None

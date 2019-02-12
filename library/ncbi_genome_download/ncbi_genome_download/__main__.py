@@ -1,4 +1,8 @@
-"""Command line handling for ncbi-genome-download."""
+"""
+Command line handling for ncbi-genome-download.
+
+Modified by Jacob Porter, 2018-2019.  <jsporter@virginia.edu>
+"""
 import logging
 from library.ncbi_genome_download.ncbi_genome_download import args_download
 from library.ncbi_genome_download.ncbi_genome_download import argument_parser

@@ -4,6 +4,8 @@ via the ETE3 toolkit.
 
 Depends on ETE3 (obviously).
 
+Modified by Jacob Porter, 2018.  <jsporter@virginia.edu>
+
 TODO:
   - Add some of the tree functionality?
   - Offer more CLI options for arguments to subcommands?

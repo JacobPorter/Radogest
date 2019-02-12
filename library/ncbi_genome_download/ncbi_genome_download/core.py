@@ -1,4 +1,8 @@
-"""Core functionality of ncbi-genome-download."""
+"""
+Core functionality of ncbi-genome-download.
+
+Modified by Jacob Porter, 2018-2019.  <jsporter@virginia.edu>
+"""
 from __future__ import print_function
 
 from appdirs import user_cache_dir
