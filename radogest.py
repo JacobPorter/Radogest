@@ -7,10 +7,10 @@ Radogest: random genome sampler for trees.
 """
 
 
-# TODO: Add better parallelism to sampling, index creation.  PySpark?  Process pool?
+# TODO: Add a total genomic size selection to the genome holdout strategy 
+# TODO: Add parallelism to sampling from an individual taxonomic id, maybe index creation.
 # TODO: Allow for all file types to be downloaded into the same directory?  Need to include file type information in the index.
 # TODO: When finished with code, check and update comments and README documentation.
-# TODO: Determine license issues, notices, etc.  Need to indicate on ncbi-genome-download that the files were modified.
 # TODO: Write and submit a paper.
 
 import argparse
