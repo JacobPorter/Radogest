@@ -210,7 +210,7 @@ def main():
                                 "file, chop up the fasta file rather than "
                                 "randomly sample from it."),
                           action='store_true', default=False)
-    p_select.add_argument('--thresholds', '-h', nargs='+', type=int,
+    p_sample.add_argument('--thresholds', '-l', nargs='+', type=int,
                           help=('The total amount of genomic information '
                                 'to get in kilobases.  '
                                 'This option only applies to '

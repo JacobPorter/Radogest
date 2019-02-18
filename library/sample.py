@@ -267,12 +267,12 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         my_sums = [index['genomes'][accession]['contig_sum']
                    for accession in my_accessions]
         if threshold and my_accessions:
-            threshold *= THRESHOLD_BASE
+            threshold_actual = threshold * THRESHOLD_BASE
             genomic_content = 0
             for i in range(len(my_accessions)):
-                my_sums[i] += genomic_content
-                if genomic_content > threshold:
+                if genomic_content > threshold_actual:
                     break
+                genomic_content += my_sums[i]
             my_accessions = my_accessions[0:i]
             my_sums = my_sums[0:i]
         if my_accessions:
@@ -770,7 +770,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                        amino_acid=amino_acid,
                                        temp_dir=temp_dir,
                                        include_list=[_TEST],
-                                       thresholds=thresholds[_TEST-1],
+                                       threshold=thresholds[_TEST-1],
                                        verbose=verbose)
         shutil.move(os.path.join(data_dir, str(taxid), "train"),
                     os.path.join(data_dir, str(taxid), "test"))
@@ -787,7 +787,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         amino_acid=amino_acid,
                                         temp_dir=temp_dir,
                                         include_list=[_TRAIN],
-                                        thresholds=thresholds[_TRAIN-1],
+                                        threshold=thresholds[_TRAIN-1],
                                         verbose=verbose)
         return tuple(map(operator.add, test_count, train_count))
     else:
@@ -799,7 +799,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                  chop=chop,
                                  window_length=window_length,
                                  amino_acid=amino_acid, temp_dir=temp_dir,
-                                 thresholds=thresholds[0],
+                                 threshold=thresholds[0],
                                  verbose=verbose)
 
 
