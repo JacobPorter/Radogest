@@ -55,6 +55,9 @@ _RC_PROB = 0.5
 _TRAIN = 1
 _TEST = 2
 
+# The base for the thresholds amount.  1000 means the value is in kilobases.
+THRESHOLD_BASE = 1000
+
 # The reverse complement mapping.
 reverse_mapping_init = {"A": "T",
                         "T": "A",
@@ -210,7 +213,7 @@ def binary_search(target, array, begin, end):
 def uniform_samples_at_rank(index, sublevels, genomes_dir,
                             number, kmer_length,
                             include_wild, amino_acid,
-                            temp_dir, include_list):
+                            temp_dir, include_list, threshold=None):
     """
     Get a count of samples from each genome under the taxids given by ranks.
 
@@ -238,6 +241,8 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         if the genome will be included for consideration.  Ordinarily,
         this will be set to [True], but for the genome holdout strategy,
         it could be [1] or [2].
+    threshold: int
+        A value that controls how much genomic content to include.
 
     Returns
     -------
@@ -261,6 +266,15 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
                                               include_list)]
         my_sums = [index['genomes'][accession]['contig_sum']
                    for accession in my_accessions]
+        if threshold and my_accessions:
+            threshold *= THRESHOLD_BASE
+            genomic_content = 0
+            for i in range(len(my_accessions)):
+                my_sums[i] += genomic_content
+                if genomic_content > threshold:
+                    break
+            my_accessions = my_accessions[0:i]
+            my_sums = my_sums[0:i]
         if my_accessions:
             taxid_accessions[taxid] = [my_accessions,
                                        my_sums]
@@ -672,6 +686,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                chop=False,
                window_length=50,
                amino_acid=False,
+               thresholds=None,
                temp_dir="/localscratch/",
                verbose=0):
     """
@@ -717,14 +732,12 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
         if thresholding or chopping is used.
     amino_acid: bool
         If True, the data is amino acid data.
+    thresholds: list<int>
+        Values that control how much genomic content to include.  
+        Multiple values are only valid for genome holdout strategies.
     temp_dir: str
         A path to write temporary files to.  This could be on the local hard
         drive for better speed.
-    include_list: list
-        Determines the value from the genomes index that determines
-        if the genome will be included for consideration.  Ordinarily,
-        this will be set to [True], but for the genome holdout strategy,
-        it could be [1] or [2].
     verbose: int
         Determines the verbosity.
 
@@ -736,6 +749,8 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
 
     """
     index = pickle.load(open(index_dir, 'rb'))
+    if not thresholds:
+        thresholds = [None] * 3
     try:
         strategy = index['select']['strategy']
     except KeyError:
@@ -755,6 +770,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                        amino_acid=amino_acid,
                                        temp_dir=temp_dir,
                                        include_list=[_TEST],
+                                       thresholds=thresholds[_TEST-1],
                                        verbose=verbose)
         shutil.move(os.path.join(data_dir, str(taxid), "train"),
                     os.path.join(data_dir, str(taxid), "test"))
@@ -771,6 +787,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         amino_acid=amino_acid,
                                         temp_dir=temp_dir,
                                         include_list=[_TRAIN],
+                                        thresholds=thresholds[_TRAIN-1],
                                         verbose=verbose)
         return tuple(map(operator.add, test_count, train_count))
     else:
@@ -782,6 +799,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                  chop=chop,
                                  window_length=window_length,
                                  amino_acid=amino_acid, temp_dir=temp_dir,
+                                 thresholds=thresholds[0],
                                  verbose=verbose)
 
 
@@ -793,6 +811,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                       window_length=50,
                       amino_acid=False, temp_dir="/localscratch/",
                       include_list=[True],
+                      threshold=None,
                       verbose=0):
     """
     Get a random sample.  Create training, validation, and testing data sets
@@ -844,6 +863,8 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         if the genome will be included for consideration.  Ordinarily,
         this will be set to [True], but for the genome holdout strategy,
         it could be [1] or [2].
+    threshold: int
+        A value that controls how much genomic content to include.
     verbose: int
         Determines the verbosity.
 
@@ -859,7 +880,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
                                                number, length,
                                                include_wild, amino_acid,
-                                               temp_dir, include_list)
+                                               temp_dir, include_list, threshold)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return (0, 0)
@@ -944,7 +965,9 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                     include_wild=False, prob=_RC_PROB,
                     thresholding=False, chop=False,
                     window_length=100,
-                    amino_acid=False, temp_dir="/localscratch/",
+                    amino_acid=False, 
+                    thresholds=None,
+                    temp_dir="/localscratch/",
                     verbose=0):
     """
     Get samples of data in parallel and writes them into files and a data
@@ -995,6 +1018,9 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
         if thresholding or chopping is used.
     amino_acid: bool
         If True, the data is amino acid data.
+    thresholds: list<int>
+        Values that control how much genomic content to include.  
+        Multiple values are only valid for genome holdout strategies.
     temp_dir: str
         A path to write temporary files to.  This could be on the local hard
         drive for better speed.
@@ -1027,6 +1053,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                                                        chop,
                                                        window_length,
                                                        amino_acid,
+                                                       thresholds,
                                                        temp_dir,
                                                        verbose)))
         output = []

@@ -105,8 +105,6 @@ def main():
                     help=("The probability that a sequence will be "
                           "converted to the reverse complement."),
                     default=0.5)
-#     fasta = ArgClass("fasta", type=str,
-#                      help="The location of a fasta file.")
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
     p_download = subparsers.add_parser("download",
                                        help=("Download genomes from "
@@ -166,13 +164,13 @@ def main():
                                 '(QSL), GenomeHoldoutTree (GHT), '
                                 'GenomeHoldoutLeaf (GHL), AllGenomes (AG)'),
                           default='PR')
-    p_select.add_argument('--sample_amount', '-n', nargs='+', type=int,
+    p_select.add_argument('--select_amount', '-n', nargs='+', type=int,
                           help=('The number of genomes '
-                                'to sample at each level. '
+                                'to select at each level. '
                                 'Does not apply to AllGenomes.  '
                                 'Genome holdout requires '
-                                'two sample amounts.  '
-                                'The first one for training '
+                                'two amounts: '
+                                'the first one for training '
                                 'data, and the second one for '
                                 'testing data.'),
                           default=[10])
@@ -212,6 +210,19 @@ def main():
                                 "file, chop up the fasta file rather than "
                                 "randomly sample from it."),
                           action='store_true', default=False)
+    p_select.add_argument('--thresholds', '-h', nargs='+', type=int,
+                          help=('The total amount of genomic information '
+                                'to get in kilobases.  '
+                                'This option only applies to '
+                                'genome holdout strategies when '
+                                'multiple threholds are specified.  '
+                                'A single value can be used for '
+                                'other strategies.'
+                                'If None, then all of the genomes '
+                                'in the set will be used.  '
+                                'This option has nothing to do with '
+                                'the thresholding option.'),
+                          default=None)
     p_sample.add_argument("--chop", "-c", action="store_true", default=False,
                           help=("Chop up the set of genomes in "
                                 "the sample set.  "
@@ -474,9 +485,10 @@ def main():
                         args.thresholding,
                         args.chop,
                         args.window_length, args.amino_acid,
+                        args.thresholds,
                         args.temp_dir,
                         args.verbose)
-    elif mode == "util_permute":
+    elif mode == "util_permute": # permute and split
         from library.permute import randomly_permute_fasta_taxid
         permute_count = randomly_permute_fasta_taxid(args.input_fasta, 
                                                      args.input_taxid,
