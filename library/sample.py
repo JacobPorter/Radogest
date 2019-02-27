@@ -55,6 +55,9 @@ _RC_PROB = 0.5
 _TRAIN = 1
 _TEST = 2
 
+# Length of the random string
+RAND_LEN = 16
+
 # The base for the thresholds amount.  1000 means the value is in kilobases.
 THRESHOLD_BASE = 1000
 
@@ -886,8 +889,14 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         return (0, 0)
     print("Getting the kmer samples.", file=sys.stderr)
     sys.stderr.flush()
-    fasta_path_init = os.path.join(temp_dir, str(taxid) + ".init.fasta")
-    taxid_path = os.path.join(temp_dir, str(taxid) + ".taxid")
+    random_str = ''.join(random.choice(
+        string.ascii_uppercase + string.digits + string.ascii_lowercase) 
+        for _ in range(RAND_LEN))
+    fasta_path_init = os.path.join(temp_dir,
+                                    str(taxid) + "." + random_str + 
+                                    ".init.fasta")
+    taxid_path = os.path.join(temp_dir, str(taxid) + "." + random_str + 
+                              ".taxid")
     fasta_file = open(fasta_path_init, "w")
     taxid_file = open(taxid_path, "w")
     fasta_records_count = get_fasta(accession_counts, length,
