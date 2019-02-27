@@ -6,6 +6,30 @@ Some utility files.
 """
 
 import math
+import os
+
+
+def which(program):
+    """
+    Code taken from:
+    http://stackoverflow.com/questions/377017/test-if-executable-exists-in-python/377028#377028
+    This checks if an executable is present.
+    @param program: Either a path to a program or the name of a program on the system PATH
+    @return: The path to the program.  If the program does not exist, return None.
+    """
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+    fpath, _ = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+    return None
 
 
 def one_loop_stats(iterable, num_func, prefix=""):

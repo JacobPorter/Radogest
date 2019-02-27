@@ -25,6 +25,7 @@ from ete3 import NCBITaxa
 from SeqIterator.SeqIterator import SeqReader, SeqWriter
 from library.permute import randomly_permute_fasta_taxid
 from library.chop import chop_genomes
+from library.util import which
 
 from config import BEDTOOLS
 
@@ -650,11 +651,15 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
             prefix=prefix,
             dir=temp_dir) as my_fasta_fd:
         bedtools_file = bedtools_fd.name
-        subprocess.run([BEDTOOLS + "bedtools", "random", "-l",
+        bedtools_path_in = BEDTOOLS + "bedtools"
+        bedtools_path_out = which(bedtools_path_in)
+        if not bedtools_path_out:
+            raise FileNotFoundError(bedtools_path_in)
+        subprocess.run([bedtools_path_out, "random", "-l",
                         str(length), "-n",
                         str(my_sample), "-g",
                         fai_location], stdout=bedtools_fd)
-        subprocess.run([BEDTOOLS + "bedtools", "getfasta", "-fi",
+        subprocess.run([bedtools_path_out, "getfasta", "-fi",
                         fasta_location, "-bed", bedtools_file],
                        stdout=my_fasta_fd)
         intermediate_fasta_file = SeqReader(my_fasta_fd.name,

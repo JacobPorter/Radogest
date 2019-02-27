@@ -13,6 +13,7 @@ import sys
 from collections import defaultdict
 from multiprocessing import Pool
 from config import SAMTOOLS
+from library.util import which
 
 FASTA_ENDINGS = ['fasta', 'fa', 'fna', 'faa']
 
@@ -77,6 +78,10 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
         if (name.endswith('fai')):
             os.remove(os.path.join(path, name))
     returncode = 0
+    samtools_path_in = SAMTOOLS + "samtools"
+    samtools_path_out = which(samtools_path_in)
+    if not samtools_path_out:
+        raise FileNotFoundError(samtools_path_in)
     for name in files:
         if (not leave_compressed and
                 name_ends(name, FASTA_ENDINGS, addition='.gz')):
@@ -94,7 +99,7 @@ def make_fai_individual(path, files, leave_compressed=False, verbose=0):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
             complete_p = subprocess.run([
-                SAMTOOLS + "samtools", "faidx", fa_file])
+                samtools_path_out, "faidx", fa_file])
             returncode = returncode ^ complete_p.returncode
             if not complete_p.returncode:
                 count["fai"] += 1
