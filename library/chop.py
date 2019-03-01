@@ -34,7 +34,7 @@ def chop_a_genome(location,
     writer: SeqWriter
         The SeqWriter object to write fasta records to.
     queue: Queue
-        A shared queue to write output to.  
+        A shared queue to write output to.
         The queue handles writing to files for multiprocessing.
     include_wild: boolean
         Determines whether to include kmers with wildcard characters.
@@ -120,14 +120,14 @@ def chop_genomes(accessions_list,
     length: int
         The length of the partition to take.
     locations: list<str>
-        A list of locations of the accession information 
+        A list of locations of the accession information
         in the same order as the accessions_list
     taxid: int
         The taxid to use for the fasta record.
     output: str or writable
         The location of the output file as a string path or a writable object.
     queue: Queue
-        A shared queue to write output to.  
+        A shared queue to write output to.
         The queue handles writing to files for multiprocessing.
     include_wild: boolean
         Determines whether to include kmers with wildcard characters.

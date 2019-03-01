@@ -1,17 +1,17 @@
-# Radogest: random genome sampler for trees
-Radogest randomly samples fixed length nucleotide substrings (kmers) for given taxonomic ids from a data store of genomes downloaded from the National Center for Biotechnology Information (NCBI).  There is support for whole genomes, coding domain nucleotide data, and amino acid data.  Radogest is useful for generating kmers to train and analyze metagenomic classifiers, and it labels each kmer sampled with the taxonomic id that it represents.  Radogest can generate data for any NCBI taxonomic id that is present in NCBI that is of a conventional rank.  Conventional ranks include superkingdom, kingdom, phylum, class, order, genus, species.  Radogest works with both nucleotide data and amino acid data.
+# Radogest: __ra__n__do__m __ge__nome __s__ampler for __t__rees
+Radogest randomly samples fixed length nucleotide substrings (kmers) for given taxonomic ids from a data store of genomes downloaded from the National Center for Biotechnology Information (NCBI).  There is support for whole genomes, coding domain nucleotide data, and amino acid data.  (However, each data type needs to be stored in its own directory.)  Radogest is useful for generating kmers to train and analyze metagenomic classifiers, and it labels each kmer sampled with the taxonomic id that it represents.  Radogest can generate data for any NCBI taxonomic id that is present in the NCBI data store that is of a conventional rank.  Conventional ranks include superkingdom, kingdom, phylum, class, order, genus, and species.
 
 
 ## Install Radogest
 
-Radogest source can be found on github.  It requires the SeqIterator submodule, which can be downloaded at the same time with recursion.
+Radogest source code can be found on github.  It requires the SeqIterator submodule, which can be downloaded at the same time with recursion.
 
 
 ```
 git --recurse-submodules clone ...
 ```
 
-It is written in Python 3, and it requires the Python packages ete3, tqdm, appdirs, and requests.  Radogest requires installing SAMtools (https://github.com/samtools/samtools) and bedtools (https://bedtools.readthedocs.io/en/latest/).  SAMtools is used to generate fasta files, and bedtools is used to generate the locations of randomly drawn kmers.  The location where SAMtools and bedtools are stored can be documented in config.py.
+Radogest is written in Python 3, and it requires the Python packages ete3, tqdm, appdirs, and requests.  Radogest requires installing SAMtools (https://github.com/samtools/samtools) and bedtools (https://bedtools.readthedocs.io/en/latest/).  SAMtools is used to generate fasta files, and bedtools is used to generate the locations of randomly drawn kmers.  The location where SAMtools and bedtools are stored can be documented in config.py.  Radogest tries the locations in the config.py file, and if those are not valid executables, then Radogest searches for the exectuables for SAMtools and bedtools in the operating system PATH variable.
 
 ## Important Files
 
@@ -24,7 +24,9 @@ This file stores the locations of samtools and BED tools.  This file may need to
 ## Commands
 
 ### download
-Used to download genomes from NCBI.  Modified by Jacob Porter from [https://github.com/kblin/ncbi-genome-download].  In addition to downloading genomes, this downloads genome information in JSON so that a genomes index can be created.  All file types need to be downloaded into separate directories because Radogest only recognizes one fasta file in a directory.  For examples, all NCBI whole genomes could be downloaded into GenomesNT, and all coding domain fasta files could be downloaded into GenomesCD, and all amino acid fasta files could be downloaded into GenomesAA. 
+Used to download genomes from NCBI.  Modified by Jacob Porter from [https://github.com/kblin/ncbi-genome-download].  In addition to downloading genomes, this downloads genome information in JSON so that a genomes index can be created.  
+
+*All file types need to be downloaded into separate directories because Radogest only recognizes one fasta file in a directory.*  For examples, all NCBI whole genomes could be downloaded into GenomesNT, and all coding domain fasta files could be downloaded into GenomesCD, and all amino acid fasta files could be downloaded into GenomesAA. 
 
 ### faidx
 Runs FAIDX from samtools on the genomes in the genomes directory and updates the genomes index.  The FAI file is used to perform random sampling. The genomes index is updated with the number of nucleotide bases and the number of contigs in the genome.
@@ -41,13 +43,11 @@ Implements strategies to down select genomes at each taxonomic level.  This incl
 Performs a post-order depth first search of the taxonomic tree to down select genomes at each taxonomic level.  Requires the tree and the genomes index data structures.  This uses the strategies found in genome_selection/strategy.py.
 
 ### sample
-Randomly samples DNA substrings for a given taxonomic id.  The taxonomic id must be present in the tree and in the genomes index.
-This creates a taxid file labeling each DNA substring drawn with a taxonomic id from the children of the taxonomic id given to the sampler.
-This creates a fasta file with each sampled substring.
+Randomly samples DNA substrings for a given taxonomic id.  The taxonomic id must be present in the tree and in the genomes index.  This creates a taxid file labeling each DNA substring drawn with a taxonomic id from the children of the taxonomic id given to the sampler.  This creates a fasta file with each sampled substring.
 
 Given a taxonomic id file and a fasta file, this creates up to three sets of randomly permuted data.  This is useful for training, validating, and testing a classifier.
 
-Given a list of taxonomic ids, this can randomly sample DNA substrings for each taxonomic id in parallel using multiprocessing.
+Radogest can sample from multiple taxonomic ids by giving it a list of taxonomic ids where each id is on a single line in a file.  The sampling can use multiprocessing where a process is used to sample from each  taxonomic id.  When a single taxonomic id is given, Radogest can use multiple processes to generate data for that single taxonomic id.
 
 ### util_permute
 Randomly permutes and optionally splits a fasta file and a taxid file.
@@ -97,16 +97,18 @@ A taxonomic tree is built so that Radogest can know which conventional ranks exi
 radogest.py tree --index /project/GenomesNT/index.pck --tree /project/GenomesNT/tree.pck --taxid /project/GenomesNT/taxid_list.txt
 ```
 
-Strategies exist for Radogest to down select genomes at for each taxonomy in the taxonomic tree.  This example uses the method Quality Sorting Leaf (QSL) with at most 10 genomes selected for each species.  This outputs a new Radogest index that can be used in sampling.
+Strategies exist for Radogest to down select genomes for each taxonomy in the taxonomic tree.  This example uses the method Quality Sorting Leaf (QSL) with at most 10 genomes selected for each species.  This outputs a new Radogest index that can be used in sampling.
 
 ```
 radogest.py select --index /project/GenomesNT/index.pck --tree /project/GenomesNT/tree.pck --strategy QSL --sample_amount 10 --output /project/GenomesNT/index_QSL.pck
 ```
 
-Suppose that one million 100-mers representing superkingdom data is desired.  The following command will generate that data given the Radogest index and tree.  It will put the data in a Data directory, and the /tmp/ directory will be used to store temporary files that will be deleted when Radogest is finished.  The taxonomic id 1 represents the superkingdom.  This command creates samples kmers from four kingdoms: virus, archaea, eukaryota, bacteria.
+Suppose that one million 100-mers representing superkingdom data is desired.  The following command will generate that data given the Radogest index and tree.  It will put the data in a Data directory, and the /tmp/ directory will be used to store temporary files that will be deleted when Radogest is finished.  The taxonomic id 1 represents the superkingdom.  This command creates samples kmers from four kingdoms: virus, archaea, eukaryota, bacteria.  
+
+In this example, four processes will be used to generate the data, and there should be at least four processing cores.  When using multiprocessing on a single taxonomic id, two more processes than specified with the processes parameter will be used.  One process is the main process that coordinates communication, and one process writes the files.  The other processes are worker processes that generate kmer samples.
 
 ```
-radogest.py sample --index /project/GenomesNT/index_QSL.pck --tree /project/GenomesNT/tree.pck --genomes /project/GenomesNT --kmer_size 100 --number 1000000 --data_dir /project/GenomesNT/Data/ --temp_dir /tmp/ 1
+radogest.py sample --index /project/GenomesNT/index_QSL.pck --tree /project/GenomesNT/tree.pck --genomes /project/GenomesNT --kmer_size 100 --number 1000000 -p 4 --data_dir /project/GenomesNT/Data/ --temp_dir /tmp/ 1
 ```
 
 The kmers can be split into train, validation, and test sets.  The percentage of kmers allocated to these sets can be given with the `split_amount` option.  The following example will produce a training set of 75% of the kmers and a testing set of 25% of the kmers since there are two percentages given for the `split_amount.`  If a validation data set is desired, then a third percentage must be given.
@@ -193,4 +195,4 @@ Radogest sample generates fasta records with a fasta id in the following format:
 
 `>[Accession]:[TaxonomicID]:[ContigID]:[StartPosition-EndPosition]:[+|-]`
 
-The last character is a `+` if the kmer is the forward strand, and it is a `-` for the reverse complement.  The start and end positions are relative to the forward strand.
+The last character is a `+` if the kmer is the forward strand, and it is a `-` for the reverse complement.  The start and end positions are relative to the forward strand.  This means that the start position is always numerically less than the end position.

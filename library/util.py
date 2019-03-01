@@ -11,11 +11,14 @@ import os
 
 def which(program):
     """
+    Check if the executable given in program exists or if it exists
+    in the operating system PATH variable.
     Code taken from:
     http://stackoverflow.com/questions/377017/test-if-executable-exists-in-python/377028#377028
-    This checks if an executable is present.
-    @param program: Either a path to a program or the name of a program on the system PATH
-    @return: The path to the program.  If the program does not exist, return None.
+    @param program: Either a path to a program
+    or the name of a program on the system PATH
+    @return: The path to the program.
+    If the program does not exist, return None.
     """
     def is_exe(fpath):
         return os.path.isfile(fpath) and os.access(fpath, os.X_OK)

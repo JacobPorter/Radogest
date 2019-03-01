@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 """
 Radogest: random genome sampler for trees.
-Works with genomic information downloaded from 
+Works with genomic information downloaded from
 NCBI (National Center for Biotechnology Information)
 
 :Authors:
     Jacob Porter <jsporter@vt.edu>
 """
- 
-# TODO: When finished with code, check and update comments and README documentation.
+
+# TODO: Check and update comments and README documentation.
+# TODO: Perform an integration test of all of the functionality.
 # TODO: Write and submit a paper.
 
 import argparse
@@ -28,8 +29,10 @@ _JSON_INDENT = 4
 
 
 class ArgClass:
+    """A class for reusing command line parameters."""
 
     def __init__(self, *args, **kwargs):
+        """Initialize the field members."""
         self.args = args
         self.kwargs = kwargs
 
@@ -77,7 +80,7 @@ def main():
                                 default=False)
     window_length = ArgClass("--window_length", "-w", type=int,
                              help=("The window length to use when using "
-                                "thresholding."),
+                                   "thresholding."),
                              default=50)
     kmer_size = ArgClass("--kmer_size", "-k", type=int,
                          help=("The length in base pairs i "
@@ -92,13 +95,13 @@ def main():
                                   "three percentages.  "
                                   "The percentages to split the data into "
                                   "for training, validation, and test sets."),
-                          default="0.8,0.10,0.10")
+                            default="0.8,0.10,0.10")
     include_wild = ArgClass("--include_wild", "-x",
                             help=("Include wild card characters "
                                   "in the samples.  "
                                   "When this is not used, samples with "
                                   "wild card characters will be discarded."),
-                          action='store_true', default=False)
+                            action='store_true', default=False)
     prob = ArgClass("--prob", "-b", type=float,
                     help=("The probability that a sequence will be "
                           "converted to the reverse complement."),
@@ -258,10 +261,10 @@ def main():
     output_taxid = ArgClass("output_taxid", type=str,
                             help=("The output taxid file."))
     p_permute = subparsers.add_parser("util_permute",
-                                           help=("Permute a fasta file "
-                                                 "and a taxid file."),
-                                           formatter_class=argparse.
-                                           ArgumentDefaultsHelpFormatter)
+                                      help=("Permute a fasta file "
+                                            "and a taxid file."),
+                                      formatter_class=argparse.
+                                      ArgumentDefaultsHelpFormatter)
     p_permute.add_argument(*input_fasta.args, **input_fasta.kwargs)
     p_permute.add_argument(*input_taxid.args, **input_taxid.kwargs)
     p_permute.add_argument(*output_fasta.args, **output_fasta.kwargs)
@@ -273,7 +276,6 @@ def main():
                                          "into kmers and write it out"),
                                    formatter_class=argparse.
                                    ArgumentDefaultsHelpFormatter)
-    # accession, taxid, output, index, genomes_dir, kmer, include_wild, window_length
     p_chop.add_argument("taxid", type=int,
                         help=("The taxonomic id to include in the "
                               "fasta record id."))
@@ -452,7 +454,8 @@ def main():
         try:
             taxid_list = [int(args.taxid)]
         except ValueError:
-            taxid_list = [int(taxid.strip()) for taxid in open(args.taxid, "r")]
+            taxid_list = [int(taxid.strip()) for
+                          taxid in open(args.taxid, "r")]
         begin, end = args.range
         if end == -1:
             end = len(taxid_list)
@@ -470,40 +473,40 @@ def main():
                         args.split, args.split_amount,
                         args.processes,
                         args.include_wild,
-                        args.prob, 
+                        args.prob,
                         args.thresholding,
                         args.chop,
                         args.window_length, args.amino_acid,
                         args.thresholds,
                         args.temp_dir,
                         args.verbose)
-    elif mode == "util_permute": # permute and split
+    elif mode == "util_permute":  # permute and split
         from library.permute import randomly_permute_fasta_taxid
-        permute_count = randomly_permute_fasta_taxid(args.input_fasta, 
+        permute_count = randomly_permute_fasta_taxid(args.input_fasta,
                                                      args.input_taxid,
                                                      args.output_fasta,
                                                      args.output_taxid,
-                                                     split=args.split, 
+                                                     split=args.split,
                                                      split_amount=
                                                      args.split_amount)
-        print("There were {} records written.".format(permute_count), 
+        print("There were {} records written.".format(permute_count),
               file=sys.stderr)
     elif mode == "util_chop":
         from library.chop import chop_genomes
         index = read_ds(args.index)
         locations = [args.genomes + index['genomes'][accession][
-                            'location'] for accession in args.accessions]        
-        number_written = chop_genomes(args.accessions, 
-                                      args.kmer_size, 
+                            'location'] for accession in args.accessions]
+        number_written = chop_genomes(args.accessions,
+                                      args.kmer_size,
                                       locations,
                                       args.taxid,
                                       args.output_fasta,
                                       None,
-                                      args.include_wild, 
+                                      args.include_wild,
                                       args.window_length)
-        print("There were {} records written.".format(number_written), 
+        print("There were {} records written.".format(number_written),
               file=sys.stderr)
-    elif mode == "util_rc":  # reverse complement 
+    elif mode == "util_rc":  # reverse complement
         from library.sample import get_rc_fasta
         read_counter, write_counter = get_rc_fasta(args.input_fasta,
                                                    args.output_fasta,

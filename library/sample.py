@@ -475,21 +475,21 @@ def file_locations(accession, accession_location, temp_dir):
 
 # def index_service(index_dir, pipes):
 #     """
-#     Access the genomes index object through pipes.  
+#     Access the genomes index object through pipes.
 #     This allows for paralellism.
-#     
+#
 #     Parameters
 #     ----------
 #     index_dir: str
 #         The location of the genomes index object.
 #     pipes: list<Pipe>
-#         A list of Pipe objects to send and receive 
+#         A list of Pipe objects to send and receive
 #         requests for information from the index.
-#         
+#
 #     Returns
 #     -------
 #     None
-#     
+#
 #     """
 #     index = pickle.load(open(index_dir, 'rb'))
 #     stay = True
@@ -506,12 +506,12 @@ def file_locations(accession, accession_location, temp_dir):
 #                 stay = False
 
 
-def file_service(fasta_file_location, taxid_file_location, 
+def file_service(fasta_file_location, taxid_file_location,
                  record_count, queue, pills=1):
     """
-    Write to a fasta file and a taxid file 
+    Write to a fasta file and a taxid file
     by pulling information off of a queue.
-    
+
     Parameters
     ----------
     fasta_file_location: str
@@ -524,13 +524,14 @@ def file_service(fasta_file_location, taxid_file_location,
         A multiprocessing queue to read information from.
     pills: int
         The number of poison pills to swallow before quitting.
-        This number should be the same number as the number of 
+        This number should be the same number as the number of
         processes that are using this service.
-    
+
     Returns
     -------
     count: int
         A count of the number of records processed.
+
     """
     fasta_file = SeqWriter(open(fasta_file_location, "w"), file_type='fasta')
     taxid_file = open(taxid_file_location, "w")
@@ -550,7 +551,7 @@ def file_service(fasta_file_location, taxid_file_location,
 
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
-              fasta_path, taxid_path, 
+              fasta_path, taxid_path,
               index_dir,
               include_wild=False,
               window_length=50,
@@ -620,13 +621,13 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 #             c1, c2 = Pipe()
 #             pool_connections.append(c1)
 #             service_connections.append(c2)
-#         index_process = Process(target=index_service, 
+#         index_process = Process(target=index_service,
 #                                 args=(index_dir, service_connections))
         fasta_record_count = Value('i', 0)
         manager = Manager()
         queue = manager.Queue()
-        file_process = Process(target=file_service, 
-                               args=(fasta_path, taxid_path, 
+        file_process = Process(target=file_service,
+                               args=(fasta_path, taxid_path,
                                      fasta_record_count,
                                      queue))
 #         index_process.start()
@@ -649,7 +650,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 location = genomes_dir + index['genomes'][accession][
                         'location']
                 if processes == 1:
-                    records_written = chop_genomes([accession], 
+                    records_written = chop_genomes([accession],
                                                    length,
                                                    [location],
                                                    taxid,
@@ -662,7 +663,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                     fasta_record_count += records_written
                 else:
                     pool.apply_async(chop_genomes,
-                                     args=([accession], 
+                                     args=([accession],
                                            length,
                                            [location],
                                            taxid,
@@ -672,11 +673,11 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                            window_length))
                 continue
             accession_location = os.path.join(genomes_dir +
-                                  index['genomes']
-                                  [accession]
-                                  ['location'])
-            file_locations_d = file_locations(accession, 
-                                              accession_location, 
+                                              index['genomes']
+                                              [accession]
+                                              ['location'])
+            file_locations_d = file_locations(accession,
+                                              accession_location,
                                               temp_dir)
             fai_location = file_locations_d["fai"]
             fasta_location = file_locations_d["fasta_location"]
@@ -684,9 +685,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 fasta_record_count += random_bed_fast_worker(
                     accession_counts[accession],
                     length,
-                    taxid, 
+                    taxid,
                     accession,
-                    fai_location, 
+                    fai_location,
                     fasta_location,
                     taxid_file,
                     final_file,
@@ -700,9 +701,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                     random_bed_fast_worker,
                     args=(accession_counts[accession],
                           length,
-                          taxid, 
+                          taxid,
                           accession,
-                          fai_location, 
+                          fai_location,
                           fasta_location,
                           None,
                           None,
@@ -726,22 +727,22 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         return fasta_record_count.value
 
 
-def random_bed_fast_worker(total_accession_count, 
-                           length, 
-                           taxid, 
-                           accession, 
-                           fai_location, 
-                           fasta_location, 
+def random_bed_fast_worker(total_accession_count,
+                           length,
+                           taxid,
+                           accession,
+                           fai_location,
+                           fasta_location,
                            taxid_file,
                            final_file,
-                           queue, 
-                           include_wild, 
-                           amino_acid, 
-                           temp_dir, 
+                           queue,
+                           include_wild,
+                           amino_acid,
+                           temp_dir,
                            verbose=0):
     """
     Get random nucleotide sequences from a bed file and a fasta file.  Exclude
-    sequences with N's in them.  
+    sequences with N's in them.
     Iterate until there are total_accession_count records.
 
     Parameters
@@ -968,7 +969,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     amino_acid: bool
         If True, the data is amino acid data.
     thresholds: list<int>
-        Values that control how much genomic content to include.  
+        Values that control how much genomic content to include.
         Multiple values are only valid for genome holdout strategies.
     temp_dir: str
         A path to write temporary files to.  This could be on the local hard
@@ -1134,7 +1135,8 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
                                                number, length,
                                                include_wild, amino_acid,
-                                               temp_dir, include_list, threshold)
+                                               temp_dir, include_list,
+                                               threshold)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return (0, 0)
@@ -1142,13 +1144,13 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     sys.stderr.flush()
     random_str = get_random_string()
     fasta_path_init = os.path.join(temp_dir,
-                                    str(taxid) + "." + random_str + 
-                                    ".init.fasta")
-    taxid_path = os.path.join(temp_dir, str(taxid) + "." + random_str + 
+                                   str(taxid) + "." + random_str +
+                                   ".init.fasta")
+    taxid_path = os.path.join(temp_dir, str(taxid) + "." + random_str +
                               ".taxid")
     fasta_records_count = get_fasta(accession_counts, length,
                                     index, genomes_dir, fasta_path_init,
-                                    taxid_path, 
+                                    taxid_path,
                                     index_dir,
                                     include_wild=include_wild,
                                     window_length=window_length,
@@ -1164,7 +1166,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         print("Getting the reverse complements.", file=sys.stderr)
         sys.stderr.flush()
         random_str = get_random_string()
-        fasta_path = os.path.join(temp_dir, str(taxid) + "." + 
+        fasta_path = os.path.join(temp_dir, str(taxid) + "." +
                                   random_str + ".fasta")
         _, _ = get_rc_fasta(fasta_path_init,
                             fasta_path,
@@ -1224,7 +1226,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                     include_wild=False, prob=_RC_PROB,
                     thresholding=False, chop=False,
                     window_length=100,
-                    amino_acid=False, 
+                    amino_acid=False,
                     thresholds=None,
                     temp_dir="/localscratch/",
                     verbose=0):
@@ -1281,7 +1283,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
     amino_acid: bool
         If True, the data is amino acid data.
     thresholds: list<int>
-        Values that control how much genomic content to include.  
+        Values that control how much genomic content to include.
         Multiple values are only valid for genome holdout strategies.
     temp_dir: str
         A path to write temporary files to.  This could be on the local hard
@@ -1299,28 +1301,28 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
     """
     def printer(taxid, counts):
         print("{}: {} samples drawn, {} samples written".
-                      format(taxid, counts[0], counts[1]), file=sys.stderr)
+              format(taxid, counts[0], counts[1]), file=sys.stderr)
     output = []
     if len(taxid_list) == 1:
         taxid = taxid_list[0]
         sublevels = ranks[taxid]
-        counts = get_sample(taxid, 
-                           sublevels, 
-                           index_dir, 
-                           genomes_dir,
-                           number,
-                           length, data_dir, split,
-                           split_amount,
-                           include_wild,
-                           prob,
-                           thresholding,
-                           chop,
-                           window_length,
-                           amino_acid,
-                           thresholds,
-                           temp_dir,
-                           processes,
-                           verbose)
+        counts = get_sample(taxid,
+                            sublevels,
+                            index_dir,
+                            genomes_dir,
+                            number,
+                            length, data_dir, split,
+                            split_amount,
+                            include_wild,
+                            prob,
+                            thresholding,
+                            chop,
+                            window_length,
+                            amino_acid,
+                            thresholds,
+                            temp_dir,
+                            processes,
+                            verbose)
         output.append(counts)
         printer(taxid, counts)
     else:
@@ -1330,7 +1332,8 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                 sublevels = ranks[taxid]
                 process_list.append(pool.apply_async(get_sample,
                                                      args=(taxid,
-                                                           sublevels, index_dir,
+                                                           sublevels,
+                                                           index_dir,
                                                            genomes_dir,
                                                            number,
                                                            length, data_dir,
