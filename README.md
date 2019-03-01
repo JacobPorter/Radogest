@@ -1,4 +1,4 @@
-# Radogest: _ra_n_do_m _ge_nome _s_ampler for _t_rees
+# Radogest: *ra*n*do*m *ge*nome *s*ampler for *t*rees
 Radogest randomly samples fixed length nucleotide substrings (kmers) for given taxonomic ids from a data store of genomes downloaded from the National Center for Biotechnology Information (NCBI).  There is support for whole genomes, coding domain nucleotide data, and amino acid data.  (However, each data type needs to be stored in its own directory because of limitations to Radogest's data structures.)  Radogest is useful for generating kmers to train and analyze metagenomic classifiers, and it labels each kmer sampled with the taxonomic id that it represents.  Radogest can generate data for any NCBI taxonomic id that is present in the NCBI data store that is of a conventional rank.  Conventional ranks include superkingdom, kingdom, phylum, class, order, genus, and species.
 
 
