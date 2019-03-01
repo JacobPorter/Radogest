@@ -15,6 +15,7 @@ def chop_a_genome(location,
                   length,
                   taxid,
                   writer,
+                  queue=None,
                   include_wild=False,
                   window_length=50):
     """
@@ -32,6 +33,9 @@ def chop_a_genome(location,
         The taxid to use for the fasta record.
     writer: SeqWriter
         The SeqWriter object to write fasta records to.
+    queue: Queue
+        A shared queue to write output to.  
+        The queue handles writing to files for multiprocessing.
     include_wild: boolean
         Determines whether to include kmers with wildcard characters.
     window_length: int
@@ -59,9 +63,13 @@ def chop_a_genome(location,
             substring = sequence[i:i+length].upper()
             if (len(substring) == length and (
                     include_wild or 'N' not in substring)):
-                writer.write(("{}:{}:{}:{}-{}".format(
-                    accession, taxid, header.split()[0],
-                    i, i+length), substring))
+                seq_id = "{}:{}:{}:{}-{}".format(
+                        accession, taxid, header.split()[0],
+                        i, i+length)
+                if queue:
+                    queue.put((seq_id, substring, taxid))
+                if writer:
+                    writer.write((seq_id, substring))
                 number_written += 1
     return number_written
 
@@ -95,10 +103,10 @@ def get_output_writer(output):
 
 def chop_genomes(accessions_list,
                  length,
-                 index,
-                 genomes_dir,
+                 locations,
                  taxid,
                  output,
+                 queue=None,
                  include_wild=False,
                  window_length=50):
     """
@@ -111,14 +119,16 @@ def chop_genomes(accessions_list,
         A list of genome accessions.
     length: int
         The length of the partition to take.
-    index: dict
-        The genomes index.
-    genomes_dir: str
-        The location of the genomes storage.
+    locations: list<str>
+        A list of locations of the accession information 
+        in the same order as the accessions_list
     taxid: int
         The taxid to use for the fasta record.
     output: str or writable
         The location of the output file as a string path or a writable object.
+    queue: Queue
+        A shared queue to write output to.  
+        The queue handles writing to files for multiprocessing.
     include_wild: boolean
         Determines whether to include kmers with wildcard characters.
     window_length: int
@@ -132,16 +142,19 @@ def chop_genomes(accessions_list,
     """
     if window_length < 0:
         window_length = length
-    writer = get_output_writer(output)
+    if not queue:
+        writer = get_output_writer(output)
+    else:
+        writer = None
     number_written = 0
-    for accession in accessions_list:
-        location = genomes_dir + index['genomes'][accession]['location']
+    for location, accession in zip(locations, accessions_list):
         # print(location, file=sys.stderr)
         number_written += chop_a_genome(location,
                                         accession,
                                         length,
                                         taxid,
                                         writer,
+                                        queue=queue,
                                         include_wild=include_wild,
                                         window_length=window_length)
     return number_written

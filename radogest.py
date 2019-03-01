@@ -499,12 +499,14 @@ def main():
     elif mode == "util_chop":
         from library.chop import chop_genomes
         index = read_ds(args.index)
+        locations = [args.genomes + index['genomes'][accession][
+                            'location'] for accession in args.accessions]        
         number_written = chop_genomes(args.accessions, 
                                       args.kmer_size, 
-                                      index, 
-                                      args.genomes, 
+                                      locations,
                                       args.taxid,
                                       args.output_fasta,
+                                      None,
                                       args.include_wild, 
                                       args.window_length)
         print("There were {} records written.".format(number_written), 
