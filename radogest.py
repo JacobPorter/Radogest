@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 """
 Radogest: random genome sampler for trees.
+Works with genomic information downloaded from 
+NCBI (National Center for Biotechnology Information)
 
 :Authors:
     Jacob Porter <jsporter@vt.edu>
 """
-
-# TODO: Add parallelism to sampling from an individual taxonomic id, maybe index creation.
+ 
 # TODO: When finished with code, check and update comments and README documentation.
 # TODO: Write and submit a paper.
 
