@@ -67,7 +67,7 @@ def chop_a_genome(location,
                         accession, taxid, header.split()[0],
                         i, i+length)
                 if queue:
-                    queue.put((seq_id, substring, taxid))
+                    queue.put((seq_id, substring, str(taxid)))
                 if writer:
                     writer.write((seq_id, substring))
                 number_written += 1
@@ -142,10 +142,10 @@ def chop_genomes(accessions_list,
     """
     if window_length < 0:
         window_length = length
-    if not queue:
-        writer = get_output_writer(output)
-    else:
+    if queue:
         writer = None
+    else:
+        writer = get_output_writer(output)
     number_written = 0
     for location, accession in zip(locations, accessions_list):
         # print(location, file=sys.stderr)

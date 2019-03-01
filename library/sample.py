@@ -16,7 +16,7 @@ import subprocess
 import sqlite3
 import tempfile
 import operator
-from multiprocessing import Pool, Value, Queue, Process
+from multiprocessing import Pool, Value, Process, Manager
 # from multiprocessing import Pipe
 from collections import defaultdict
 
@@ -507,7 +507,7 @@ def file_locations(accession, accession_location, temp_dir):
 
 
 def file_service(fasta_file_location, taxid_file_location, 
-                 record_count, queue, pills):
+                 record_count, queue, pills=1):
     """
     Write to a fasta file and a taxid file 
     by pulling information off of a queue.
@@ -539,10 +539,14 @@ def file_service(fasta_file_location, taxid_file_location,
         record = queue.get()
         if record:
             fasta_file.write(record[0:2])
-            taxid_file.write(record[2] + "\n")
+            taxid_file.write(str(record[2]) + "\n")
             record_count.value += 1
         else:
             swallowed += 1
+    fasta_file.flush()
+    taxid_file.flush()
+    fasta_file.close()
+    taxid_file.close()
 
 
 def get_fasta(accession_counts_list, length, index, genomes_dir,
@@ -619,11 +623,12 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 #         index_process = Process(target=index_service, 
 #                                 args=(index_dir, service_connections))
         fasta_record_count = Value('i', 0)
-        queue = Queue()
+        manager = Manager()
+        queue = manager.Queue()
         file_process = Process(target=file_service, 
                                args=(fasta_path, taxid_path, 
                                      fasta_record_count,
-                                     queue, processes))
+                                     queue))
 #         index_process.start()
         file_process.start()
     for taxid, accession_counts in accession_counts_list:
@@ -632,7 +637,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 continue
             if verbose > 1:
                 sys.stderr.write("Writing fasta records for "
-                                 "taxid {} from genome accession {}:\t".
+                                 "taxid {} from genome accession {}\n".
                                  format(taxid, accession))
             # A thresholding and chopping feature.
             # If thresholding and the genome is too small,
@@ -644,8 +649,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 location = genomes_dir + index['genomes'][accession][
                         'location']
                 if processes == 1:
-                    records_written = chop_genomes([accession], length,
-                                                   [location], genomes_dir,
+                    records_written = chop_genomes([accession], 
+                                                   length,
+                                                   [location],
                                                    taxid,
                                                    final_file,
                                                    queue=None,
@@ -656,8 +662,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                     fasta_record_count += records_written
                 else:
                     pool.apply_async(chop_genomes,
-                                     args=([accession], length,
-                                           [location], genomes_dir,
+                                     args=([accession], 
+                                           length,
+                                           [location],
                                            taxid,
                                            None,
                                            queue,
@@ -689,20 +696,21 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                     temp_dir,
                     verbose)
             else:
-                pool.apply_async(random_bed_fast_worker,
-                                 args=(accession_counts[accession],
-                                       length,
-                                       taxid, 
-                                       accession,
-                                       fai_location, 
-                                       fasta_location,
-                                       None,
-                                       None,
-                                       queue,
-                                       include_wild,
-                                       amino_acid,
-                                       temp_dir,
-                                       verbose))
+                pool.apply_async(
+                    random_bed_fast_worker,
+                    args=(accession_counts[accession],
+                          length,
+                          taxid, 
+                          accession,
+                          fai_location, 
+                          fasta_location,
+                          None,
+                          None,
+                          queue,
+                          include_wild,
+                          amino_acid,
+                          temp_dir,
+                          verbose))
     if processes == 1:
         final_file.close()
         taxid_file.close()
@@ -711,6 +719,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         pool.close()
         pool.join()
 #         index_process.join()
+        queue.put(None)
         file_process.join()
         # index_process.close()
         # file_process.close()
@@ -730,6 +739,48 @@ def random_bed_fast_worker(total_accession_count,
                            amino_acid, 
                            temp_dir, 
                            verbose=0):
+    """
+    Get random nucleotide sequences from a bed file and a fasta file.  Exclude
+    sequences with N's in them.  
+    Iterate until there are total_accession_count records.
+
+    Parameters
+    ----------
+    total_accession_count: int
+        The total number of sequences to draw.
+    length: int
+        The length of the nucleotide sequence to get.
+    taxid: int
+        The taxonomic id to sample from
+    accession: str
+        A string indicating the accession id for a genome
+    fai_location: str
+        The location of the .fai faidx samtools index for the genome
+    fasta_location: str
+        The location of the fasta genome file
+    taxid_file: writable
+        A writable object where taxids are written for each random sample.
+    final_file: writable
+        A writable object that stores the fasta records.  This file represents
+        the end product of all of the random sampling.
+    queue: Queue
+        If there is a queue object, use it to write to the taxid file
+        and the fasta file.  This is for parallelism.
+    include_wild: boolean
+        Determines if sequences with wild card characters will be kept.
+    amino_acid: bool
+        If True, the data is amino acid data.
+    temp_dir: str
+        A path to a directory to store temporary files.
+    verbose: bool
+        If True, print messages.
+
+    Returns
+    -------
+    accession_cnt: int
+        The count of the number of samples drawn.
+
+    """
     get_random = True
     accession_cnt = 0
     while get_random:
@@ -854,7 +905,7 @@ def get_random_bed_fast(number, length, taxid, accession, fai_location,
             if taxid_file:
                 taxid_file.write(taxid + "\n")
             if queue:
-                queue.send((record_id, record_seq, taxid))
+                queue.put((record_id, record_seq, taxid))
             records_written += 1
         intermediate_fasta_file.close()
     return (records_written >= number, records_written, records_with_n)
@@ -1074,6 +1125,10 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         and permuted records written.
 
     """
+    def get_random_string():
+        return ''.join(random.choice(
+            string.ascii_uppercase + string.digits + string.ascii_lowercase)
+            for _ in range(RAND_LEN))
     print("Determining accessions to sample from.", file=sys.stderr)
     sys.stderr.flush()
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
@@ -1085,16 +1140,12 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         return (0, 0)
     print("Getting the kmer samples.", file=sys.stderr)
     sys.stderr.flush()
-    random_str = ''.join(random.choice(
-        string.ascii_uppercase + string.digits + string.ascii_lowercase) 
-        for _ in range(RAND_LEN))
+    random_str = get_random_string()
     fasta_path_init = os.path.join(temp_dir,
                                     str(taxid) + "." + random_str + 
                                     ".init.fasta")
     taxid_path = os.path.join(temp_dir, str(taxid) + "." + random_str + 
                               ".taxid")
-    # fasta_file = open(fasta_path_init, "w")
-    # taxid_file = open(taxid_path, "w")
     fasta_records_count = get_fasta(accession_counts, length,
                                     index, genomes_dir, fasta_path_init,
                                     taxid_path, 
@@ -1107,14 +1158,14 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                     amino_acid=amino_acid,
                                     processes=processes,
                                     verbose=verbose)
-    # fasta_file.close()
-    # taxid_file.close()
     print("Finished getting the kmer samples.", file=sys.stderr)
     sys.stderr.flush()
     if not amino_acid:
         print("Getting the reverse complements.", file=sys.stderr)
         sys.stderr.flush()
-        fasta_path = os.path.join(temp_dir, str(taxid) + ".fasta")
+        random_str = get_random_string()
+        fasta_path = os.path.join(temp_dir, str(taxid) + "." + 
+                                  random_str + ".fasta")
         _, _ = get_rc_fasta(fasta_path_init,
                             fasta_path,
                             prob=prob,
