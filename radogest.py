@@ -8,10 +8,6 @@ NCBI (National Center for Biotechnology Information)
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: Check and update comments and README documentation.
-# TODO: Perform an integration test of all of the functionality.
-# TODO: Write and submit a paper.
-
 import argparse
 import datetime
 import sys
@@ -109,7 +105,13 @@ def main():
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
     p_download = subparsers.add_parser("download",
                                        help=("Download genomes from "
-                                             "the NCBI."),
+                                             "the NCBI. "
+                                             "If used by Radogest, "
+                                             "each data type "
+                                             "(nucleotide, coding domain, "
+                                             "amino acid) should be "
+                                             "downloaded into its own "
+                                             "directory."),
                                        formatter_class=argparse.
                                        ArgumentDefaultsHelpFormatter)
     ncbi_argument_parser(version=ncbi_version, parser=p_download)
