@@ -1,5 +1,5 @@
 """
-Split a list of genomes into smaller sequences.
+Chop genomes into smaller sequences with a possibly overlapping window.
 
 :Authors:
     Jacob Porter <jsporter@vt.edu>
@@ -19,7 +19,7 @@ def chop_a_genome(location,
                   include_wild=False,
                   window_length=50):
     """
-    Cut up a single genome into kmers.
+    Cut up a single genome into kmers and write to a file.
 
     Parameters
     ----------
@@ -111,7 +111,7 @@ def chop_genomes(accessions_list,
                  window_length=50):
     """
     Chop the DNA strings from fasta files from a list of genomes and
-    write them to a fasta file.
+    write them to a fasta file.  This is a higher level function.
 
     Parameters
     ----------

@@ -244,7 +244,7 @@ def main():
                                 "intermediate files such as BED files and "
                                 "fasta files or sampling from individual "
                                 " genomes. "),
-                          default='/localscratch/')
+                          default='/tmp/')
     p_sample.add_argument("--processes", "-p", type=int,
                           help=("The number of processes to use."),
                           default=16)
@@ -268,15 +268,6 @@ def main():
     p_permute.add_argument(*output_taxid.args, **output_taxid.kwargs)
     p_permute.add_argument(*split.args, **split.kwargs)
     p_permute.add_argument(*split_amount.args, **split_amount.kwargs)
-#     p_split = subparsers.add_parser("split",
-#                                     help=("Split a fasta file "
-#                                           "and a taxid file."),
-#                                     formatter_class=argparse.
-#                                     ArgumentDefaultsHelpFormatter)
-#     p_split.add_argument(*input_fasta.args, **input_fasta.kwargs)
-#     p_split.add_argument(*input_taxid.args, **input_taxid.kwargs)
-#     p_split.add_argument(*output_fasta.args, **output_fasta.kwargs)
-#     p_split.add_argument(*output_taxid.args, **output_taxid.kwargs)
     p_chop = subparsers.add_parser("util_chop",
                                    help=("Chop a complete genome "
                                          "into kmers and write it out"),
