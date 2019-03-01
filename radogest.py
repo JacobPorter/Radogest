@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 """
 Radogest: random genome sampler for trees.
+Works with genomic information downloaded from 
+NCBI (National Center for Biotechnology Information)
 
 :Authors:
     Jacob Porter <jsporter@vt.edu>
 """
-
-# TODO: Add parallelism to sampling from an individual taxonomic id, maybe index creation.
+ 
 # TODO: When finished with code, check and update comments and README documentation.
 # TODO: Write and submit a paper.
 
@@ -499,12 +500,14 @@ def main():
     elif mode == "util_chop":
         from library.chop import chop_genomes
         index = read_ds(args.index)
+        locations = [args.genomes + index['genomes'][accession][
+                            'location'] for accession in args.accessions]        
         number_written = chop_genomes(args.accessions, 
                                       args.kmer_size, 
-                                      index, 
-                                      args.genomes, 
+                                      locations,
                                       args.taxid,
                                       args.output_fasta,
+                                      None,
                                       args.include_wild, 
                                       args.window_length)
         print("There were {} records written.".format(number_written), 
