@@ -8,7 +8,15 @@ Radogest source code can be found on github.  It requires the SeqIterator submod
 
 
 ```
-git --recurse-submodules clone ...
+git --recurse-submodules clone <the address to this repository>
+```
+
+If this doesn't work, then try:
+
+```
+git clone <the address to this repository>
+git submodule init
+git submodule update
 ```
 
 Radogest is written in Python 3, and it requires the Python packages ete3, tqdm, appdirs, and requests.  Radogest requires installing SAMtools (https://github.com/samtools/samtools) and bedtools (https://bedtools.readthedocs.io/en/latest/).  SAMtools is used to generate fasta files, and bedtools is used to generate the locations of randomly drawn kmers.  The location where SAMtools and bedtools are stored can be documented in config.py.  Radogest tries the locations in the config.py file, and if those are not valid executables, then Radogest searches for the exectuables for SAMtools and bedtools in the operating system PATH variable.
