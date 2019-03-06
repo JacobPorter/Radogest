@@ -32,21 +32,21 @@ This file stores the locations of samtools and BED tools.  This file may need to
 ## Commands
 
 ### download
-Used to download genomes from NCBI.  Modified by Jacob Porter from [https://github.com/kblin/ncbi-genome-download].  In addition to downloading genomes, this downloads genome information in JSON so that a genomes index can be created.  
+Download genomes from NCBI.  Modified by Jacob Porter from [https://github.com/kblin/ncbi-genome-download].  In addition to downloading genomes, this downloads genome information in JSON so that a genomes index can be created.  
 
 *All file types need to be downloaded into separate directories because Radogest only recognizes one fasta file in a directory.*  For examples, all NCBI whole genomes could be downloaded into GenomesNT, and all coding domain fasta files could be downloaded into GenomesCD, and all amino acid fasta files could be downloaded into GenomesAA. 
 
 ### faidx
-Runs FAIDX from samtools on the genomes in the genomes directory and updates the genomes index.  The FAI file is used to perform random sampling. The genomes index is updated with the number of nucleotide bases and the number of contigs in the genome.
+Runs FAIDX from samtools on the genomes in the genomes directory.  The FAI file is used to perform random sampling.  This can be run in parallel.
 
 ### index
-Makes a python dictionary representing genome locations and genome information.  This is called the genomes index.  Creates an index that associates taxonomic ids to genomes.
+Makes a python dictionary representing genome locations and genome information.  This is called the genomes index.  This includes which genomes are under which taxonomic ids.
 
 ### tree
 Makes a python dictionary that represents the taxonomic tree.  This is called the tree. Requires the index from make_genome_index.py.  This presently uses only conventional taxonomic ranks: superkingdom, kingdom, phylum, class, order, genus, species.  It excludes environmental samples, unclassified samples, and RNA viruses.  Viroids are present but not at the root node 1.
 
 ### select
-Implements strategies to down select genomes at each taxonomic level.  This includes ProportionalRandom, which samples genomes proportionaly at random and QualitySortTree, which sorts genomes by quality (first by reference type, then by assembly level, and then by number of bases divided by contigs) and chooses the best ones.
+Implements strategies to down select genomes at each taxonomic level.  This generates a new index object that must be used when sampling.
 
 Performs a post-order depth first search of the taxonomic tree to down select genomes at each taxonomic level.  Requires the tree and the genomes index data structures.  This uses the strategies found in genome_selection/strategy.py.
 
