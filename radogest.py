@@ -220,7 +220,7 @@ def main():
                                 'genome holdout strategies when '
                                 'multiple threholds are specified.  '
                                 'A single value can be used for '
-                                'other strategies.'
+                                'other strategies.  '
                                 'If None, then all of the genomes '
                                 'in the set will be used.  '
                                 'This option has nothing to do with '
