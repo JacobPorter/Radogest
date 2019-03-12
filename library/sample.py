@@ -540,8 +540,13 @@ def file_service(fasta_file_location, taxid_file_location,
         record = queue.get()
         if record:
             fasta_file.write(record[0:2])
-            taxid_file.write(str(record[2]) + "\n")
-            record_count.value += 1
+            taxid = str(record[2])
+            taxid_file.write(taxid + "\n")
+            if taxid not in record_count:
+                record_count[taxid] = 1
+            else:
+                temp_count = record_count[taxid]
+                record_count[taxid] = temp_count + 1
         else:
             swallowed += 1
     fasta_file.flush()
@@ -612,7 +617,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
     if processes == 1:
         final_file = SeqWriter(open(fasta_path, "w"), file_type='fasta')
         taxid_file = open(taxid_path, "w")
-        fasta_record_count = 0
+        fasta_record_count = {}
     else:
         pool = Pool(processes=processes)
 #         pool_connections = []
@@ -623,8 +628,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 #             service_connections.append(c2)
 #         index_process = Process(target=index_service,
 #                                 args=(index_dir, service_connections))
-        fasta_record_count = Value('i', 0)
+        # fasta_record_count = Value('i', 0)
         manager = Manager()
+        fasta_record_count = manager.dict()
         queue = manager.Queue()
         file_process = Process(target=file_service,
                                args=(fasta_path, taxid_path,
@@ -633,6 +639,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 #         index_process.start()
         file_process.start()
     for taxid, accession_counts in accession_counts_list:
+        my_fasta_record_count = 0
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
                 continue
@@ -660,7 +667,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                                    window_length=window_length)
                     for _ in range(records_written):
                         taxid_file.write(str(taxid) + "\n")
-                    fasta_record_count += records_written
+                    my_fasta_record_count += records_written
                 else:
                     pool.apply_async(chop_genomes,
                                      args=([accession],
@@ -682,7 +689,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
             fai_location = file_locations_d["fai"]
             fasta_location = file_locations_d["fasta_location"]
             if processes == 1:
-                fasta_record_count += random_bed_fast_worker(
+                my_fasta_record_count += random_bed_fast_worker(
                     accession_counts[accession],
                     length,
                     taxid,
@@ -712,10 +719,10 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                           amino_acid,
                           temp_dir,
                           verbose))
+        fasta_record_count[str(taxid)] = my_fasta_record_count
     if processes == 1:
         final_file.close()
         taxid_file.close()
-        return fasta_record_count
     else:
         pool.close()
         pool.join()
@@ -724,7 +731,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         file_process.join()
         # index_process.close()
         # file_process.close()
-        return fasta_record_count.value
+    return fasta_record_count
 
 
 def random_bed_fast_worker(total_accession_count,
@@ -1032,20 +1039,21 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         threshold=thresholds[_TRAIN-1],
                                         processes=processes,
                                         verbose=verbose)
-        return tuple(map(operator.add, test_count, train_count))
+        return ((test_count[0], train_count[0]), 
+                test_count[1] + train_count[1])
     else:
-        return get_sample_worker(taxid, sublevels, index, genomes_dir,
-                                 number, length, data_dir,
-                                 index_dir,
-                                 split=split, split_amount=split_amount,
-                                 include_wild=include_wild, prob=prob,
-                                 thresholding=thresholding,
-                                 chop=chop,
-                                 window_length=window_length,
-                                 amino_acid=amino_acid, temp_dir=temp_dir,
-                                 threshold=thresholds[0],
-                                 processes=processes,
-                                 verbose=verbose)
+        return (get_sample_worker(taxid, sublevels, index, genomes_dir,
+                                  number, length, data_dir,
+                                  index_dir,
+                                  split=split, split_amount=split_amount,
+                                  include_wild=include_wild, prob=prob,
+                                  thresholding=thresholding,
+                                  chop=chop,
+                                  window_length=window_length,
+                                  amino_acid=amino_acid, temp_dir=temp_dir,
+                                  threshold=thresholds[0],
+                                  processes=processes,
+                                  verbose=verbose), )
 
 
 def get_sample_worker(taxid, sublevels, index, genomes_dir,
@@ -1299,9 +1307,18 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
         in the same order as the taxid_list.
 
     """
+    def count_string(counts):
+        str1 = "\t"
+        for d in counts:
+            str1 += "{"
+            d = dict(d)
+            for key in d:
+                str1 += str(key) + ":" + str(d[key]) + ", "
+            str1 += "}\t"
+        return str1
     def printer(taxid, counts):
-        print("{}: {} samples drawn, {} samples written".
-              format(taxid, counts[0], counts[1]), file=sys.stderr)
+        print("For taxid {}, drawn {} \n\t and written: {}.".
+              format(taxid, count_string(counts[0]), counts[1]), file=sys.stderr)
     output = []
     if len(taxid_list) == 1:
         taxid = taxid_list[0]
