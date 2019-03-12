@@ -36,5 +36,5 @@ class TaxTreeTraversal:
         levels_visited = 0
         for child in children:
             levels_visited += self.select_genomes(child)
-        self.selection_strategy.sample(taxid, children)
+        self.selection_strategy.select(taxid, children)
         return 1 + levels_visited

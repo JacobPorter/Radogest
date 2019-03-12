@@ -334,7 +334,7 @@ def main():
         from library.index import ncbi
         index = {'taxids': defaultdict(dict), 'genomes': defaultdict(dict)}
         index["select"] = {"strategy": "INIT",
-                           "sample_amount": None}
+                           "select_amount": None}
         try:
             write_ds(index, args.index)
         except IOError:
@@ -413,31 +413,31 @@ def main():
         strategy_string = args.strategy.upper()
         index = read_ds(args.index)
         tree = read_ds(args.tree)
-        sample_amount = args.sample_amount
-        if not min(list(map(lambda x: x > 0, sample_amount))):
+        select_amount = args.select_amount
+        if not min(list(map(lambda x: x > 0, select_amount))):
             parser.error('The sample amount needs to be a positive integer.')
         if strategy_string == 'PR':
-            strategy = ProportionalRandom(index, sample_amount[0])
+            strategy = ProportionalRandom(index, select_amount[0])
         elif strategy_string == 'QST':
-            strategy = QualitySortingTree(index, sample_amount[0])
+            strategy = QualitySortingTree(index, select_amount[0])
         elif strategy_string == 'QSL':
-            strategy = QualitySortingLeaf(index, sample_amount[0])
+            strategy = QualitySortingLeaf(index, select_amount[0])
         elif strategy_string == 'GHT' or strategy_string == 'GHL':
-            if len(sample_amount) != 2:
+            if len(select_amount) != 2:
                 p_select.error("There must be two and only two sample amounts "
                                "when using the genome holdout strategy: "
                                "The first for the training set, "
                                "the second for the testing set.")
             if strategy_string == 'GHT':
-                strategy = GenomeHoldoutTree(index, sample_amount)
+                strategy = GenomeHoldoutTree(index, select_amount)
             else:
-                strategy = GenomeHoldoutLeaf(index, sample_amount)
+                strategy = GenomeHoldoutLeaf(index, select_amount)
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
         else:
             raise StrategyNotFound()
         index["select"] = {"strategy": strategy_string,
-                           "sample_amount": sample_amount}
+                           "select_amount": select_amount}
         traversal = TaxTreeTraversal(tree, strategy)
         levels_visited = traversal.select_genomes(args.taxid)
         for accession in EXCLUDED_GENOMES:

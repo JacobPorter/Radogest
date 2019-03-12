@@ -91,7 +91,6 @@ def genome_sort(genomes, index):
             sorted_list += assembly_level_dict[level]
         return sorted_list
 
-    my_genomes = []
     ref_genomes = [index['genomes'][accession] for
                    accession in genomes if
                    index['genomes'][accession]['refseq_category'] ==
@@ -112,7 +111,7 @@ def genome_sort(genomes, index):
     return [genome_data['assembly_accession'] for genome_data in my_genomes]
 
 
-def select_equal(list_lists, sample_number):
+def select_equal(list_lists, select_number):
     """
     Select equal elements from a list of lists.
 
@@ -120,12 +119,12 @@ def select_equal(list_lists, sample_number):
     ----------
     list_lists: list
         A list of lists of elements.  The lists could be unequal in size.
-    sample_number: int
+    select_number: int
         An integer of samples to take.
 
     Examples
     --------
-    list_lists is of form [[a, b, c] [1, 2, 3] [x, y].  If sample_number is 5,
+    list_lists is of form [[a, b, c] [1, 2, 3] [x, y].  If select_number is 5,
     then the function will return [a, 1, x, b, 2].
 
     Returns
@@ -138,7 +137,7 @@ def select_equal(list_lists, sample_number):
     empty = [0] * len(list_lists)
     output_list = []
     iterations = 0
-    while len(output_list) < sample_number and sum(empty) < len(list_lists):
+    while len(output_list) < select_number and sum(empty) < len(list_lists):
         i = iterations % len(list_lists)
         j = pos[i]
         if j < len(list_lists[i]):
@@ -168,7 +167,7 @@ class GenomeSelection:
     def set_all_genomes(self, boolean=False):
         """
         Set all genome inclusions to the given value
-        in the random sampler index.
+        in the index.
 
         Parameters
         ----------
@@ -188,11 +187,11 @@ class GenomeSelection:
 
 class ProportionalRandom(GenomeSelection):
     """
-    For a given level in the taxonomy tree, sample a random fixed number
+    For a given level in the taxonomy tree, select a random fixed number
     of genomes at each level.
     """
 
-    def __init__(self, index, sample_number):
+    def __init__(self, index, select_number):
         """
         Initialize the GenomeSelection class.
 
@@ -200,18 +199,18 @@ class ProportionalRandom(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        sample_number: int
-            The number of genomes to sample at each level.
+        select_number: int
+            The number of genomes to select at each level.
 
         """
         super().__init__(index)
-        self.sample_number = sample_number
+        self.select_number = select_number
         self.set_all_genomes(boolean=False)
 
-    def sample(self, parent, children):
+    def select(self, parent, children):
         """
         Choose genomes from the children randomly to include in the parent
-        taxonomic id.  Genomes are sampled so that the children genomes are
+        taxonomic id.  Genomes are selected so that the children genomes are
         uniformly represented.
 
         Parameters
@@ -225,7 +224,7 @@ class ProportionalRandom(GenomeSelection):
         Returns
         -------
         samples: int
-            The number of genomes sampled.
+            The number of genomes selected.
 
         """
         if children:
@@ -239,7 +238,7 @@ class ProportionalRandom(GenomeSelection):
                         child_genomes.append(accession)
                 shuffle(child_genomes)
                 children_genomes.append(child_genomes)
-            my_genomes = select_equal(children_genomes, self.sample_number)
+            my_genomes = select_equal(children_genomes, self.select_number)
             samples = len(my_genomes)
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
@@ -250,7 +249,7 @@ class ProportionalRandom(GenomeSelection):
             shuffle(my_genomes)
             i = 0
             for accession in my_genomes:
-                if i >= self.sample_number:
+                if i >= self.select_number:
                     break
                 self.index['taxids'][parent][accession] = True
                 i += 1
@@ -259,11 +258,11 @@ class ProportionalRandom(GenomeSelection):
 
 class QualitySortingTree(GenomeSelection):
     """
-    For a given level in the taxonomy tree, sample a fixed number of genomes
+    For a given level in the taxonomy tree, select a fixed number of genomes
     at each level based on the sorted quality of the genomes.
     """
 
-    def __init__(self, index, sample_number):
+    def __init__(self, index, select_number):
         """
         Initialize the class.
 
@@ -271,15 +270,15 @@ class QualitySortingTree(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        sample_number: int
-            The number of genomes to sample at each level.
+        select_number: int
+            The number of genomes to select at each level.
 
         """
         super().__init__(index)
-        self.sample_number = sample_number
+        self.select_number = select_number
         self.set_all_genomes(boolean=False)
 
-    def sample(self, parent, children):
+    def select(self, parent, children):
         """
         For each child, sort the genomes by quality.  For the parent,
         take equal portions of genomes from each child.
@@ -294,8 +293,8 @@ class QualitySortingTree(GenomeSelection):
 
         Returns
         -------
-        samples: int
-            The number of genomes sampled.
+        i: int
+            The number of genomes selected.
 
         """
         if children:
@@ -305,7 +304,7 @@ class QualitySortingTree(GenomeSelection):
                                             self.index)
                 child_genomes = genome_sort(include, self.index)
                 children_genomes.append(child_genomes)
-            my_genomes = select_equal(children_genomes, self.sample_number)
+            my_genomes = select_equal(children_genomes, self.select_number)
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
             return len(my_genomes)
@@ -315,7 +314,7 @@ class QualitySortingTree(GenomeSelection):
             my_genomes = genome_sort(include, self.index)
             i = 0
             for accession in my_genomes:
-                if i >= self.sample_number:
+                if i >= self.select_number:
                     break
                 self.index['taxids'][parent][accession] = True
                 i += 1
@@ -328,7 +327,7 @@ class QualitySortingLeaf(GenomeSelection):
     of them.  Propagate all selected genomes up the tree.
     """
 
-    def __init__(self, index, sample_number):
+    def __init__(self, index, select_number):
         """
         Initialize the class.
 
@@ -336,15 +335,15 @@ class QualitySortingLeaf(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        sample_number: int
-            The number of genomes to sample at each level.
+        select_number: int
+            The number of genomes to select at each level.
 
         """
         super().__init__(index)
-        self.sample_number = sample_number
+        self.select_number = select_number
         self.set_all_genomes(boolean=False)
 
-    def sample(self, parent, children):
+    def select(self, parent, children):
         """
         Sort the genomes at the leaf nodes by quality.  Choose a fixed
         number of them.  At every higher level, include all the genomes
@@ -361,7 +360,7 @@ class QualitySortingLeaf(GenomeSelection):
         Returns
         -------
         samples: int
-            The number of genomes sampled.
+            The number of genomes selected.
 
         """
         # if ncbi.get_rank([parent])[parent] == self.leaf_rank:
@@ -371,7 +370,7 @@ class QualitySortingLeaf(GenomeSelection):
             my_genomes = genome_sort(include, self.index)
             samples = 0
             for accession in my_genomes:
-                if samples >= self.sample_number:
+                if samples >= self.select_number:
                     break
                 samples += 1
                 self.index['taxids'][parent][accession] = True
@@ -403,7 +402,7 @@ class AllGenomes(GenomeSelection):
         self.index = index
         self.set_all_genomes(boolean=True)
 
-    def sample(self, parent, children):
+    def select(self, parent, children):
         """
         Set all genomes in the index to true.  Filter out some genomes.
 
@@ -417,8 +416,8 @@ class AllGenomes(GenomeSelection):
 
         Returns
         -------
-        samples: int
-            The number of genomes sampled.
+        int
+            The number of genomes selected.
 
         """
         include, exclude = filter_genomes(self.index['taxids'][parent].keys(),
@@ -431,7 +430,7 @@ class AllGenomes(GenomeSelection):
 class GenomeHoldout(GenomeSelection):
     """Include whole genomes into separate train anid test data sets."""
 
-    def __init__(self, index, sample_number):
+    def __init__(self, index, select_number):
         """
         Initialize the GenomeSelection class.
 
@@ -439,15 +438,15 @@ class GenomeHoldout(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        sample_number: dict
+        select_number: dict
             The number of genomes to include in test and train
-            to sample at each level.
+            to select at each level.
 
         """
         super().__init__(index)
-        self.sample_number = sample_number
+        self.select_number = select_number
         # 1 is train, 2 is test, 3 is validate (if applicable).
-        self.sample_type = 0
+        self.select_type = 0
         # The number of data categories.  2 means train and test.
         # 3 means train, test, and validate.  (May not work well.)
         self.num_categories = 2
@@ -460,7 +459,7 @@ class GenomeHoldoutLeaf(GenomeHoldout):
     Down select only at leaves and propagate the selected genomes up the tree.
     """
 
-    def sample(self, parent, children):
+    def select(self, parent, children):
         """
         Alternately choose species for the train and test data sets.
 
@@ -475,7 +474,7 @@ class GenomeHoldoutLeaf(GenomeHoldout):
         Returns
         -------
         samples: int
-            The number of genomes sampled.
+            The number of genomes selected.
 
         """
         if children:
@@ -494,11 +493,11 @@ class GenomeHoldoutLeaf(GenomeHoldout):
             my_genomes = genome_sort(include, self.index)
             samples = 0
             for accession in my_genomes:
-                if samples >= self.sample_number[self.sample_type]:
+                if samples >= self.select_number[self.select_type]:
                     break
-                self.index['taxids'][parent][accession] = self.sample_type + 1
+                self.index['taxids'][parent][accession] = self.select_type + 1
                 samples += 1
-            self.sample_type = (self.sample_type + 1) % self.num_categories
+            self.select_type = (self.select_type + 1) % self.num_categories
         return samples
 
 
@@ -508,7 +507,7 @@ class GenomeHoldoutTree(GenomeHoldout):
     Down select genomes at each level of the tree.
     """
 
-    def sample(self, parent, children):
+    def select(self, parent, children):
         """
         Alternately choose species for the train and test data sets.
 
@@ -523,7 +522,7 @@ class GenomeHoldoutTree(GenomeHoldout):
         Returns
         -------
         samples: int
-            The number of genomes sampled.
+            The number of genomes selected.
 
         """
         samples = 0
@@ -540,7 +539,7 @@ class GenomeHoldoutTree(GenomeHoldout):
                     child_genomes = genome_sort(include, self.index)
                     children_genomes.append(child_genomes)
                 my_genomes = select_equal(children_genomes,
-                                          self.sample_number[i])
+                                          self.select_number[i])
                 for accession in my_genomes:
                     self.index['taxids'][parent][accession] = my_category
         else:  # Leaf node
@@ -548,11 +547,11 @@ class GenomeHoldoutTree(GenomeHoldout):
                                         self.index)
             my_genomes = genome_sort(include, self.index)
             for accession in my_genomes:
-                if samples >= self.sample_number[self.sample_type]:
+                if samples >= self.select_number[self.select_type]:
                     break
-                self.index['taxids'][parent][accession] = self.sample_type + 1
+                self.index['taxids'][parent][accession] = self.select_type + 1
                 samples += 1
-            self.sample_type = (self.sample_type + 1) % self.num_categories
+            self.select_type = (self.select_type + 1) % self.num_categories
         return samples
 
 
@@ -562,7 +561,7 @@ class MinHashTree(GenomeSelection):
     taxonomic id.
     """
 
-    def __init__(self, index, sample_number):
+    def __init__(self, index, select_number):
         """
         Initialize the class.
 
@@ -570,16 +569,16 @@ class MinHashTree(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        sample_number: int
-            The number of genomes to sample at each level.
+        select_number: int
+            The number of genomes to select at each level.
 
         """
         raise NotImplementedError
         super().__init__(index)
-        self.sample_number = sample_number
+        self.select_number = select_number
         self.set_all_genomes(boolean=False)
 
-    def sample(self, parent, children):
+    def select(self, parent, children):
         """
         Use a minhash tree to select genomes.
 
@@ -594,7 +593,7 @@ class MinHashTree(GenomeSelection):
         Returns
         -------
         samples: int
-            The number of genomes sampled.
+            The number of genomes selected.
 
         """
         raise NotImplementedError
