@@ -67,8 +67,8 @@ def main():
                     help="The location of the taxonomic tree data structure.",
                     default="./tree.pck")
     taxid = ArgClass("--taxid", "-t",
-                     help=("The file location that lists taxonomic ids."
-                           "One id per file."),
+                     help=("The file location that lists taxonomic ids, "
+                           "one id per file."),
                      default="./taxid_list.txt")
     leave_compressed = ArgClass("--leave_compressed", "-l",
                                 action='store_true',
@@ -189,8 +189,8 @@ def main():
                                      formatter_class=argparse.
                                      ArgumentDefaultsHelpFormatter)
     p_sample.add_argument("taxid",
-                          help=("The file location that lists taxonomic ids."
-                                "One id per file.  "
+                          help=("The file location that lists taxonomic ids, "
+                                "one id per file.  "
                                 "Or, a taxonomic id when sampling "
                                 "from one taxonomic id."))
     p_sample.add_argument(*index.args, **index.kwargs)
