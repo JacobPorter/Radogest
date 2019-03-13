@@ -15,8 +15,7 @@ import string
 import subprocess
 import sqlite3
 import tempfile
-import operator
-from multiprocessing import Pool, Value, Process, Manager
+from multiprocessing import Pool, Process, Manager
 # from multiprocessing import Pipe
 from collections import defaultdict
 
