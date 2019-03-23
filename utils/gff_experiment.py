@@ -8,7 +8,7 @@ db = gffutils.FeatureDB(gff_out)
 
 test_region = db.region(seqid="NC_000001.11", start=11877, end=11974)
 for i in test_region:
-    print(i.featuretype)
+    print(i, i.featuretupe)
 
 chroms = [i['seqid'] for i in db.execute('SELECT DISTINCT seqid FROM features;')]
 

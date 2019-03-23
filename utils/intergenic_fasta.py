@@ -12,14 +12,19 @@ import argparse
 import datetime
 import os
 import sys
+import operator
 import gffutils
 
+
 from SeqIterator import SeqReader, SeqWriter
+
+# GFF regions to exclude when creating fasta file.
+EXCLUDED_REGIONS = ('gene', 'exon')
 
 
 def genes_on_chrom(chrom, db):
     """Yield genes on `chrom`, sorted by start position"""
-    for g in db.features_of_type(('gene', 'exon'),
+    for g in db.features_of_type(EXCLUDED_REGIONS,
                                  order_by='start',
                                  limit=(chrom, 0, 1e12)):
         g.strand = '.'
@@ -34,9 +39,29 @@ def intergenic(chroms, db):
             yield intergenic
 
 
-def process_gff(gff_location):
+def process_gff(db):
     """
     Yield the exon, gene features from a gff file.
+
+    Parameters
+    ----------
+    db: database
+        gffutils database
+
+    Returns
+    -------
+    yield gff features
+
+    """
+    chroms = [i['seqid'] for i in db.execute('SELECT DISTINCT seqid FROM '
+                                             'features;')]
+    for feature in intergenic(chroms, db):
+        yield feature.astuple()
+
+
+def get_db(gff_location):
+    """
+    Build or connect to a gffutils database.
 
     Parameters
     ----------
@@ -45,7 +70,8 @@ def process_gff(gff_location):
 
     Returns
     -------
-    gff features
+    db: database
+        An object representing a gffutils database.
 
     """
     if not os.path.isfile(gff_location + ".db"):
@@ -53,13 +79,10 @@ def process_gff(gff_location):
                                 id_spec={'gene': 'db_xref'})
     else:
         db = gffutils.FeatureDB(gff_location + ".db")
-    chroms = [i['seqid'] for i in db.execute('SELECT DISTINCT seqid FROM '
-                                             'features;')]
-    for feature in intergenic(chroms, db):
-        yield feature.astuple()
+    return db
 
 
-def get_intergenic_fasta(fasta_location, gff_location, output):
+def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
     """
     Write a fasta file of intergenic DNA.
 
@@ -78,27 +101,76 @@ def get_intergenic_fasta(fasta_location, gff_location, output):
         A count of the fasta records written.
 
     """
-    def write_feature(feature):
-        fasta_id = "{}_{}_{}".format(feature[0],
-                                     feature[1],
-                                     feature[2])
-        if feature[2] == "end":
-            writer.write((fasta_id,
-                         fasta_dict[feature[0]][feature[1]:]))
+    def intergenic_boundary(region, begin=True):
+        """
+        Rewrite the boundary between chromosomes to
+        exclude excluded regions.
+
+        Parameters
+        ----------
+        feature: list
+            A list of three elements: chromosome name, beginning position,
+            ending position
+        begin: boolean
+            True if the region is at the beginning of the chromosome and
+            False if the region is at the ending of the chromosome.
+
+        Returns
+        -------
+        region: list
+            A three element list comprising a region
+
+        """
+        if begin:
+            boundary_region = db.region(seqid=region[0],
+                                        start=region[1],
+                                        end=region[2])
         else:
-            writer.write((fasta_id,
-                         fasta_dict[feature[0]][feature[1]:feature[2]]))
+            boundary_region = db.region(seqid=region[0],
+                                        start=region[1])
+        selector = 4 if begin else 5
+        bound = float('inf') if begin else -float('inf')
+        cp = operator.lt if begin else operator.gt
+        for feature in boundary_region:
+            feature = feature.astuple()
+            if feature[3] in EXCLUDED_REGIONS and cp(int(feature[selector]),
+                                                     bound):
+                bound = int(feature[selector])
+        if begin:
+            return [region[0], region[1], bound]
+        else:
+            return [region[0], bound, region[2]]
+
+    def write_feature(feature, begin_end="middle"):
+        def fasta_id(region):
+            return "{}_{}_{}".format(region[0], region[1], region[2])
+
+        """Write a region of the genome to a fasta file."""
+        if begin_end == "end":
+            feature = intergenic_boundary(feature, begin=False)
+            writer.write((fasta_id(feature),
+                         fasta_dict[feature[0]][feature[1]:]))
+            return
+        if begin_end == "begin":
+            feature = intergenic_boundary(feature, begin=True)
+        writer.write((fasta_id(feature),
+                      fasta_dict[feature[0]][feature[1]:feature[2]]))
 
     def chromosome_break(this_feature):
+        """
+        Handle the boundary between chromosomes.
+        This requires special handling
+        since gffutils does not handle this case.
+        """
         this_count = 0
-        if this_feature[0] == last_feature[0]:
-            pass
-        else:
-            if last_feature[0]:
-                write_feature([last_feature[0], last_feature[2], "end"])
+        if not this_feature[0] == last_feature[0]:
+            if last_feature[0]:  # The end
+                write_feature([last_feature[0], last_feature[2], "end"],
+                              "end")
                 this_count += 1
-            if this_feature[0]:
-                write_feature([this_feature[0], 0, this_feature[1]])
+            if this_feature[0]:  # The beginning
+                write_feature([this_feature[0], 0, this_feature[1]],
+                              "begin")
                 this_count += 1
         return this_feature, this_count
 
@@ -110,15 +182,19 @@ def get_intergenic_fasta(fasta_location, gff_location, output):
     fasta_dict = {}
     for fasta_record in reader:
         fasta_dict[fasta_record[0].split()[0]] = fasta_record[1]
-    last_feature = [""]
-    for feature in process_gff(gff_location):
+    last_feature = [False]
+    db = get_db(gff_location)
+    for feature in process_gff(db):
         this_feature = [feature[1], int(feature[4]) - 1, int(feature[5]) - 1]
         if this_feature[2] <= this_feature[1]:
             continue
+        if verbose and last_feature[0] and last_feature[0] != this_feature[0]:
+            print("Finishing with contig {}".format(last_feature[0]),
+                  file=sys.stderr)
         last_feature, this_count = chromosome_break(this_feature)
         write_feature(this_feature)
-        count += 1 + this_count
-    last_feature, this_count = chromosome_break([""])
+        count += this_count + 1
+    last_feature, this_count = chromosome_break([False])
     return count + this_count
 
 
@@ -152,7 +228,7 @@ def main():
     mode = args.mode
     if mode == "one":
         count = get_intergenic_fasta(args.fasta_file, args.gff_file,
-                                     sys.stdout)
+                                     sys.stdout, verbose=1)
         print("There were {} fasta records written.".format(count),
               file=sys.stderr)
     elif mode == "all":
