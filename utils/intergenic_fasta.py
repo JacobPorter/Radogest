@@ -14,6 +14,8 @@ import os
 import sys
 import operator
 import subprocess
+import mmap
+import math
 from multiprocessing import Pool
 
 import gffutils
@@ -104,7 +106,7 @@ def get_db(gff_location):
 
     """
     if gff_location.endswith("gz"):
-        subprocess.run(['gunzip', gff_location])
+        subprocess.call(['gunzip', gff_location])
         gff_location = gff_location[0:len(gff_location)-3]
     if not os.path.isfile(gff_location + ".db"):
         db = gffutils.create_db(gff_location, gff_location + ".db",
@@ -114,7 +116,8 @@ def get_db(gff_location):
     return db
 
 
-def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
+def get_intergenic_fasta(fasta_location, gff_location, fai_location,
+                         output, verbose=0):
     """
     Write a fasta file of intergenic DNA.
 
@@ -124,8 +127,12 @@ def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
         The location of a fasta file.
     gff_location: str
         The location of a gff file that corresponds to the fasta file.
+    fai_location: str
+        The location of the fai file corresponding to the fasta file.
     output: writable, str
         An object that represents where to write the intergenic fasta file.
+    verbose: int
+        The level of verbosity.
 
     Returns
     -------
@@ -173,6 +180,22 @@ def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
         else:
             return [region[0], bound, region[2]]
 
+    def get_sequence(seq_id, beg, end=""):
+        """Return a DNA sequence.  Use either fasta file or fai file."""
+        if fai_location:
+            fai_line = fasta_dict[seq_id]
+            offset = fai_line[1]
+            linebases = fai_line[2]
+            if not end:
+                end = fai_line[0]
+            n_beg = offset + beg + (math.ceil(float(beg)/float(linebases))-1)
+            n_end = offset + end + (math.ceil(float(end)/float(linebases))-1)
+            return str(mm[n_beg:n_end], 'utf-8').replace("\n", "")
+        elif not fai_location and not end:
+            return fasta_dict[seq_id][beg:]
+        else:
+            return fasta_dict[seq_id][beg:end]
+
     def write_feature(feature, begin_end="middle"):
         def fasta_id(region):
             return "{}_{}_{}".format(region[0], region[1], region[2])
@@ -181,12 +204,12 @@ def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
         if begin_end == "end":
             feature = intergenic_boundary(feature, begin=False)
             writer.write((fasta_id(feature),
-                         fasta_dict[feature[0]][feature[1]:]))
+                         get_sequence(feature[0], feature[1])))
             return
         if begin_end == "begin":
             feature = intergenic_boundary(feature, begin=True)
         writer.write((fasta_id(feature),
-                      fasta_dict[feature[0]][feature[1]:feature[2]]))
+                      get_sequence(feature[0], feature[1], feature[2])))
 
     def chromosome_break(this_feature):
         """
@@ -213,29 +236,51 @@ def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
         gzip_switch = True
     else:
         gzip_switch = False
-    reader = SeqReader(fasta_location, file_type="fasta",
-                       gzip_switch=gzip_switch)
     writer = SeqWriter(output, file_type="fasta")
     fasta_dict = {}
-    for fasta_record in reader:
-        fasta_dict[fasta_record[0].split()[0]] = fasta_record[1]
+    if not fai_location:
+        reader = SeqReader(fasta_location, file_type="fasta",
+                           gzip_switch=gzip_switch)
+        if verbose:
+            print("Loading {} into memory.".format(fasta_location),
+                  file=sys.stderr)
+        for fasta_record in reader:
+            fasta_dict[fasta_record[0].split()[0]] = fasta_record[1]
+    else:
+        if verbose:
+            print("Loading {} into memory.".format(fai_location),
+                  file=sys.stderr)
+        for line in open(fai_location):
+            fai_line = line.split()
+            fasta_dict[fai_line[0]] = list(map(int, fai_line[1:]))
+        fasta_file = open(fasta_location, "r")
+        mm = mmap.mmap(fasta_file.fileno(), 0, access=mmap.ACCESS_READ)
+    if verbose:
+        print("Creating or getting the gff database {}".format(gff_location),
+              file=sys.stderr)
     last_feature = [False]
     db = get_db(gff_location)
+    if verbose:
+        print("Creating the output fasta file for {}.".format(fasta_location),
+              file=sys.stderr)
     for feature in process_gff(db):
         this_feature = [feature[1], int(feature[4]) - 1, int(feature[5]) - 1]
         if this_feature[2] <= this_feature[1]:
             continue
         if verbose and last_feature[0] and last_feature[0] != this_feature[0]:
-            print("Finishing with contig {}".format(last_feature[0]),
+            print("Finishing with contig {} from {}".format(last_feature[0],
+                                                            fasta_location),
                   file=sys.stderr)
         last_feature, this_count = chromosome_break(this_feature)
         write_feature(this_feature)
         count += this_count + 1
     last_feature, this_count = chromosome_break([False])
+    if verbose:
+        print("Finished with {}".format(fasta_location), file=sys.stderr)
     return count + this_count
 
 
-def process_directory(path, files):
+def process_directory(path, files, verbose=0):
     """
     Create the intergenic fasta file a directory.
 
@@ -245,6 +290,8 @@ def process_directory(path, files):
         The location of the directory.
     files: list
         A list of the files at the directory in path
+    verbose: int
+        The level of verbosity.
 
     Returns
     -------
@@ -254,6 +301,8 @@ def process_directory(path, files):
     """
     fasta_file = None
     gff_file = None
+    fai_file = None
+    count = 0
     for f in files:
         if (name_ends(f, FASTA_ENDINGS) or
                 name_ends(f, FASTA_ENDINGS, ".gz")):
@@ -261,24 +310,29 @@ def process_directory(path, files):
         if (name_ends(f, GFF_ENDINGS) or
                 name_ends(f, GFF_ENDINGS, ".gz")):
             gff_file = f
+        if f.endswith(".fai"):
+            fai_file = f
     if fasta_file and gff_file:
         output = os.path.join(path,
                               "{}.intergenic.fna".format(
                                   fasta_file.replace(".fna", "").replace(
                                       ".gz", "")))
+        fai_location = os.path.join(path, fai_file) if fai_file else None
         fasta_records = get_intergenic_fasta(os.path.join(path,
                                                           fasta_file),
                                              os.path.join(path,
                                                           gff_file),
-                                             output)
+                                             fai_location,
+                                             output,
+                                             verbose=verbose)
         if fasta_records:
-            return 1
+            count += 1
     if fasta_file:
         os.remove(os.path.join(path, fasta_file))
-    return 0
+    return count
 
 
-def scale_up(root_directory, processes=1):
+def scale_up(root_directory, processes=1, verbose=0):
     """
     Create intergenic fasta files for all fasta files and GFF files.
 
@@ -287,6 +341,10 @@ def scale_up(root_directory, processes=1):
     root_directory: str
         The location of the directory where all of the GFF and fasta files
         are located.
+    processes: int
+        The number of processes to use.
+    verbose: int
+        The level of verbosity.
 
     Returns
     -------
@@ -297,14 +355,18 @@ def scale_up(root_directory, processes=1):
     count = 0
     if processes == 1:
         for path, _, files in os.walk(root_directory):
-            count += process_directory(path, files)
+            count += process_directory(path, files, verbose)
     else:
-        pool = Pool(processes=processes)
         pd_list = []
+        pool = Pool(processes=processes)
         for path, _, files in os.walk(root_directory):
-            pd = pool.apply_async(process_directory, args=(path, files))
+            pd = pool.apply_async(process_directory, args=(path, files,
+                                                           verbose))
+            pd_list.append(pd)
         for pd in pd_list:
             count += pd.get()
+        pool.close()
+        pool.join()
     return count
 
 
@@ -323,6 +385,9 @@ def main():
                                   ArgumentDefaultsHelpFormatter)
     p_one.add_argument("fasta_file", type=str,
                        help="The location of the fasta file.")
+    p_one.add_argument("--verbose", "-v", type=int,
+                       help="The level of verbosity.",
+                       default=1)
     p_one.add_argument("gff_file", type=str,
                        help="The location of the gff file.")
     p_all = subparsers.add_parser("all",
@@ -335,17 +400,21 @@ def main():
     p_all.add_argument("--processes", "-p", type=int,
                        help="The number of processes to use.",
                        default=1)
+    p_all.add_argument("--verbose", "-v", type=int,
+                       help="The level of verbosity.",
+                       default=0)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
     mode = args.mode
     if mode == "one":
         count = get_intergenic_fasta(args.fasta_file, args.gff_file,
-                                     sys.stdout, verbose=1)
+                                     sys.stdout, verbose=args.verbose)
         print("There were {} fasta records written.".format(count),
               file=sys.stderr)
     elif mode == "all":
-        count = scale_up(args.gff_directory, args.processes)
+        count = scale_up(args.gff_directory, args.processes,
+                         verbose=args.verbose)
         print("There were {} fasta files created.".format(count),
               file=sys.stderr)
     tock = datetime.datetime.now()
