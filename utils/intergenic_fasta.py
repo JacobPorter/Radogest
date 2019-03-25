@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-
 """
 Create a fasta file of intergenic regions given a gff file and a
 whole genome.
@@ -190,7 +191,7 @@ def get_intergenic_fasta(fasta_location, gff_location, fai_location,
                 end = fai_line[0]
             n_beg = offset + beg + (math.ceil(float(beg)/float(linebases))-1)
             n_end = offset + end + (math.ceil(float(end)/float(linebases))-1)
-            return str(mm[n_beg:n_end], 'utf-8').replace("\n", "")
+            return str(mm[int(n_beg):int(n_end)]).replace("\n", "")
         elif not fai_location and not end:
             return fasta_dict[seq_id][beg:]
         else:
