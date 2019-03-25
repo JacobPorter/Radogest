@@ -44,7 +44,7 @@ def name_ends(name, endings, addition=""):
     return False
 
 
-def make_fai_individual(path, files, samtools_path, 
+def make_fai_individual(path, files, samtools_path,
                         leave_compressed=False, verbose=0):
     """
     Make the fai files and decompress the fasta files.
@@ -102,17 +102,17 @@ def remove_fai(path, name):
         The path to a directory containing files.
     name: str
         The name of a file in path
-    
+
     Returns
     -------
     None
-    
+
     """
     if (name.endswith('fai')):
             os.remove(os.path.join(path, name))
 
 
-def make_fai_core(path, name, samtools_path, 
+def make_fai_core(path, name, samtools_path,
                   returncode=0, leave_compressed=False, verbose=0):
     """
     Remove the file if it is an fai file.
@@ -131,16 +131,16 @@ def make_fai_core(path, name, samtools_path,
         Does not gunzip anything.
     verbose: int
         If larger than one, print additional output.
-    
+
     Returns
     -------
     count, returncode, path
         A dictionary of counts, a returncode, and the path
-    
+
     """
     count = {"gzip": 0, "fai": 0}
     if (not leave_compressed and
-                name_ends(name, FASTA_ENDINGS, addition='.gz')):
+            name_ends(name, FASTA_ENDINGS, addition='.gz')):
             if verbose >= 2:
                 sys.stderr.write(name + "\n")
             complete_p = subprocess.run(["gunzip",
@@ -230,9 +230,9 @@ def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
             returncode = 0
             for name in files:
                 pd_list.append(pool.apply_async(make_fai_core,
-                                                args=(path, 
-                                                      name, 
-                                                      samtools_path, 
+                                                args=(path,
+                                                      name,
+                                                      samtools_path,
                                                       returncode,
                                                       leave_compressed,
                                                       verbose)))

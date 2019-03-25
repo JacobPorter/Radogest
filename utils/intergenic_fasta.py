@@ -13,13 +13,42 @@ import datetime
 import os
 import sys
 import operator
-import gffutils
+import subprocess
+from multiprocessing import Pool
 
+import gffutils
 
 from SeqIterator import SeqReader, SeqWriter
 
 # GFF regions to exclude when creating fasta file.
 EXCLUDED_REGIONS = ('gene', 'exon')
+
+FASTA_ENDINGS = ['fasta', 'fa', 'fna']
+GFF_ENDINGS = ['gff']
+
+
+def name_ends(name, endings, addition=""):
+    """
+    Determine if a string ends with something.
+
+    Parameters
+    ----------
+    name: str
+        The string to determine if it ends with something.
+    endings: iterable
+        A list of endings to check.
+    addition: str
+        A constant string to search for that is added to all endings.
+
+    Returns
+    -------
+    True if name ends with something in endings plus the addition.
+
+    """
+    for end in endings:
+        if name.endswith(end + addition):
+            return True
+    return False
 
 
 def genes_on_chrom(chrom, db):
@@ -74,6 +103,9 @@ def get_db(gff_location):
         An object representing a gffutils database.
 
     """
+    if gff_location.endswith("gz"):
+        subprocess.run(['gunzip', gff_location])
+        gff_location = gff_location[0:len(gff_location)-3]
     if not os.path.isfile(gff_location + ".db"):
         db = gffutils.create_db(gff_location, gff_location + ".db",
                                 id_spec={'gene': 'db_xref'})
@@ -177,7 +209,12 @@ def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
     count = 0
     if isinstance(output, str):
         output = open(output, "w")
-    reader = SeqReader(fasta_location, file_type="fasta")
+    if fasta_location.endswith("gz"):
+        gzip_switch = True
+    else:
+        gzip_switch = False
+    reader = SeqReader(fasta_location, file_type="fasta",
+                       gzip_switch=gzip_switch)
     writer = SeqWriter(output, file_type="fasta")
     fasta_dict = {}
     for fasta_record in reader:
@@ -198,6 +235,79 @@ def get_intergenic_fasta(fasta_location, gff_location, output, verbose=0):
     return count + this_count
 
 
+def process_directory(path, files):
+    """
+    Create the intergenic fasta file a directory.
+
+    Parameters
+    ----------
+    path: str
+        The location of the directory.
+    files: list
+        A list of the files at the directory in path
+
+    Returns
+    -------
+    count: int
+        A count of the fasta files created.  Should be a 0 or a 1.
+
+    """
+    fasta_file = None
+    gff_file = None
+    for f in files:
+        if (name_ends(f, FASTA_ENDINGS) or
+                name_ends(f, FASTA_ENDINGS, ".gz")):
+            fasta_file = f
+        if (name_ends(f, GFF_ENDINGS) or
+                name_ends(f, GFF_ENDINGS, ".gz")):
+            gff_file = f
+    if fasta_file and gff_file:
+        output = os.path.join(path,
+                              "{}.intergenic.fna".format(
+                                  fasta_file.replace(".fna", "").replace(
+                                      ".gz", "")))
+        fasta_records = get_intergenic_fasta(os.path.join(path,
+                                                          fasta_file),
+                                             os.path.join(path,
+                                                          gff_file),
+                                             output)
+        if fasta_records:
+            return 1
+    if fasta_file:
+        os.remove(os.path.join(path, fasta_file))
+    return 0
+
+
+def scale_up(root_directory, processes=1):
+    """
+    Create intergenic fasta files for all fasta files and GFF files.
+
+    Parameters
+    ----------
+    root_directory: str
+        The location of the directory where all of the GFF and fasta files
+        are located.
+
+    Returns
+    -------
+    count: int
+        The number of fasta records created.
+
+    """
+    count = 0
+    if processes == 1:
+        for path, _, files in os.walk(root_directory):
+            count += process_directory(path, files)
+    else:
+        pool = Pool(processes=processes)
+        pd_list = []
+        for path, _, files in os.walk(root_directory):
+            pd = pool.apply_async(process_directory, args=(path, files))
+        for pd in pd_list:
+            count += pd.get()
+    return count
+
+
 def main():
     """Parse arguments."""
     tick = datetime.datetime.now()
@@ -207,7 +317,7 @@ def main():
             description=__doc__)
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
     p_one = subparsers.add_parser("one",
-                                  help=("Extract the intergenic regions "
+                                  help=("Extract complementary regions "
                                         "from a single fasta file."),
                                   formatter_class=argparse.
                                   ArgumentDefaultsHelpFormatter)
@@ -216,12 +326,15 @@ def main():
     p_one.add_argument("gff_file", type=str,
                        help="The location of the gff file.")
     p_all = subparsers.add_parser("all",
-                                  help=("Create intergenic fasta files "
+                                  help=("Create complementary fasta files "
                                         "for all genomes with gff files."),
                                   formatter_class=argparse.
                                   ArgumentDefaultsHelpFormatter)
     p_all.add_argument("gff_directory", type=str,
                        help="The location of the directory of gff files.")
+    p_all.add_argument("--processes", "-p", type=int,
+                       help="The number of processes to use.",
+                       default=1)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -232,10 +345,13 @@ def main():
         print("There were {} fasta records written.".format(count),
               file=sys.stderr)
     elif mode == "all":
-        pass
+        count = scale_up(args.gff_directory, args.processes)
+        print("There were {} fasta files created.".format(count),
+              file=sys.stderr)
     tock = datetime.datetime.now()
     print("The process took time: {}".format(tock - tick), file=sys.stderr)
 
 
 if __name__ == "__main__":
+
     main()
