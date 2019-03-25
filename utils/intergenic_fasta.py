@@ -118,7 +118,7 @@ def get_db(gff_location):
 
 
 def get_intergenic_fasta(fasta_location, gff_location, fai_location,
-                         output, verbose=0):
+                         output, remove=True, verbose=0):
     """
     Write a fasta file of intergenic DNA.
 
@@ -132,6 +132,8 @@ def get_intergenic_fasta(fasta_location, gff_location, fai_location,
         The location of the fai file corresponding to the fasta file.
     output: writable, str
         An object that represents where to write the intergenic fasta file.
+    remove: boolean
+        If True, remove the initial fasta files and the fai file if it exists.
     verbose: int
         The level of verbosity.
 
@@ -268,7 +270,8 @@ def get_intergenic_fasta(fasta_location, gff_location, fai_location,
         this_feature = [feature[1], int(feature[4]) - 1, int(feature[5]) - 1]
         if this_feature[2] <= this_feature[1]:
             continue
-        if verbose and last_feature[0] and last_feature[0] != this_feature[0]:
+        if (verbose >= 2 and last_feature[0] and
+                last_feature[0] != this_feature[0]):
             print("Finishing with contig {} from {}".format(last_feature[0],
                                                             fasta_location),
                   file=sys.stderr)
@@ -278,10 +281,14 @@ def get_intergenic_fasta(fasta_location, gff_location, fai_location,
     last_feature, this_count = chromosome_break([False])
     if verbose:
         print("Finished with {}".format(fasta_location), file=sys.stderr)
+    if remove:
+        os.remove(fasta_location)
+        if fai_location:
+            os.remove(fai_location)
     return count + this_count
 
 
-def process_directory(path, files, verbose=0):
+def process_directory(path, files, remove=True, verbose=0):
     """
     Create the intergenic fasta file a directory.
 
@@ -291,6 +298,8 @@ def process_directory(path, files, verbose=0):
         The location of the directory.
     files: list
         A list of the files at the directory in path
+    remove: boolean
+        If True, remove the initial fasta files and the fai file if it exists.
     verbose: int
         The level of verbosity.
 
@@ -325,15 +334,14 @@ def process_directory(path, files, verbose=0):
                                                           gff_file),
                                              fai_location,
                                              output,
+                                             remove=remove,
                                              verbose=verbose)
         if fasta_records:
             count += 1
-    if fasta_file:
-        os.remove(os.path.join(path, fasta_file))
     return count
 
 
-def scale_up(root_directory, processes=1, verbose=0):
+def scale_up(root_directory, processes=1, remove=True, verbose=0):
     """
     Create intergenic fasta files for all fasta files and GFF files.
 
@@ -344,6 +352,8 @@ def scale_up(root_directory, processes=1, verbose=0):
         are located.
     processes: int
         The number of processes to use.
+    remove: boolean
+        If True, remove the initial fasta files and the fai file if it exists.
     verbose: int
         The level of verbosity.
 
@@ -356,12 +366,13 @@ def scale_up(root_directory, processes=1, verbose=0):
     count = 0
     if processes == 1:
         for path, _, files in os.walk(root_directory):
-            count += process_directory(path, files, verbose)
+            count += process_directory(path, files, remove, verbose)
     else:
         pd_list = []
         pool = Pool(processes=processes)
         for path, _, files in os.walk(root_directory):
             pd = pool.apply_async(process_directory, args=(path, files,
+                                                           remove,
                                                            verbose))
             pd_list.append(pd)
         for pd in pd_list:
@@ -386,6 +397,11 @@ def main():
                                   ArgumentDefaultsHelpFormatter)
     p_one.add_argument("fasta_file", type=str,
                        help="The location of the fasta file.")
+    p_one.add_argument("--keep", "-k",
+                       help=("Keep the initial fasta files and the fai file "
+                             "if it exists.  Otherwise, these will be "
+                             "deleted."),
+                       action='store_true', default=False)
     p_one.add_argument("--verbose", "-v", type=int,
                        help="The level of verbosity.",
                        default=1)
@@ -401,6 +417,11 @@ def main():
     p_all.add_argument("--processes", "-p", type=int,
                        help="The number of processes to use.",
                        default=1)
+    p_all.add_argument("--keep", "-k",
+                       help=("Keep the initial fasta files and the fai file "
+                             "if it exists.  Otherwise, these will be "
+                             "deleted."),
+                       action='store_true', default=False)
     p_all.add_argument("--verbose", "-v", type=int,
                        help="The level of verbosity.",
                        default=0)
@@ -410,11 +431,13 @@ def main():
     mode = args.mode
     if mode == "one":
         count = get_intergenic_fasta(args.fasta_file, args.gff_file,
-                                     sys.stdout, verbose=args.verbose)
+                                     sys.stdout, remove=not args.keep,
+                                     verbose=args.verbose)
         print("There were {} fasta records written.".format(count),
               file=sys.stderr)
     elif mode == "all":
         count = scale_up(args.gff_directory, args.processes,
+                         remove=not args.keep,
                          verbose=args.verbose)
         print("There were {} fasta files created.".format(count),
               file=sys.stderr)
@@ -423,5 +446,4 @@ def main():
 
 
 if __name__ == "__main__":
-
     main()
