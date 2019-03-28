@@ -202,14 +202,22 @@ def config_download(config):
             for process_desc in process_list:
                 download_jobs.extend(process_desc.get())
             process_list = None
-            jobs = pool.map_async(worker, download_jobs)
+            for job in download_jobs:
+                pool.apply_async(worker, args=(job,))
+            pool.close()
             try:
-                # 0xFFFF is just "a really long time"
-                jobs.get(0xFFFF)
+                pool.join()
             except KeyboardInterrupt:
-                # TODO: Actually test this once I figure out how to do this in py.test
-                logging.error("Interrupted by user")
+                logging.error("Interrupted by user.")
                 return 1
+            # jobs = pool.map_async(worker, download_jobs)
+            # try:
+                # 0xFFFF is just "a really long time"
+            #     jobs.get(0xFFFF)
+            # except KeyboardInterrupt:
+                # TODO: Actually test this once I figure out how to do this in py.test
+                # logging.error("Interrupted by user")
+                # return 1
 
         if config.metadata_table:
             with open(config.metadata_table, 'wt') as handle:
