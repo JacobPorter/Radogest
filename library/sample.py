@@ -432,8 +432,6 @@ def file_locations(accession, accession_location, temp_dir):
     ----------
     accession: str
         The accession id of the genome.
-    genomes_dir: str
-        The location where the genomes or fasta files are stored.
     accession_location: str
         The path to the accessions location.
     temp_dir: str
@@ -609,8 +607,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 
     Returns
     -------
-    int
+    int, list
         A count of the number of fasta records written.
+        A list of fata file locations used in sampling is returned.
 
     """
     if processes == 1:
@@ -637,6 +636,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                      queue))
 #         index_process.start()
         file_process.start()
+    drawn_accessions = []
     for taxid, accession_counts in accession_counts_list:
         my_fasta_record_count = 0
         for accession in accession_counts.keys():
@@ -646,6 +646,15 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                 sys.stderr.write("Writing fasta records for "
                                  "taxid {} from genome accession {}\n".
                                  format(taxid, accession))
+            accession_location = os.path.join(genomes_dir +
+                                              index['genomes']
+                                              [accession]
+                                              ['location'])
+            file_locations_d = file_locations(accession,
+                                              accession_location,
+                                              temp_dir)
+            fai_location = file_locations_d["fai"]
+            fasta_location = file_locations_d["fasta_location"]
             # A thresholding and chopping feature.
             # If thresholding and the genome is too small,
             # use the whole genome.
@@ -677,16 +686,9 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                            queue,
                                            include_wild,
                                            window_length))
+                drawn_accessions.append((fasta_location, taxid))
                 continue
-            accession_location = os.path.join(genomes_dir +
-                                              index['genomes']
-                                              [accession]
-                                              ['location'])
-            file_locations_d = file_locations(accession,
-                                              accession_location,
-                                              temp_dir)
-            fai_location = file_locations_d["fai"]
-            fasta_location = file_locations_d["fasta_location"]
+            drawn_accessions.append((fasta_location, taxid))
             if processes == 1:
                 my_fasta_record_count += random_bed_fast_worker(
                     accession_counts[accession],
@@ -730,7 +732,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         file_process.join()
         # index_process.close()
         # file_process.close()
-    return fasta_record_count
+    return fasta_record_count, drawn_accessions
 
 
 def random_bed_fast_worker(total_accession_count,
@@ -925,6 +927,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                prob=_RC_PROB,
                thresholding=False,
                chop=False,
+               save_genomes=False,
                window_length=50,
                amino_acid=False,
                thresholds=None,
@@ -969,6 +972,9 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
         because of random sampling.
     chop: bool
         If True, chop up the genome into kmers based on a sliding window.
+    save_genomes: boolean
+        If True, save the genomes used in sampling to a directory.
+        This only applies to genome holdout strategies.
     window_length: int
         The length of the offset for the sliding window
         if thresholding or chopping is used.
@@ -1005,28 +1011,10 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     if strategy.startswith("GH"):
         print("Getting the testing data with genome holdout.",
               file=sys.stderr)
-        test_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
-                                       number, length, data_dir,
-                                       index_dir,
-                                       split=False, split_amount=split_amount,
-                                       include_wild=include_wild, prob=prob,
-                                       thresholding=thresholding,
-                                       chop=chop,
-                                       window_length=window_length,
-                                       amino_acid=amino_acid,
-                                       temp_dir=temp_dir,
-                                       include_list=[_TEST],
-                                       threshold=thresholds[_TEST-1],
-                                       processes=processes,
-                                       verbose=verbose)
-        shutil.move(os.path.join(data_dir, str(taxid), "train"),
-                    os.path.join(data_dir, str(taxid), "test"))
-        print("Getting the training data with genome holdout.",
-              file=sys.stderr)
-        train_count = get_sample_worker(taxid, sublevels, index, genomes_dir,
+        test_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                         number, length, data_dir,
                                         index_dir,
-                                        split=False,
+                                        split=False, 
                                         split_amount=split_amount,
                                         include_wild=include_wild, prob=prob,
                                         thresholding=thresholding,
@@ -1034,25 +1022,60 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         window_length=window_length,
                                         amino_acid=amino_acid,
                                         temp_dir=temp_dir,
-                                        include_list=[_TRAIN],
-                                        threshold=thresholds[_TRAIN-1],
+                                        include_list=[_TEST],
+                                        threshold=thresholds[_TEST-1],
                                         processes=processes,
                                         verbose=verbose)
+        test_count, test_fasta = test_output
+        shutil.move(os.path.join(data_dir, str(taxid), "train"),
+                    os.path.join(data_dir, str(taxid), "test"))
+        if save_genomes:
+            destination = os.path.join(data_dir, str(taxid), "test_genome")
+            os.makedirs(destination)
+            with open(os.path.join(destination, str(taxid) + ".taxid"), 
+                      "w") as tf:
+                for f, taxid in test_fasta:
+                    shutil.copy(f, destination)
+                    print("{}\t{}".format(f, taxid), file=tf)
+        print("Getting the training data with genome holdout.",
+              file=sys.stderr)
+        train_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
+                                         number, length, data_dir,
+                                         index_dir,
+                                         split=False,
+                                         split_amount=split_amount,
+                                         include_wild=include_wild, prob=prob,
+                                         thresholding=thresholding,
+                                         chop=chop,
+                                         window_length=window_length,
+                                         amino_acid=amino_acid,
+                                         temp_dir=temp_dir,
+                                         include_list=[_TRAIN],
+                                         threshold=thresholds[_TRAIN-1],
+                                         processes=processes,
+                                         verbose=verbose)
+        train_count, train_fasta = train_output
+        if save_genomes:
+            destination = os.path.join(data_dir, str(taxid), "train_genome")
+            os.makedirs(destination)
+            with open(os.path.join(destination, str(taxid) + ".taxid"), 
+                      "w") as tf:
+                for f, taxid in train_fasta:
+                    shutil.copy(f, destination)
+                    print("{}\t{}".format(f, taxid), file=tf)
         return ((test_count[0], train_count[0]), 
                 test_count[1] + train_count[1])
     else:
-        return (get_sample_worker(taxid, sublevels, index, genomes_dir,
-                                  number, length, data_dir,
-                                  index_dir,
-                                  split=split, split_amount=split_amount,
-                                  include_wild=include_wild, prob=prob,
-                                  thresholding=thresholding,
-                                  chop=chop,
-                                  window_length=window_length,
-                                  amino_acid=amino_acid, temp_dir=temp_dir,
-                                  threshold=thresholds[0],
-                                  processes=processes,
-                                  verbose=verbose), )
+        sample_out = get_sample_worker(taxid, sublevels, index, genomes_dir,
+                                       number, length, data_dir, index_dir,
+                                       split=split, split_amount=split_amount,
+                                       include_wild=include_wild, prob=prob,
+                                       thresholding=thresholding, chop=chop,
+                                       window_length=window_length,
+                                       amino_acid=amino_acid, temp_dir=temp_dir,
+                                       threshold=thresholds[0],
+                                       processes=processes, verbose=verbose)
+        return sample_out[0]
 
 
 def get_sample_worker(taxid, sublevels, index, genomes_dir,
@@ -1128,9 +1151,10 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
 
     Returns
     -------
-    (int, int)
+    (int, int, list)
         A tuple of the number of fasta records sampled
-        and permuted records written.
+        and permuted records written.  A list of fasta file
+        locations that were used in sampling is returned.
 
     """
     def get_random_string():
@@ -1155,18 +1179,19 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                    ".init.fasta")
     taxid_path = os.path.join(temp_dir, str(taxid) + "." + random_str +
                               ".taxid")
-    fasta_records_count = get_fasta(accession_counts, length,
-                                    index, genomes_dir, fasta_path_init,
-                                    taxid_path,
-                                    index_dir,
-                                    include_wild=include_wild,
-                                    window_length=window_length,
-                                    temp_dir=temp_dir,
-                                    thresholding=thresholding,
-                                    chop=chop,
-                                    amino_acid=amino_acid,
-                                    processes=processes,
-                                    verbose=verbose)
+    get_fasta_output = get_fasta(accession_counts, length,
+                                 index, genomes_dir, fasta_path_init,
+                                 taxid_path,
+                                 index_dir,
+                                 include_wild=include_wild,
+                                 window_length=window_length,
+                                 temp_dir=temp_dir,
+                                 thresholding=thresholding,
+                                 chop=chop,
+                                 amino_acid=amino_acid,
+                                 processes=processes,
+                                 verbose=verbose)
+    fasta_records_count, drawn_fasta = get_fasta_output
     print("Finished getting the kmer samples.", file=sys.stderr)
     sys.stderr.flush()
     if not amino_acid:
@@ -1225,13 +1250,14 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         os.remove(fasta_path)
     if os.path.isfile(taxid_path):
         os.remove(taxid_path)
-    return fasta_records_count, permute_count
+    return fasta_records_count, permute_count, drawn_fasta
 
 
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                     data_dir, split, split_amount, processes,
                     include_wild=False, prob=_RC_PROB,
                     thresholding=False, chop=False,
+                    save_genomes=False,
                     window_length=100,
                     amino_acid=False,
                     thresholds=None,
@@ -1284,6 +1310,9 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
         because of random sampling.
     chop: bool
         If True, chop up the genome into kmers based on a sliding window.
+    save_genomes: boolean
+        If True, save the genomes used in sampling to a directory.
+        This only applies to genome holdout strategies.
     window_length: int
         The length of the offset for the sliding window
         if thresholding or chopping is used.
@@ -1333,6 +1362,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                             prob,
                             thresholding,
                             chop,
+                            save_genomes,
                             window_length,
                             amino_acid,
                             thresholds,
@@ -1359,6 +1389,7 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
                                                            prob,
                                                            thresholding,
                                                            chop,
+                                                           save_genomes,
                                                            window_length,
                                                            amino_acid,
                                                            thresholds,

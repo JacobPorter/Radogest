@@ -160,12 +160,17 @@ def main():
     p_select.add_argument("taxid", type=int, help=('The taxonomic id for '
                                                    'the root.'))
     p_select.add_argument("--strategy", '-s', action='store',
-                          choices=['PR', 'QST', 'QSL', 'GHT', 'GHL', 'AG'],
+                          choices=['PR', 'QST', 'QSL', 
+                                   'GHST', 'GHSL', 'GHGT', 'GHGL', 'AG'],
                           help=('Choose the genome selection strategy.  '
                                 'The choices are: ProportionalRandom (PR), '
-                                'QualitySortingTree (QST), QualitySortingLeaf '
-                                '(QSL), GenomeHoldoutTree (GHT), '
-                                'GenomeHoldoutLeaf (GHL), AllGenomes (AG)'),
+                                'QualitySortingTree (QST), '
+                                'QualitySortingLeaf (QSL),'
+                                'GenomeHoldoutSpeciesTree (GHST), '
+                                'GenomeHoldoutSpeciesLeaf (GHSL), '
+                                'GenomeHoldoutGenomeTree (GHGT), '
+                                'GenomeHoldoutGenomeLeaf (GHGL), '
+                                'AllGenomes (AG)'),
                           default='PR')
     p_select.add_argument('--select_amount', '-n', nargs='+', type=int,
                           help=('The number of genomes '
@@ -177,6 +182,12 @@ def main():
                                 'data, and the second one for '
                                 'testing data.'),
                           default=[10])
+    p_select.add_argument('--random', '-d', action='store_true',
+                          help="Select genomes at random rather than sort "
+                          "them by quality when selecting genomes for "
+                          "genome holdout strategies.  This option only "
+                          "applies to genome holdout strategies.",
+                          default=False)
     p_select.add_argument('--output', '-o', type=str,
                           help=('The location to store the index with '
                                 'the down selected genomes.'),
@@ -232,6 +243,11 @@ def main():
                                 "This will NOT randomly sample kmers.  "
                                 "The kmers in the sample set "
                                 "may not be balanced."))
+    p_sample.add_argument("--save_genomes", 
+                          action="store_true", 
+                          default=False,
+                          help="Save genomes in a separate folder when "
+                          "using genome holdout strategies.")
     p_sample.add_argument(*window_length.args, **window_length.kwargs)
     p_sample.add_argument(*split.args, **split.kwargs)
     p_sample.add_argument(*split_amount.args, **split_amount.kwargs)
@@ -405,8 +421,10 @@ def main():
         from library.genome_selection.strategy import QualitySortingTree
         from library.genome_selection.strategy import QualitySortingLeaf
         from library.genome_selection.strategy import AllGenomes
-        from library.genome_selection.strategy import GenomeHoldoutTree
-        from library.genome_selection.strategy import GenomeHoldoutLeaf
+        from library.genome_selection.strategy import GHSpeciesLeaf
+        from library.genome_selection.strategy import GHSpeciesTree
+        from library.genome_selection.strategy import GHGenomeLeaf
+        from library.genome_selection.strategy import GHGenomeTree
         from library.genome_selection.strategy import EXCLUDED_GENOMES
         from library.genome_selection.traversal import StrategyNotFound
         from library.genome_selection.traversal import TaxTreeTraversal
@@ -422,16 +440,30 @@ def main():
             strategy = QualitySortingTree(index, select_amount[0])
         elif strategy_string == 'QSL':
             strategy = QualitySortingLeaf(index, select_amount[0])
-        elif strategy_string == 'GHT' or strategy_string == 'GHL':
+        elif strategy_string.startswith('GH'):
             if len(select_amount) != 2:
                 p_select.error("There must be two and only two sample amounts "
                                "when using the genome holdout strategy: "
                                "The first for the training set, "
                                "the second for the testing set.")
-            if strategy_string == 'GHT':
-                strategy = GenomeHoldoutTree(index, select_amount)
+            warning = ("Species holdout strategies may not make sense "
+                       "for selecting genera.")
+            if strategy_string == 'GHSL':
+                strategy = GHSpeciesLeaf(index, select_amount, 
+                                         random=args.random)
+                print(warning, file=sys.stderr)
+            elif strategy_string == 'GHST':
+                strategy = GHSpeciesTree(index, select_amount,
+                                         random=args.random)
+                print(warning, file=sys.stderr)
+            elif strategy_string == 'GHGL':
+                strategy = GHGenomeLeaf(index, select_amount,
+                                        random=args.random)
+            elif strategy_string == 'GHGT':
+                strategy = GHGenomeTree(index, select_amount,
+                                        random=args.random)
             else:
-                strategy = GenomeHoldoutLeaf(index, select_amount)
+                raise StrategyNotFound()
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
         else:
@@ -478,6 +510,7 @@ def main():
                         args.prob,
                         args.thresholding,
                         args.chop,
+                        args.save_genomes,
                         args.window_length, args.amino_acid,
                         args.thresholds,
                         args.temp_dir,
