@@ -8,6 +8,8 @@ NCBI (National Center for Biotechnology Information)
     Jacob Porter <jsporter@vt.edu>
 """
 
+# TODO: genome holdout genome methods are not splitting the appropriate number of genomes between test and train sets.  Example: taxid 89373.
+
 import argparse
 import datetime
 import sys

@@ -1034,9 +1034,9 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
             os.makedirs(destination)
             with open(os.path.join(destination, str(taxid) + ".taxid"), 
                       "w") as tf:
-                for f, taxid in test_fasta:
+                for f, txd in test_fasta:
                     shutil.copy(f, destination)
-                    print("{}\t{}".format(f, taxid), file=tf)
+                    print("{}\t{}".format(f, txd), file=tf)
         print("Getting the training data with genome holdout.",
               file=sys.stderr)
         train_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
@@ -1060,9 +1060,9 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
             os.makedirs(destination)
             with open(os.path.join(destination, str(taxid) + ".taxid"), 
                       "w") as tf:
-                for f, taxid in train_fasta:
+                for f, txd in train_fasta:
                     shutil.copy(f, destination)
-                    print("{}\t{}".format(f, taxid), file=tf)
+                    print("{}\t{}".format(f, txd), file=tf)
         return ((test_count[0], train_count[0]), 
                 test_count[1] + train_count[1])
     else:
@@ -1161,7 +1161,8 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         return ''.join(random.choice(
             string.ascii_uppercase + string.digits + string.ascii_lowercase)
             for _ in range(RAND_LEN))
-    print("Determining accessions to sample from.", file=sys.stderr)
+    print("Determining accessions for {} to sample from.".format(taxid), 
+          file=sys.stderr)
     sys.stderr.flush()
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
                                                number, length,
@@ -1170,7 +1171,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                                threshold)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
-        return (0, 0)
+        return (0, 0, [])
     print("Getting the kmer samples.", file=sys.stderr)
     sys.stderr.flush()
     random_str = get_random_string()
@@ -1250,7 +1251,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         os.remove(fasta_path)
     if os.path.isfile(taxid_path):
         os.remove(taxid_path)
-    return fasta_records_count, permute_count, drawn_fasta
+    return ((fasta_records_count, permute_count), drawn_fasta)
 
 
 def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,

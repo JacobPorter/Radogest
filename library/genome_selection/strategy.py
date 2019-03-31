@@ -617,7 +617,7 @@ class GHGenome(GenomeHoldout):
         samples = [0] * self.num_categories
         select_type = 0
         for accession in my_genomes:
-            if min([samples[i] >= self.select_number(i) for 
+            if min([samples[i] >= self.select_number[i] for 
                         i in range(self.num_categories)]):
                 break
             self.index['taxids'][parent][accession] = select_type + 1
@@ -625,10 +625,11 @@ class GHGenome(GenomeHoldout):
             for i in range(select_type + 1, 
                            select_type + + 1 + self.num_categories):
                 j = i % self.num_categories
-                if samples[j] < self.select_number(j):
+                if samples[j] < self.select_number[j]:
                     select_type = j
                     break  
         samples = sum(samples)
+        return samples
 
 
 class GHSpeciesLeaf(GHLeaf, GHSpecies):
@@ -755,7 +756,7 @@ class GHGenomeTree(GHTree, GHGenome):
         if children:  # Inner node
             samples = self.inner_node(parent, children)
         else:  # Leaf node
-            samples = self.leaf_node(parent, children)
+            samples = self.leaf_node(parent)
         return samples
 
 
