@@ -17,9 +17,15 @@ import operator
 import subprocess
 import mmap
 import math
+import re
+from collections import defaultdict
 from multiprocessing import Pool
 
-import gffutils
+try:
+    import gffutils
+except ImportError:
+    print("gffutils could not be imported.  It may require Python 2.7.",
+          file=sys.stderr)
 
 from SeqIterator import SeqReader, SeqWriter
 
@@ -117,10 +123,102 @@ def get_db(gff_location):
     return db
 
 
+def get_intercds_cds(genome_location, fai_location,
+                     cds_location, output, verbose=0):
+    """
+    Write a fasta file of intercds DNA.
+
+    Parameters
+    ----------
+    genome_location: str
+        The location of the whole genome fasta file.
+    fai_location: str
+        The location of the fai file for the whole genome file.
+    cds_location: str
+        The location of the cds fasta file.
+    output: str or writable
+        The place to write the output.
+    verbose: int
+        The level of verbosity.
+
+    Returns
+    -------
+    count: int
+        The number of intercds fasta records.
+
+    """
+    def write_sequence(seq_id, beg, end):
+        fai_line = fasta_dict[seq_id]
+        offset = fai_line[1]
+        linebases = fai_line[2]
+        if not end:
+            end = fai_line[0]
+        n_beg = offset + beg + (math.ceil(float(beg)/float(linebases))-1)
+        n_end = offset + end + (math.ceil(float(end)/float(linebases))-1)
+        inter_seq = str(mm[int(n_beg):int(n_end)]).replace("\n", "")
+        inter_id = "{}:{}:{}:{}".format(seq_id, beg, end, end-beg)
+        writer.write((inter_id, inter_seq))
+
+    if isinstance(output, str):
+        output = open(output, "w")
+    writer = SeqWriter(output, file_type="fasta")
+    cds_gzip = True if cds_location.endswith("gz") else False
+    cds_reader = SeqReader(cds_location, gzip_switch=cds_gzip)
+    location_pattern = re.compile("location=[0-9|a-zA-z|)|(|..|,|>|<|=]+")
+    range_pattern = re.compile("[0-9]+\.\.[0-9]+")
+    loc_split = re.compile("\.+")
+    contig_id = re.compile("\|.+_cds_")
+    cds_locations = defaultdict(list)
+    for cds_record in cds_reader:
+        cds_header = cds_record[0]
+        try:
+            seq_id = re.findall(contig_id,
+                                cds_header)[0].replace("|",
+                                                       "").replace("_cds_",
+                                                                   "")
+        except IndexError:
+            print("A sequence id could not be found for {}".format(cds_header),
+                  file=sys.stderr)
+            continue
+        try:
+            raw_locations = re.findall(range_pattern,
+                                       re.findall(location_pattern,
+                                                  cds_header)[0])
+            location = [tuple(map(int, re.split(loc_split, loc)))
+                        for loc in raw_locations]
+            cds_locations[seq_id].extend(location)
+        except (IndexError, ValueError):
+            print("The locations could not be found for {}".format(cds_header),
+                  file=sys.stderr)
+            continue
+    fasta_file = open(genome_location, "r")
+    mm = mmap.mmap(fasta_file.fileno(), 0, access=mmap.ACCESS_READ)
+    fasta_dict = {}
+    for line in open(fai_location):
+        fai_line = line.split()
+        fasta_dict[fai_line[0]] = list(map(int, fai_line[1:]))
+    count = 0
+    for seq_id in cds_locations:
+        locations = cds_locations[seq_id]
+        locations.sort()
+        cds_locations[seq_id] = locations
+        end = 1
+        for cds_loc in locations:
+            if cds_loc[0] > end:
+                if verbose:
+                    print(cds_loc, seq_id, end, cds_loc[0], file=sys.stderr)
+                write_sequence(seq_id, end, cds_loc[0])
+                count += 1
+            end = cds_loc[1]
+        write_sequence(seq_id, end, False)
+        count += 1
+    return count
+
+
 def get_intergenic_fasta(fasta_location, gff_location, fai_location,
                          output, remove=True, verbose=0):
     """
-    Write a fasta file of intergenic DNA.
+    Write a fasta file of intercds DNA.
 
     Parameters
     ----------
@@ -390,23 +488,41 @@ def main():
             formatter_class=argparse.RawTextHelpFormatter,
             description=__doc__)
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
-    p_one = subparsers.add_parser("one",
-                                  help=("Extract complementary regions "
-                                        "from a single fasta file."),
+    p_one_gff = subparsers.add_parser("one_gff",
+                                      help=("Extract complementary regions "
+                                            "from a single fasta file.  "
+                                            "Use a gff file and a "
+                                            "whole genome file."),
+                                      formatter_class=argparse.
+                                      ArgumentDefaultsHelpFormatter)
+    p_one_gff.add_argument("fasta_file", type=str,
+                           help="The location of the fasta file.")
+    p_one_gff.add_argument("--keep", "-k",
+                           help=("Keep the initial fasta files and the "
+                                 "fai file "
+                                 "if it exists.  Otherwise, these will be "
+                                 "deleted."),
+                           action='store_true', default=False)
+    p_one_gff.add_argument("--verbose", "-v", type=int,
+                           help="The level of verbosity.",
+                           default=1)
+    p_one_gff.add_argument("gff_file", type=str,
+                           help="The location of the gff file.")
+    p_one = subparsers.add_parser("one_cds",
+                                  help="Extract complementary regions "
+                                  "from a single fasta file using a CDs "
+                                  "file and a whole genome file.",
                                   formatter_class=argparse.
                                   ArgumentDefaultsHelpFormatter)
-    p_one.add_argument("fasta_file", type=str,
-                       help="The location of the fasta file.")
-    p_one.add_argument("--keep", "-k",
-                       help=("Keep the initial fasta files and the fai file "
-                             "if it exists.  Otherwise, these will be "
-                             "deleted."),
-                       action='store_true', default=False)
+    p_one.add_argument("genome_file", type=str,
+                       help="The location of the whole genome file.")
+    p_one.add_argument("fai_file", type=str,
+                       help="The fai file for the whole genome file.")
+    p_one.add_argument("cds_file", type=str,
+                       help="The location of the CDs file.")
     p_one.add_argument("--verbose", "-v", type=int,
                        help="The level of verbosity.",
                        default=1)
-    p_one.add_argument("gff_file", type=str,
-                       help="The location of the gff file.")
     p_all = subparsers.add_parser("all",
                                   help=("Create complementary fasta files "
                                         "for all genomes with gff files."),
@@ -429,10 +545,16 @@ def main():
     print(args, file=sys.stderr)
     sys.stderr.flush()
     mode = args.mode
-    if mode == "one":
+    if mode == "one_gff":
         count = get_intergenic_fasta(args.fasta_file, args.gff_file,
                                      sys.stdout, remove=not args.keep,
                                      verbose=args.verbose)
+        print("There were {} fasta records written.".format(count),
+              file=sys.stderr)
+    elif mode == "one_cds":
+        count = get_intercds_cds(args.genome_file, args.fai_file,
+                                 args.cds_file,
+                                 sys.stdout, verbose=args.verbose)
         print("There were {} fasta records written.".format(count),
               file=sys.stderr)
     elif mode == "all":

@@ -9,6 +9,7 @@ NCBI (National Center for Biotechnology Information)
 """
 
 # TODO: genome holdout genome methods are not splitting the appropriate number of genomes between test and train sets.  Example: taxid 89373.
+# TODO: Exclude species, levels? where there are too few genomes.
 
 import argparse
 import datetime
