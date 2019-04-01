@@ -156,7 +156,7 @@ def get_intercds_cds(genome_location, fai_location,
         n_beg = offset + beg + (math.ceil(float(beg)/float(linebases))-1)
         n_end = offset + end + (math.ceil(float(end)/float(linebases))-1)
         inter_seq = str(mm[int(n_beg):int(n_end)]).replace("\n", "")
-        inter_id = "{}:{}:{}:{}".format(seq_id, beg, end, end-beg)
+        inter_id = "{}:{}:{}:{}".format(seq_id, beg+1, end+1, end-beg)
         writer.write((inter_id, inter_seq))
 
     if isinstance(output, str):
@@ -207,7 +207,7 @@ def get_intercds_cds(genome_location, fai_location,
             if cds_loc[0] > end:
                 if verbose:
                     print(cds_loc, seq_id, end, cds_loc[0], file=sys.stderr)
-                write_sequence(seq_id, end, cds_loc[0])
+                write_sequence(seq_id, end-1, cds_loc[0]-1)
                 count += 1
             end = cds_loc[1]
         write_sequence(seq_id, end, False)
