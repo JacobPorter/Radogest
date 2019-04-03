@@ -149,7 +149,15 @@ def get_intercds_cds(genome_location, fai_location,
 
     """
     def write_sequence(seq_id, beg, end):
-        fai_line = fasta_dict[seq_id]
+        """Write the sequence to a file.  Returns 0 if successful."""
+        try:
+            fai_line = fasta_dict[seq_id]
+        except KeyError:
+            print("The sequence accession {} was not found for "
+                  "the genome {}.  Further sequence writing will be "
+                  "skipped.".format(seq_id, genome_location),
+                  file=sys.stderr)
+            return 1
         offset = fai_line[1]
         linebases = fai_line[2]
         if not end:
@@ -163,6 +171,7 @@ def get_intercds_cds(genome_location, fai_location,
             inter_seq = str(mm[int(n_beg):int(n_end)]).replace("\n", "")
         inter_id = "{}:{}:{}:{}".format(seq_id, beg+1, end+1, end-beg)
         writer.write((inter_id, inter_seq))
+        return 0
 
     if isinstance(output, str):
         output = open(output, "w")
@@ -172,15 +181,12 @@ def get_intercds_cds(genome_location, fai_location,
     location_pattern = re.compile("location=[0-9|a-zA-z|)|(|..|,|>|<|=]+")
     range_pattern = re.compile("[0-9]+\.\.[0-9]+")
     loc_split = re.compile("\.+")
-    contig_id = re.compile("\|.+_cds_")
+    # contig_id = re.compile("\|.+_cds_")
     cds_locations = defaultdict(list)
     for cds_record in cds_reader:
         cds_header = cds_record[0]
         try:
-            seq_id = re.findall(contig_id,
-                                cds_header)[0].replace("|",
-                                                       "").replace("_cds_",
-                                                                   "")
+            seq_id = cds_header.split("_cds_")[0].split("|")[1]
         except IndexError:
             print("A sequence id could not be found for {}".format(cds_header),
                   file=sys.stderr)
@@ -212,7 +218,8 @@ def get_intercds_cds(genome_location, fai_location,
             if cds_loc[0] > end:
                 if verbose:
                     print(cds_loc, seq_id, end, cds_loc[0], file=sys.stderr)
-                write_sequence(seq_id, end-1, cds_loc[0]-1)
+                if write_sequence(seq_id, end-1, cds_loc[0]-1):
+                    return 0
                 count += 1
             end = cds_loc[1]
         write_sequence(seq_id, end, False)
