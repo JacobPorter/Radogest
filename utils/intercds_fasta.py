@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Create a fasta file of intergenic regions given a gff file and a
@@ -156,7 +156,11 @@ def get_intercds_cds(genome_location, fai_location,
             end = fai_line[0]
         n_beg = offset + beg + (math.ceil(float(beg)/float(linebases))-1)
         n_end = offset + end + (math.ceil(float(end)/float(linebases))-1)
-        inter_seq = str(mm[int(n_beg):int(n_end)]).replace("\n", "")
+        try:
+            inter_seq = str(mm[int(n_beg):int(n_end)],
+                            'utf-8').replace("\n", "")
+        except TypeError:
+            inter_seq = str(mm[int(n_beg):int(n_end)]).replace("\n", "")
         inter_id = "{}:{}:{}:{}".format(seq_id, beg+1, end+1, end-beg)
         writer.write((inter_id, inter_seq))
 
@@ -536,14 +540,16 @@ def process_cd_directory(cds_directory, files,
     accession = os.path.basename(cds_directory)
     genome_dir_accession = os.path.join(genome_directory, accession)
     f_genome = None
+    f_fai = None
     if os.path.exists(genome_dir_accession):
-        files_g = (f for f in os.listdir(genome_dir_accession)
-                   if os.path.isfile(os.path.join(genome_dir_accession, f)))
+        files_g = [f for f in os.listdir(genome_dir_accession)
+                   if os.path.isfile(os.path.join(genome_dir_accession, f))]
         f_genome = return_fasta(files_g)
         f_fai = return_fasta(files_g, file_type='fai')
     if verbose >= 1:
-        print("Getting intercds file for {} and {}.".format(f_cds, f_genome),
-              file=sys.stderr)
+        print("Getting intercds file for {} and {} with fai file {}.".format(
+            f_cds, f_genome, f_fai), file=sys.stderr)
+        sys.stderr.flush()
     if f_cds and f_genome:
         intercds_accession = os.path.join(intercds, accession)
         os.makedirs(intercds_accession)
@@ -586,10 +592,12 @@ def scale_up_cds(cds_directory, genome_directory,
 
     """
     count = 0
+    total = 0
     if processes == 1:
         for path, _, files in os.walk(cds_directory):
             count += process_cd_directory(path, files, genome_directory,
                                           intercds, verbose)
+            total += 1
     else:
         pd_list = []
         pool = Pool(processes=processes)
@@ -597,12 +605,13 @@ def scale_up_cds(cds_directory, genome_directory,
             pd = pool.apply_async(process_cd_directory,
                                   args=(path, files,
                                         genome_directory, intercds, verbose))
+            total += 1
             pd_list.append(pd)
         for pd in pd_list:
             count += pd.get()
         pool.close()
         pool.join()
-    return count
+    return count, total
 
 
 def main():
@@ -667,7 +676,7 @@ def main():
     p_all_gff.add_argument("--verbose", "-v", type=int,
                            help="The level of verbosity.",
                            default=0)
-    p_all_cds = subparsers.add_parser("all_cds", type=str,
+    p_all_cds = subparsers.add_parser("all_cds",
                                       help=("Create intercds fasta files "
                                             "for all genomes with cds files."),
                                       formatter_class=argparse.
@@ -684,7 +693,7 @@ def main():
     p_all_cds.add_argument("--processes", "-p", type=int,
                            help="The number of processes to use.",
                            default=20)
-    p_all_gff.add_argument("--verbose", "-v", type=int,
+    p_all_cds.add_argument("--verbose", "-v", type=int,
                            help="The level of verbosity.",
                            default=0)
     args = parser.parse_args()
@@ -712,7 +721,8 @@ def main():
     elif mode == "all_cds":
         count = scale_up_cds(args.cds_directory, args.genome_directory,
                              args.intercds, args.processes, args.verbose)
-        print("There were {} fasta files created.".format(count),
+        print("There were {} fasta files created out of {} "
+              "directories.".format(count[0], count[1]),
               file=sys.stderr)
     else:
         parser.error("The mode was not recognized.  Please to check.")
