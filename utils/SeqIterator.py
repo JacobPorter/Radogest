@@ -1,4 +1,4 @@
-from SeqIterator import Constants
+import Constants
 import gzip
 
 """
@@ -47,9 +47,6 @@ class SeqReader:
         return self
 
     def __next__(self):
-        return next(self)
-
-    def next(self):
         if self.type == 0:  # FASTA
             seq_id = self.next_line
             seq_seq = self.seq_file.readline()

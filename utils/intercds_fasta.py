@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Create a fasta file of intergenic regions given a gff file and a
@@ -17,9 +17,15 @@ import operator
 import subprocess
 import mmap
 import math
+import re
+from collections import defaultdict
 from multiprocessing import Pool
 
-import gffutils
+try:
+    import gffutils
+except ImportError:
+    print("gffutils could not be imported.  It may require Python 2.7.",
+          file=sys.stderr)
 
 from SeqIterator import SeqReader, SeqWriter
 
@@ -28,6 +34,7 @@ EXCLUDED_REGIONS = ('gene', 'exon')
 
 FASTA_ENDINGS = ['fasta', 'fa', 'fna']
 GFF_ENDINGS = ['gff']
+FAI_ENDINGS = ['fai']
 
 
 def name_ends(name, endings, addition=""):
@@ -117,10 +124,113 @@ def get_db(gff_location):
     return db
 
 
+def get_intercds_cds(genome_location, fai_location,
+                     cds_location, output, verbose=0):
+    """
+    Write a fasta file of intercds DNA.
+
+    Parameters
+    ----------
+    genome_location: str
+        The location of the whole genome fasta file.
+    fai_location: str
+        The location of the fai file for the whole genome file.
+    cds_location: str
+        The location of the cds fasta file.
+    output: str or writable
+        The place to write the output.
+    verbose: int
+        The level of verbosity.
+
+    Returns
+    -------
+    count: int
+        The number of intercds fasta records.
+
+    """
+    def write_sequence(seq_id, beg, end):
+        """Write the sequence to a file.  Returns 0 if successful."""
+        try:
+            fai_line = fasta_dict[seq_id]
+        except KeyError:
+            print("The sequence accession {} was not found for "
+                  "the genome {}.  Further sequence writing will be "
+                  "skipped.".format(seq_id, genome_location),
+                  file=sys.stderr)
+            return 1
+        offset = fai_line[1]
+        linebases = fai_line[2]
+        if not end:
+            end = fai_line[0]
+        n_beg = offset + beg + (math.ceil(float(beg)/float(linebases))-1)
+        n_end = offset + end + (math.ceil(float(end)/float(linebases))-1)
+        try:
+            inter_seq = str(mm[int(n_beg):int(n_end)],
+                            'utf-8').replace("\n", "")
+        except TypeError:
+            inter_seq = str(mm[int(n_beg):int(n_end)]).replace("\n", "")
+        inter_id = "{}:{}:{}:{}".format(seq_id, beg+1, end+1, end-beg)
+        writer.write((inter_id, inter_seq))
+        return 0
+
+    if isinstance(output, str):
+        output = open(output, "w")
+    writer = SeqWriter(output, file_type="fasta")
+    cds_gzip = True if cds_location.endswith("gz") else False
+    cds_reader = SeqReader(cds_location, gzip_switch=cds_gzip)
+    location_pattern = re.compile("location=[0-9|a-zA-z|)|(|..|,|>|<|=]+")
+    range_pattern = re.compile("[0-9]+\.\.[0-9]+")
+    loc_split = re.compile("\.+")
+    # contig_id = re.compile("\|.+_cds_")
+    cds_locations = defaultdict(list)
+    for cds_record in cds_reader:
+        cds_header = cds_record[0]
+        try:
+            seq_id = cds_header.split("_cds_")[0].split("|")[1]
+        except IndexError:
+            print("A sequence id could not be found for {}".format(cds_header),
+                  file=sys.stderr)
+            continue
+        try:
+            raw_locations = re.findall(range_pattern,
+                                       re.findall(location_pattern,
+                                                  cds_header)[0])
+            location = [tuple(map(int, re.split(loc_split, loc)))
+                        for loc in raw_locations]
+            cds_locations[seq_id].extend(location)
+        except (IndexError, ValueError):
+            print("The locations could not be found for {}".format(cds_header),
+                  file=sys.stderr)
+            continue
+    fasta_file = open(genome_location, "r")
+    mm = mmap.mmap(fasta_file.fileno(), 0, access=mmap.ACCESS_READ)
+    fasta_dict = {}
+    for line in open(fai_location):
+        fai_line = line.split()
+        fasta_dict[fai_line[0]] = list(map(int, fai_line[1:]))
+    count = 0
+    for seq_id in cds_locations:
+        locations = cds_locations[seq_id]
+        locations.sort()
+        cds_locations[seq_id] = locations
+        end = 1
+        for cds_loc in locations:
+            if cds_loc[0] > end:
+                if verbose:
+                    print(cds_loc, seq_id, end, cds_loc[0], file=sys.stderr)
+                if write_sequence(seq_id, end-1, cds_loc[0]-1):
+                    return 0
+                count += 1
+            end = cds_loc[1]
+        write_sequence(seq_id, end, False)
+        count += 1
+    return count
+
+
 def get_intergenic_fasta(fasta_location, gff_location, fai_location,
                          output, remove=True, verbose=0):
     """
-    Write a fasta file of intergenic DNA.
+    Write a fasta file of intercds DNA.
 
     Parameters
     ----------
@@ -382,6 +492,135 @@ def scale_up(root_directory, processes=1, remove=True, verbose=0):
     return count
 
 
+def return_fasta(files, file_type='fasta'):
+    """
+    Get a fasta file from a list of files.
+
+    Parameters
+    ----------
+    files: list
+        A list of strings representing files
+    file_type: str
+        Either 'fasta' or 'fai'.  Gets those files.
+
+    Returns
+    -------
+    f: str
+        A fasta file if it exists.
+
+    """
+    ending = FASTA_ENDINGS
+    if file_type == 'fai':
+        ending = FAI_ENDINGS
+    for f in files:
+        if name_ends(f, ending):
+            return f
+    return None
+
+
+def process_cd_directory(cds_directory, files,
+                         genome_directory, intercds,
+                         verbose=0):
+    """
+    Produce intercds fasta files for a CDs directory.
+
+    cds_directory: str
+        The cds directory ending with a genome accession.
+    files: iterable
+        A list of files in the cds_directory.
+    genome_directory: str
+        The base directory for whole genomes.
+    intercds: str
+        The base directory to write intercds fasta files.
+    verbose: int
+        The level of verbosity.
+
+    Returns
+    -------
+    count: int
+        A count of the fasta files created.
+
+    """
+    f_cds = return_fasta(files)
+    if cds_directory.endswith('/'):
+        cds_directory = cds_directory[0:len(cds_directory)-1]
+    accession = os.path.basename(cds_directory)
+    genome_dir_accession = os.path.join(genome_directory, accession)
+    f_genome = None
+    f_fai = None
+    if os.path.exists(genome_dir_accession):
+        files_g = [f for f in os.listdir(genome_dir_accession)
+                   if os.path.isfile(os.path.join(genome_dir_accession, f))]
+        f_genome = return_fasta(files_g)
+        f_fai = return_fasta(files_g, file_type='fai')
+    if verbose >= 1:
+        print("Getting intercds file for {} and {} with fai file {}.".format(
+            f_cds, f_genome, f_fai), file=sys.stderr)
+        sys.stderr.flush()
+    if f_cds and f_genome:
+        intercds_accession = os.path.join(intercds, accession)
+        os.makedirs(intercds_accession)
+        inter_filename = f_genome.replace(".fna", "") + "_intercds.fna"
+        with open(os.path.join(intercds_accession, inter_filename), "w") as fd:
+            cnt_cds = get_intercds_cds(os.path.join(genome_dir_accession,
+                                                    f_genome),
+                                       os.path.join(genome_dir_accession,
+                                                    f_fai),
+                                       os.path.join(cds_directory, f_cds),
+                                       fd,
+                                       verbose=1 if verbose >= 2 else 0)
+            if cnt_cds > 0:
+                return 1
+    return 0
+
+
+def scale_up_cds(cds_directory, genome_directory,
+                 intercds, processes, verbose=0):
+    """
+    Create intercds files from cds directories.
+
+    Parameters
+    ----------
+    cds_directory: str
+        The directory where cds are located.
+    genome_directory: str
+        The directory where whole genomes are located.
+    intercds: str
+        The directory where the intercds fasta files will be written.
+    processes: int
+        The number of processes to use.
+    verbose: int
+        The level of verbosity.
+
+    Returns
+    -------
+    count: int
+        The number of fasta files created.
+
+    """
+    count = 0
+    total = 0
+    if processes == 1:
+        for path, _, files in os.walk(cds_directory):
+            count += process_cd_directory(path, files, genome_directory,
+                                          intercds, verbose)
+            total += 1
+    else:
+        pd_list = []
+        pool = Pool(processes=processes)
+        for path, _, files in os.walk(cds_directory):
+            pd = pool.apply_async(process_cd_directory,
+                                  args=(path, files,
+                                        genome_directory, intercds, verbose))
+            total += 1
+            pd_list.append(pd)
+        for pd in pd_list:
+            count += pd.get()
+        pool.close()
+        pool.join()
+    return count, total
+
+
 def main():
     """Parse arguments."""
     tick = datetime.datetime.now()
@@ -390,57 +629,110 @@ def main():
             formatter_class=argparse.RawTextHelpFormatter,
             description=__doc__)
     subparsers = parser.add_subparsers(help="sub-commands", dest="mode")
-    p_one = subparsers.add_parser("one",
-                                  help=("Extract complementary regions "
-                                        "from a single fasta file."),
+    p_one_gff = subparsers.add_parser("one_gff",
+                                      help=("Extract complementary regions "
+                                            "from a single fasta file.  "
+                                            "Use a gff file and a "
+                                            "whole genome file."),
+                                      formatter_class=argparse.
+                                      ArgumentDefaultsHelpFormatter)
+    p_one_gff.add_argument("fasta_file", type=str,
+                           help="The location of the fasta file.")
+    p_one_gff.add_argument("--keep", "-k",
+                           help=("Keep the initial fasta files and the "
+                                 "fai file "
+                                 "if it exists.  Otherwise, these will be "
+                                 "deleted."),
+                           action='store_true', default=False)
+    p_one_gff.add_argument("--verbose", "-v", type=int,
+                           help="The level of verbosity.",
+                           default=1)
+    p_one_gff.add_argument("gff_file", type=str,
+                           help="The location of the gff file.")
+    p_one = subparsers.add_parser("one_cds",
+                                  help="Extract complementary regions "
+                                  "from a single fasta file using a CDs "
+                                  "file and a whole genome file.",
                                   formatter_class=argparse.
                                   ArgumentDefaultsHelpFormatter)
-    p_one.add_argument("fasta_file", type=str,
-                       help="The location of the fasta file.")
-    p_one.add_argument("--keep", "-k",
-                       help=("Keep the initial fasta files and the fai file "
-                             "if it exists.  Otherwise, these will be "
-                             "deleted."),
-                       action='store_true', default=False)
+    p_one.add_argument("genome_file", type=str,
+                       help="The location of the whole genome file.")
+    p_one.add_argument("fai_file", type=str,
+                       help="The fai file for the whole genome file.")
+    p_one.add_argument("cds_file", type=str,
+                       help="The location of the CDs file.")
     p_one.add_argument("--verbose", "-v", type=int,
                        help="The level of verbosity.",
                        default=1)
-    p_one.add_argument("gff_file", type=str,
-                       help="The location of the gff file.")
-    p_all = subparsers.add_parser("all",
-                                  help=("Create complementary fasta files "
-                                        "for all genomes with gff files."),
-                                  formatter_class=argparse.
-                                  ArgumentDefaultsHelpFormatter)
-    p_all.add_argument("gff_directory", type=str,
-                       help="The location of the directory of gff files.")
-    p_all.add_argument("--processes", "-p", type=int,
-                       help="The number of processes to use.",
-                       default=1)
-    p_all.add_argument("--keep", "-k",
-                       help=("Keep the initial fasta files and the fai file "
-                             "if it exists.  Otherwise, these will be "
-                             "deleted."),
-                       action='store_true', default=False)
-    p_all.add_argument("--verbose", "-v", type=int,
-                       help="The level of verbosity.",
-                       default=0)
+    p_all_gff = subparsers.add_parser("all_gff",
+                                      help=("Create complementary fasta files "
+                                            "for all genomes with gff files."),
+                                      formatter_class=argparse.
+                                      ArgumentDefaultsHelpFormatter)
+    p_all_gff.add_argument("gff_directory", type=str,
+                           help="The location of the directory of gff files.")
+    p_all_gff.add_argument("--processes", "-p", type=int,
+                           help="The number of processes to use.",
+                           default=1)
+    p_all_gff.add_argument("--keep", "-k",
+                           help=("Keep the initial fasta files and the fai "
+                                 "file "
+                                 "if it exists.  Otherwise, these will be "
+                                 "deleted."),
+                           action='store_true', default=False)
+    p_all_gff.add_argument("--verbose", "-v", type=int,
+                           help="The level of verbosity.",
+                           default=0)
+    p_all_cds = subparsers.add_parser("all_cds",
+                                      help=("Create intercds fasta files "
+                                            "for all genomes with cds files."),
+                                      formatter_class=argparse.
+                                      ArgumentDefaultsHelpFormatter)
+    p_all_cds.add_argument("cds_directory", type=str,
+                           help="The location of the directory where the cds "
+                           "files are located.")
+    p_all_cds.add_argument("genome_directory", type=str,
+                           help="The location of the whole genomes directory.")
+    p_all_cds.add_argument("--intercds", "-i", type=str,
+                           help="The directory to create intercds "
+                           "fasta files.",
+                           default="./")
+    p_all_cds.add_argument("--processes", "-p", type=int,
+                           help="The number of processes to use.",
+                           default=20)
+    p_all_cds.add_argument("--verbose", "-v", type=int,
+                           help="The level of verbosity.",
+                           default=0)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
     mode = args.mode
-    if mode == "one":
+    if mode == "one_gff":
         count = get_intergenic_fasta(args.fasta_file, args.gff_file,
                                      sys.stdout, remove=not args.keep,
                                      verbose=args.verbose)
         print("There were {} fasta records written.".format(count),
               file=sys.stderr)
-    elif mode == "all":
+    elif mode == "one_cds":
+        count = get_intercds_cds(args.genome_file, args.fai_file,
+                                 args.cds_file,
+                                 sys.stdout, verbose=args.verbose)
+        print("There were {} fasta records written.".format(count),
+              file=sys.stderr)
+    elif mode == "all_gff":
         count = scale_up(args.gff_directory, args.processes,
                          remove=not args.keep,
                          verbose=args.verbose)
         print("There were {} fasta files created.".format(count),
               file=sys.stderr)
+    elif mode == "all_cds":
+        count = scale_up_cds(args.cds_directory, args.genome_directory,
+                             args.intercds, args.processes, args.verbose)
+        print("There were {} fasta files created out of {} "
+              "directories.".format(count[0], count[1]),
+              file=sys.stderr)
+    else:
+        parser.error("The mode was not recognized.  Please to check.")
     tock = datetime.datetime.now()
     print("The process took time: {}".format(tock - tick), file=sys.stderr)
 

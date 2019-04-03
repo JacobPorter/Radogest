@@ -8,7 +8,6 @@ Genome selection strategies.
 import sys
 from random import shuffle
 
-
 EXCLUDED_GENOMES = {}
 
 
@@ -430,7 +429,7 @@ class AllGenomes(GenomeSelection):
 class GenomeHoldout(GenomeSelection):
     """Include whole genomes into separate train anid test data sets."""
 
-    def __init__(self, index, select_number):
+    def __init__(self, index, select_number, random=False):
         """
         Initialize the GenomeSelection class.
 
@@ -445,17 +444,197 @@ class GenomeHoldout(GenomeSelection):
         """
         super().__init__(index)
         self.select_number = select_number
-        # 1 is train, 2 is test, 3 is validate (if applicable).
+        # 1 is train, 2 is test, 
+        # 3 is validate (if applicable, may not be implemented.).
         self.select_type = 0
         # The number of data categories.  2 means train and test.
         # 3 means train, test, and validate.  (May not work well.)
         self.num_categories = 2
+        # If random, select random genomes.  Otherwise sort the genomes.
+        self.random = random
+        # Set the inclusion to all genomes to False (0).
         self.set_all_genomes(boolean=0)
+ 
+
+    def get_genomes(self, genome_list):
+        """
+        Get a list of genomes in a sorted list or in a random list.
+        
+        Parameters
+        ----------
+        genome_list: a list of genome accessions.
+        
+        Returns
+        -------
+        A list of genome accessions.
+        
+        """
+        if self.random:
+            shuffle(genome_list)
+            return genome_list
+        else:
+            return genome_sort(genome_list, self.index)
 
 
-class GenomeHoldoutLeaf(GenomeHoldout):
+class GHLeaf(GenomeHoldout):
     """
-    Include whole genomes into separate train and test data sets.
+    Handle an inner node in genome holdout leaf strategies.
+    All genomes from children are propagated to the parent.
+    """
+    
+    def inner_node(self, parent, children):
+        """
+        Propagate all genomes from the children to the parent.
+        
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+        
+        Returns
+        -------
+        samples: int
+            The number of genomes selected.
+        
+        """
+        samples = 0
+        for child in children:
+            include, _ = filter_genomes(self.index['taxids'][child].keys(),
+                                        self.index)
+            for accession in include:
+                if self.index['taxids'][child][accession]:
+                    self.index['taxids'][parent][accession] = self.index[
+                        'taxids'][child][accession]
+                    samples += 1
+        return samples
+
+
+class GHTree(GenomeHoldout):
+    """
+    Handle an inner node in genome holdout tree strategies.
+    A select number of children genomes will be propagated to the parent.
+    """
+    
+    def inner_node(self, parent, children):
+        """
+        Propagate some number of genomes from the children to the parent.
+        
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+        
+        Returns
+        -------
+        samples: int
+            The number of genomes selected.
+        
+        """
+        samples = 0
+        for i in range(self.num_categories):
+            my_category = i + 1
+            children_genomes = []
+            for child in children:
+                include, _ = filter_genomes(self.index['taxids'][child].
+                                            keys(), self.index)
+                include = [accession for accession in include
+                           if self.index['taxids'][child][accession] ==
+                           my_category]
+                child_genomes = self.get_genomes(include)
+                children_genomes.append(child_genomes)
+            my_genomes = select_equal(children_genomes,
+                                      self.select_number[i])
+            for accession in my_genomes:
+                samples += 1
+                self.index['taxids'][parent][accession] = my_category
+        return samples
+
+
+class GHSpecies(GenomeHoldout):
+    """
+    Handle a leaf node in genome holdout species strategies.
+    Whole species are marked as in one set or another.
+    """
+    
+    def leaf_node(self, parent):
+        """
+        Mark chosen genomes as in a set.
+                
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        
+        Returns
+        -------
+        samples: int
+            The number of genomes selected.
+        
+        """
+        include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                        self.index)
+        my_genomes = self.get_genomes(include)
+        samples = 0
+        for accession in my_genomes:
+            if samples >= self.select_number[self.select_type]:
+                break
+            self.index['taxids'][parent][accession] = self.select_type + 1
+            samples += 1
+        self.select_type = (self.select_type + 1) % self.num_categories
+        return samples
+
+
+class GHGenome(GenomeHoldout):
+    """
+    Handle a leaf node in genome holdout genome strategies.
+    Whole genomes are marked as in one set or another.
+    """
+    
+    def leaf_node(self, parent):
+        """
+        Mark chosen genomes as in a set.
+                
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        
+        Returns
+        -------
+        samples: int
+            The number of genomes selected.
+        
+        """
+        include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                        self.index)
+        my_genomes = self.get_genomes(include)
+        samples = [0] * self.num_categories
+        select_type = 0
+        for accession in my_genomes:
+            if min([samples[i] >= self.select_number[i] for 
+                        i in range(self.num_categories)]):
+                break
+            self.index['taxids'][parent][accession] = select_type + 1
+            samples[select_type] += 1
+            for i in range(select_type + 1, 
+                           select_type + + 1 + self.num_categories):
+                j = i % self.num_categories
+                if samples[j] < self.select_number[j]:
+                    select_type = j
+                    break  
+        samples = sum(samples)
+        return samples
+
+
+class GHSpeciesLeaf(GHLeaf, GHSpecies):
+    """
+    Include whole species into separate train and test data sets.
     Down select only at leaves and propagate the selected genomes up the tree.
     """
 
@@ -478,33 +657,16 @@ class GenomeHoldoutLeaf(GenomeHoldout):
 
         """
         if children:
-            samples = 0
-            for child in children:
-                include, _ = filter_genomes(self.index['taxids'][child].keys(),
-                                            self.index)
-                for accession in include:
-                    if self.index['taxids'][child][accession]:
-                        self.index['taxids'][parent][accession] = self.index[
-                            'taxids'][child][accession]
-                        samples += 1
+            samples = self.inner_node(parent, children)
         else:
-            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
-            my_genomes = genome_sort(include, self.index)
-            samples = 0
-            for accession in my_genomes:
-                if samples >= self.select_number[self.select_type]:
-                    break
-                self.index['taxids'][parent][accession] = self.select_type + 1
-                samples += 1
-            self.select_type = (self.select_type + 1) % self.num_categories
+            samples = self.leaf_node(parent)
         return samples
 
 
-class GenomeHoldoutTree(GenomeHoldout):
+class GHSpeciesTree(GHTree, GHSpecies):
     """
-    Include whole genomes into separate train and test data sets.
-    Down select genomes at each level of the tree.
+    Include whole species into separate train and test data sets.
+    Select a uniform number of genomes at each level.
     """
 
     def select(self, parent, children):
@@ -525,33 +687,76 @@ class GenomeHoldoutTree(GenomeHoldout):
             The number of genomes selected.
 
         """
-        samples = 0
         if children:  # Inner node
-            for i in range(self.num_categories):
-                my_category = i + 1
-                children_genomes = []
-                for child in children:
-                    include, _ = filter_genomes(self.index['taxids'][child].
-                                                keys(), self.index)
-                    include = [accession for accession in include
-                               if self.index['taxids'][child][accession] ==
-                               my_category]
-                    child_genomes = genome_sort(include, self.index)
-                    children_genomes.append(child_genomes)
-                my_genomes = select_equal(children_genomes,
-                                          self.select_number[i])
-                for accession in my_genomes:
-                    self.index['taxids'][parent][accession] = my_category
+            samples = self.inner_node(parent, children)
         else:  # Leaf node
-            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
-            my_genomes = genome_sort(include, self.index)
-            for accession in my_genomes:
-                if samples >= self.select_number[self.select_type]:
-                    break
-                self.index['taxids'][parent][accession] = self.select_type + 1
-                samples += 1
-            self.select_type = (self.select_type + 1) % self.num_categories
+            samples = self.leaf_node(parent)
+        return samples
+
+
+class GHGenomeLeaf(GHLeaf, GHGenome):
+    """
+    Include whole genomes into separate train and test data sets.
+    Down select only at leaves and propagate the selected genomes up the tree.
+    Some inner nodes will have more genomes than others.
+    """
+
+    def select(self, parent, children):
+        """
+        Choose whole genomes for the train and test data sets.
+        Propagate chosen genomes up the tree.
+
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+
+        Returns
+        -------
+        samples: int
+            The number of genomes selected.
+
+        """
+        if children:
+            samples = self.inner_node(parent, children)
+        else:
+            samples = self.leaf_node(parent)
+        return samples
+    
+    
+class GHGenomeTree(GHTree, GHGenome):
+    """
+    Include whole genomes in train and test data sets.
+    Pass up the genomes in the tree and down select genomes
+    at each level to a uniform number.
+    """
+    
+    def select(self, parent, children):
+        """
+        Choose genomes for train and test sets at each level.
+        Choose genomes up to a fixed number at each taxonomic level.
+        
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+        
+        Returns
+        -------
+        samples: int
+            The number of genomes selected.
+        
+        """
+        if children:  # Inner node
+            samples = self.inner_node(parent, children)
+        else:  # Leaf node
+            samples = self.leaf_node(parent)
         return samples
 
 
