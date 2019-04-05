@@ -7,6 +7,9 @@ whole genome.
 :Authors:
     Jacob S. Porter <jsporter@virginia.edu>
 """
+
+# TODO: Investigate bug where empty fasta records are produced.  See /project/biocomplexity/fungcat/genomes/Genomes_iCD/genbank/archaea/GCA_001871655.1
+
 from __future__ import print_function
 
 import argparse
@@ -157,13 +160,15 @@ def get_intercds_cds(genome_location, fai_location,
                   "the genome {}.  Further sequence writing will be "
                   "skipped.".format(seq_id, genome_location),
                   file=sys.stderr)
-            return 1
+            return 0
         offset = fai_line[1]
         linebases = fai_line[2]
         if not end:
             end = fai_line[0]
         n_beg = offset + beg + (math.ceil(float(beg)/float(linebases))-1)
         n_end = offset + end + (math.ceil(float(end)/float(linebases))-1)
+        if n_end - n_beg <= 0:
+            return 0
         try:
             inter_seq = str(mm[int(n_beg):int(n_end)],
                             'utf-8').replace("\n", "")
@@ -171,7 +176,7 @@ def get_intercds_cds(genome_location, fai_location,
             inter_seq = str(mm[int(n_beg):int(n_end)]).replace("\n", "")
         inter_id = "{}:{}:{}:{}".format(seq_id, beg+1, end+1, end-beg)
         writer.write((inter_id, inter_seq))
-        return 0
+        return 1
 
     if isinstance(output, str):
         output = open(output, "w")
@@ -218,12 +223,9 @@ def get_intercds_cds(genome_location, fai_location,
             if cds_loc[0] > end:
                 if verbose:
                     print(cds_loc, seq_id, end, cds_loc[0], file=sys.stderr)
-                if write_sequence(seq_id, end-1, cds_loc[0]-1):
-                    return 0
-                count += 1
+                count += write_sequence(seq_id, end-1, cds_loc[0]-1)
             end = cds_loc[1]
-        write_sequence(seq_id, end, False)
-        count += 1
+        count += write_sequence(seq_id, end, False)
     return count
 
 
@@ -553,13 +555,17 @@ def process_cd_directory(cds_directory, files,
                    if os.path.isfile(os.path.join(genome_dir_accession, f))]
         f_genome = return_fasta(files_g)
         f_fai = return_fasta(files_g, file_type='fai')
-    if verbose >= 1:
-        print("Getting intercds file for {} and {} with fai file {}.".format(
-            f_cds, f_genome, f_fai), file=sys.stderr)
-        sys.stderr.flush()
+    count = 0
+    cnt_cds = 0
     if f_cds and f_genome:
         intercds_accession = os.path.join(intercds, accession)
-        os.makedirs(intercds_accession)
+        try:
+            os.makedirs(intercds_accession)
+        except FileExistsError:
+            if verbose >= 2:
+                print("The directory {} "
+                      "already exists.".format(intercds_accession),
+                      file=sys.stderr)
         inter_filename = f_genome.replace(".fna", "") + "_intercds.fna"
         with open(os.path.join(intercds_accession, inter_filename), "w") as fd:
             cnt_cds = get_intercds_cds(os.path.join(genome_dir_accession,
@@ -568,10 +574,20 @@ def process_cd_directory(cds_directory, files,
                                                     f_fai),
                                        os.path.join(cds_directory, f_cds),
                                        fd,
-                                       verbose=1 if verbose >= 2 else 0)
-            if cnt_cds > 0:
-                return 1
-    return 0
+                                       verbose=1 if verbose >= 3 else 0)
+        if cnt_cds > 0:
+            count = 1
+        else:
+            try:
+                os.remove(os.path.join(intercds_accession, inter_filename))
+            except FileNotFoundError:
+                pass
+    if verbose >= 1:
+        print("Got intercds file for {} and {} with fai file {}: "
+              "{} fasta records created.".format(
+                  f_cds, f_genome, f_fai, cnt_cds), file=sys.stderr)
+        sys.stderr.flush()
+    return count
 
 
 def scale_up_cds(cds_directory, genome_directory,
@@ -693,10 +709,9 @@ def main():
                            "files are located.")
     p_all_cds.add_argument("genome_directory", type=str,
                            help="The location of the whole genomes directory.")
-    p_all_cds.add_argument("--intercds", "-i", type=str,
+    p_all_cds.add_argument("intercds_dir", type=str,
                            help="The directory to create intercds "
-                           "fasta files.",
-                           default="./")
+                           "fasta files.")
     p_all_cds.add_argument("--processes", "-p", type=int,
                            help="The number of processes to use.",
                            default=20)
@@ -727,7 +742,7 @@ def main():
               file=sys.stderr)
     elif mode == "all_cds":
         count = scale_up_cds(args.cds_directory, args.genome_directory,
-                             args.intercds, args.processes, args.verbose)
+                             args.intercds_dir, args.processes, args.verbose)
         print("There were {} fasta files created out of {} "
               "directories.".format(count[0], count[1]),
               file=sys.stderr)
