@@ -642,7 +642,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
                 continue
-            if verbose > 1:
+            if verbose >= 1:
                 sys.stderr.write("Writing fasta records for "
                                  "taxid {} from genome accession {}\n".
                                  format(taxid, accession))
@@ -816,7 +816,7 @@ def random_bed_fast_worker(total_accession_count,
                                                bed_2bit_counts[2])) +
                              " ")
             sys.stderr.flush()
-    if verbose:
+    if verbose > 1:
         sys.stderr.write("\n")
         sys.stderr.flush()
     return accession_cnt
