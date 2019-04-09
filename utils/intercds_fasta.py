@@ -27,7 +27,8 @@ from multiprocessing import Pool
 try:
     import gffutils
 except ImportError:
-    print("gffutils could not be imported.  It may require Python 2.7.",
+    print("gffutils could not be imported.  If it is necessary, "
+          "it may require Python 2.7.",
           file=sys.stderr)
 
 from SeqIterator import SeqReader, SeqWriter
@@ -520,6 +521,22 @@ def return_fasta(files, file_type='fasta'):
     return None
 
 
+def find_genome_files(files, cds_directory, genome_directory):
+    f_cds = return_fasta(files)
+    if cds_directory.endswith('/'):
+        cds_directory = cds_directory[0:len(cds_directory)-1]
+    accession = os.path.basename(cds_directory)
+    genome_dir_accession = os.path.join(genome_directory, accession)
+    f_genome = None
+    f_fai = None
+    if os.path.exists(genome_dir_accession):
+        files_g = [f for f in os.listdir(genome_dir_accession)
+                   if os.path.isfile(os.path.join(genome_dir_accession, f))]
+        f_genome = return_fasta(files_g)
+        f_fai = return_fasta(files_g, file_type='fai')
+    return f_cds, f_genome, f_fai, accession, genome_dir_accession
+
+
 def process_cd_directory(cds_directory, files,
                          genome_directory, intercds,
                          verbose=0):
@@ -543,18 +560,10 @@ def process_cd_directory(cds_directory, files,
         A count of the fasta files created.
 
     """
-    f_cds = return_fasta(files)
-    if cds_directory.endswith('/'):
-        cds_directory = cds_directory[0:len(cds_directory)-1]
-    accession = os.path.basename(cds_directory)
-    genome_dir_accession = os.path.join(genome_directory, accession)
-    f_genome = None
-    f_fai = None
-    if os.path.exists(genome_dir_accession):
-        files_g = [f for f in os.listdir(genome_dir_accession)
-                   if os.path.isfile(os.path.join(genome_dir_accession, f))]
-        f_genome = return_fasta(files_g)
-        f_fai = return_fasta(files_g, file_type='fai')
+    genome_files = find_genome_files(files,
+                                     cds_directory,
+                                     genome_directory)
+    f_cds, f_genome, f_fai, accession, genome_dir_accession = genome_files
     count = 0
     cnt_cds = 0
     if f_cds and f_genome:
