@@ -264,8 +264,8 @@ def get_cds_list(cds_file, contig_count):
     return cds_locations
 
 
-def determine_identity(gen_accession, 
-                       seq_accession, 
+def determine_identity(gen_accession,
+                       seq_accession,
                        coords,
                        location,
                        contig_count,
@@ -298,7 +298,7 @@ def determine_identity(gen_accession,
             if verbose >= DEBUG:
                 print(locations[seq_accession], gen_accession, seq_accession,
                       file=sys.stderr)
-            return UNKNOWN    
+            return UNKNOWN
 
 
 def label(fasta_file, cds_index, cds_dir, output, processes=1, verbose=0):
@@ -328,16 +328,16 @@ def label(fasta_file, cds_index, cds_dir, output, processes=1, verbose=0):
             contig_count = index["genomes"][gen_accession]['contig_count']
         except KeyError:
             contig_count = False
-        pd_list.append(pool.apply_async(determine_identity, 
-                                        args=(gen_accession, 
-                                              seq_accession, 
+        pd_list.append(pool.apply_async(determine_identity,
+                                        args=(gen_accession,
+                                              seq_accession,
                                               coords_range,
                                               location,
                                               contig_count,
                                               verbose,
                                               )))
     for pd in pd_list:
-        record_identity = pd.get() 
+        record_identity = pd.get()
         type_counter[record_identity] += 1
         if verbose >= DEBUG:
             print("identity: {}".format(record_identity), file=sys.stderr)
