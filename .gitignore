@@ -6,6 +6,7 @@ __pycache__/
 # Eclipse stuff
 .pydevproject
 .project
+.settings/
 
 # VIM swap files
 .*.swp
