@@ -8,7 +8,7 @@ whole genome.
     Jacob S. Porter <jsporter@virginia.edu>
 """
 
-# TODO: Investigate bug where empty fasta records are produced.  See /project/biocomplexity/fungcat/genomes/Genomes_iCD/genbank/archaea/GCA_001871655.1
+# TODO: Add parallelism to labeling.
 
 from __future__ import print_function
 
@@ -21,6 +21,8 @@ import subprocess
 import mmap
 import math
 import re
+import shutil
+import pickle
 from collections import defaultdict
 from multiprocessing import Pool
 
@@ -33,12 +35,28 @@ except ImportError:
 
 from SeqIterator import SeqReader, SeqWriter
 
+# The statuses of the DNA sequence.
+CD = 0
+INTERCD = 1
+MIXED = 2
+UNKNOWN = 3
+
+# Verbosity level for debugging
+DEBUG = 5
+
+# Number of records for progress indicator
+PROGRESS = 100000
+
 # GFF regions to exclude when creating fasta file.
 EXCLUDED_REGIONS = ('gene', 'exon')
 
 FASTA_ENDINGS = ['fasta', 'fa', 'fna']
 GFF_ENDINGS = ['gff']
 FAI_ENDINGS = ['fai']
+
+location_pattern = re.compile("location=[0-9|a-zA-z|)|(|..|,|>|<|=]+")
+range_pattern = re.compile("[0-9]+\.\.[0-9]+")
+loc_split = re.compile("\.+")
 
 
 def name_ends(name, endings, addition=""):
@@ -126,6 +144,217 @@ def get_db(gff_location):
     else:
         db = gffutils.FeatureDB(gff_location + ".db")
     return db
+
+
+def process_cd_directory_copy(cds_directory, files,
+                              genome_directory, new_dir,
+                              verbose):
+    """Copy a genome directory if there is a matching CD file."""
+    genome_files = find_genome_files(files,
+                                     cds_directory,
+                                     genome_directory)
+    f_cds, f_genome, _, accession, genome_dir_accession = genome_files
+    if f_cds and f_genome:
+        os.makedirs(os.path.join(new_dir, accession))
+        shutil.copy(os.path.join(genome_dir_accession, f_genome),
+                    os.path.join(new_dir, accession))
+        return 1
+    return 0
+
+
+def copy(genome_dir, cds_dir, new_dir, processes=1, verbose=0):
+    """
+    Copy directories with whole genomes and cds to a new location.
+
+    Parameters
+    ----------
+    genome_dir: str
+        The location of a directory with genomes.
+    cds_dir: str
+        The location of the cds directory.
+    new_dir: str
+        The directory to copy whole genome files to.
+    processes: int
+        The number of processes to use.
+    verbose: int
+        Controls the level of verbosity.
+
+    Returns
+    -------
+    count: int
+        The count of directories copied.
+    total: int
+        The number of directories examined.
+
+    """
+    count = 0
+    total = 0
+    if processes <= 1:
+        for path, _, files in os.walk(cds_dir):
+            count += process_cd_directory_copy(path, files, genome_dir,
+                                               new_dir, verbose)
+            total += 1
+    else:
+        pd_list = []
+        pool = Pool(processes=processes)
+        for path, _, files in os.walk(cds_dir):
+            pd = pool.apply_async(process_cd_directory_copy,
+                                  args=(path, files,
+                                        genome_dir, new_dir, verbose))
+            total += 1
+            pd_list.append(pd)
+        for pd in pd_list:
+            count += pd.get()
+        pool.close()
+        pool.join()
+    return count, total
+
+
+def get_cds_list(cds_file, contig_count):
+    cds_locations = defaultdict(list)
+    if cds_file and contig_count:
+        files_g = [f for f in os.listdir(cds_file)
+                   if os.path.isfile(os.path.join(cds_file, f)) and
+                   (name_ends(f, FASTA_ENDINGS) or
+                    name_ends(f, FASTA_ENDINGS, ".gz"))]
+        cds_file = os.path.join(cds_file, files_g[0])
+        cds_gzip = True if cds_file.endswith("gz") else False
+        cds_reader = SeqReader(cds_file, gzip_switch=cds_gzip)
+        for cds_record in cds_reader:
+            cds_header = cds_record[0]
+            try:
+                seq_id = cds_header.split("_cds_")[0].split("|")[1]
+            except IndexError:
+                print("A sequence id could not be "
+                      "found for {}".format(cds_header),
+                      file=sys.stderr)
+                continue
+            try:
+                raw_locations = re.findall(range_pattern,
+                                           re.findall(location_pattern,
+                                                      cds_header)[0])
+                location = [tuple(map(int, re.split(loc_split, loc)))
+                            for loc in raw_locations]
+                cds_locations[seq_id].extend(location)
+            except (IndexError, ValueError):
+                print("The locations could not be found "
+                      "for {}".format(cds_header),
+                      file=sys.stderr)
+                continue
+        for seq_id in cds_locations:
+            locations = cds_locations[seq_id]
+            locations.sort()
+            end = -1
+            start = -1
+            new_locations = []
+            for location in locations:
+                if start == -1:
+                    start = location[0]
+                    end = location[1]
+                    continue
+                if end < location[0]:
+                    new_locations.append((start, end))
+                    start = location[0]
+                    end = location[1]
+                else:
+                    end = location[1]
+            if end != -1:
+                new_locations.append((start, end))
+            cds_locations[seq_id] = new_locations
+    return cds_locations
+
+
+def determine_identity(gen_accession, 
+                       seq_accession, 
+                       coords,
+                       location,
+                       contig_count,
+                       verbose):
+        locations = get_cds_list(location, contig_count)
+        if verbose >= DEBUG:
+            print("contig_count: {} location: {}".format(contig_count,
+                                                         location),
+                                                         file=sys.stderr)
+        if locations[seq_accession]:
+            coords = tuple(map(int, coords.split("-")))
+            for loc in locations[seq_accession]:
+                if coords[0] >= loc[0] and coords[1] < loc[1]:
+                    if verbose >= DEBUG:
+                        print(coords, loc, gen_accession, seq_accession,
+                              file=sys.stderr)
+                    return CD
+                elif ((coords[0] >= loc[0] and coords[0] < loc[1]) or
+                      (coords[1] >= loc[0] and coords[1] < loc[1]) or
+                      (loc[0] >= coords[0] and loc[1] < coords[1])):
+                    if verbose >= DEBUG:
+                        print(coords, loc, gen_accession, seq_accession,
+                              file=sys.stderr)
+                    return MIXED
+            if verbose >= DEBUG:
+                print(coords, locations[seq_accession], gen_accession,
+                      seq_accession, file=sys.stderr)
+            return INTERCD
+        else:
+            if verbose >= DEBUG:
+                print(locations[seq_accession], gen_accession, seq_accession,
+                      file=sys.stderr)
+            return UNKNOWN    
+
+
+def label(fasta_file, cds_index, cds_dir, output, processes=1, verbose=0):
+    """Divide the fasta file based on the identity of the sequence."""
+    if isinstance(output, str):
+        output = open(output, "w")
+    index = pickle.load(open(cds_index, "rb"))
+    reader = SeqReader(fasta_file)
+    # intercds_dict = {}
+    type_counter = defaultdict(int)
+    count = 0
+    pool = Pool(processes=processes)
+    pd_list = []
+    for record in reader:
+        coords = record[0].split(":")
+        gen_accession = coords[0]
+        seq_accession = coords[2]
+        coords_range = coords[3]
+        try:
+            location = index["genomes"][gen_accession]['location']
+            location = os.path.join(cds_dir + location)
+        except KeyError:
+            # print(index["genomes"][gen_accession], file=sys.stderr)
+            # raise e
+            location = False
+        try:
+            contig_count = index["genomes"][gen_accession]['contig_count']
+        except KeyError:
+            contig_count = False
+        pd_list.append(pool.apply_async(determine_identity, 
+                                        args=(gen_accession, 
+                                              seq_accession, 
+                                              coords_range,
+                                              location,
+                                              contig_count,
+                                              verbose,
+                                              )))
+    for pd in pd_list:
+        record_identity = pd.get() 
+        type_counter[record_identity] += 1
+        if verbose >= DEBUG:
+            print("identity: {}".format(record_identity), file=sys.stderr)
+        print(record_identity, file=output)
+        if verbose == 1 and count % PROGRESS == 0:
+            if count == 0:
+                sys.stderr.write("Number of records processed so far: ")
+            sys.stderr.write(str(count) + " ")
+            sys.stderr.flush()
+            output.flush()
+        count += 1
+    if verbose == 1:
+        sys.stderr.write("\n")
+    pool.close()
+    pool.join()
+    return type_counter, count
+
 
 
 def get_intercds_cds(genome_location, fai_location,
@@ -727,6 +956,44 @@ def main():
     p_all_cds.add_argument("--verbose", "-v", type=int,
                            help="The level of verbosity.",
                            default=0)
+    p_copy = subparsers.add_parser("copy",
+                                   help="Copy whole genome directories "
+                                   "that have cds.",
+                                   formatter_class=argparse.
+                                   ArgumentDefaultsHelpFormatter)
+    p_copy.add_argument("genomes_dir", type=str,
+                        help="The directory where whole genomes are "
+                        "located.")
+    p_copy.add_argument("cds_dir", type=str,
+                        help="The directory where cds are located.")
+    p_copy.add_argument("new_dir", type=str,
+                        help="The directory to move genomes directories to.")
+    p_copy.add_argument("--processes", "-p", type=int,
+                        help="The number of processes to use.",
+                        default=1)
+    p_copy.add_argument("--verbose", "-v", type=int,
+                        help="The level of verbosity.",
+                        default=0)
+    p_label = subparsers.add_parser("label",
+                                    help="Partition a fasta file into "
+                                    "cds, intercds, mixed, and unknown.",
+                                    formatter_class=argparse.
+                                    ArgumentDefaultsHelpFormatter)
+    p_label.add_argument("fasta_file", type=str,
+                         help="A fasta kmer file generated by Radogest.")
+    p_label.add_argument("cds_index", type=str,
+                         help="The location of the Radogest CDs index.")
+    p_label.add_argument("cds_dir", type=str,
+                         help="The location of the CDs directory.")
+    p_label.add_argument("--processes", "-p", type=int,
+                         help="The number of processes to use.",
+                         default=1)
+    p_label.add_argument("--output", "-o", type=str,
+                         help="A file to write the output.",
+                         default=sys.stdout)
+    p_label.add_argument("--verbose", "-v", type=int,
+                         help="The level of verbosity.",
+                         default=0)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -754,6 +1021,30 @@ def main():
                              args.intercds_dir, args.processes, args.verbose)
         print("There were {} fasta files created out of {} "
               "directories.".format(count[0], count[1]),
+              file=sys.stderr)
+    elif mode == "copy":
+        count, total = copy(args.genomes_dir, args.cds_dir,
+                            args.new_dir, processes=args.processes,
+                            verbose=args.verbose)
+        print("There were {} directories copied out of {}.".format(count,
+                                                                   total),
+              file=sys.stderr)
+    elif mode == "label":
+        print("Identity mappings: CD:{}, INTERCD:{}, "
+              "MIXED:{}, UNKNOWN:{}".format(CD, INTERCD, MIXED, UNKNOWN),
+              file=sys.stderr)
+        counts, total = label(args.fasta_file,
+                               args.cds_index,
+                               args.cds_dir,
+                               args.output,
+                               processes=args.processes,
+                               verbose=args.verbose)
+        print("There were CD: {}, INTERCD: {}, MIXED: {}, UNKNOWN: {} "
+              "with a total {} records.".format(counts[CD],
+                                                counts[INTERCD],
+                                                counts[MIXED],
+                                                counts[UNKNOWN],
+                                                total),
               file=sys.stderr)
     else:
         parser.error("The mode was not recognized.  Please to check.")
