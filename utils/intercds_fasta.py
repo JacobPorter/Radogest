@@ -8,6 +8,8 @@ whole genome.
     Jacob S. Porter <jsporter@virginia.edu>
 """
 
+# TODO: Add parallelism to labeling.
+
 from __future__ import print_function
 
 import argparse
@@ -42,7 +44,7 @@ UNKNOWN = 3
 # Verbosity level for debugging
 DEBUG = 5
 
-# Number of records for progress indicator 
+# Number of records for progress indicator
 PROGRESS = 100000
 
 # GFF regions to exclude when creating fasta file.
@@ -51,6 +53,10 @@ EXCLUDED_REGIONS = ('gene', 'exon')
 FASTA_ENDINGS = ['fasta', 'fa', 'fna']
 GFF_ENDINGS = ['gff']
 FAI_ENDINGS = ['fai']
+
+location_pattern = re.compile("location=[0-9|a-zA-z|)|(|..|,|>|<|=]+")
+range_pattern = re.compile("[0-9]+\.\.[0-9]+")
+loc_split = re.compile("\.+")
 
 
 def name_ends(name, endings, addition=""):
@@ -204,63 +210,113 @@ def copy(genome_dir, cds_dir, new_dir, processes=1, verbose=0):
     return count, total
 
 
-def divide(fasta_file, cds_index, cds_dir, output, verbose=0):
-    """Divide the fasta file based on the identity of the sequence."""
-    def get_cds_list(cds_file, contig_count):
-        cds_locations = defaultdict(list)
-        if cds_file and contig_count:
-            files_g = [f for f in os.listdir(cds_file)
-                       if os.path.isfile(os.path.join(cds_file, f)) and
-                       (name_ends(f, FASTA_ENDINGS) or
-                        name_ends(f, FASTA_ENDINGS, ".gz"))]
-            cds_file = os.path.join(cds_file, files_g[0])
-            cds_gzip = True if cds_file.endswith("gz") else False
-            cds_reader = SeqReader(cds_file, gzip_switch=cds_gzip)
-            for cds_record in cds_reader:
-                cds_header = cds_record[0]
-                try:
-                    seq_id = cds_header.split("_cds_")[0].split("|")[1]
-                except IndexError:
-                    print("A sequence id could not be "
-                          "found for {}".format(cds_header),
-                          file=sys.stderr)
+def get_cds_list(cds_file, contig_count):
+    cds_locations = defaultdict(list)
+    if cds_file and contig_count:
+        files_g = [f for f in os.listdir(cds_file)
+                   if os.path.isfile(os.path.join(cds_file, f)) and
+                   (name_ends(f, FASTA_ENDINGS) or
+                    name_ends(f, FASTA_ENDINGS, ".gz"))]
+        cds_file = os.path.join(cds_file, files_g[0])
+        cds_gzip = True if cds_file.endswith("gz") else False
+        cds_reader = SeqReader(cds_file, gzip_switch=cds_gzip)
+        for cds_record in cds_reader:
+            cds_header = cds_record[0]
+            try:
+                seq_id = cds_header.split("_cds_")[0].split("|")[1]
+            except IndexError:
+                print("A sequence id could not be "
+                      "found for {}".format(cds_header),
+                      file=sys.stderr)
+                continue
+            try:
+                raw_locations = re.findall(range_pattern,
+                                           re.findall(location_pattern,
+                                                      cds_header)[0])
+                location = [tuple(map(int, re.split(loc_split, loc)))
+                            for loc in raw_locations]
+                cds_locations[seq_id].extend(location)
+            except (IndexError, ValueError):
+                print("The locations could not be found "
+                      "for {}".format(cds_header),
+                      file=sys.stderr)
+                continue
+        for seq_id in cds_locations:
+            locations = cds_locations[seq_id]
+            locations.sort()
+            end = -1
+            start = -1
+            new_locations = []
+            for location in locations:
+                if start == -1:
+                    start = location[0]
+                    end = location[1]
                     continue
-                try:
-                    raw_locations = re.findall(range_pattern,
-                                               re.findall(location_pattern,
-                                                          cds_header)[0])
-                    location = [tuple(map(int, re.split(loc_split, loc)))
-                                for loc in raw_locations]
-                    cds_locations[seq_id].extend(location)
-                except (IndexError, ValueError):
-                    print("The locations could not be found "
-                          "for {}".format(cds_header),
-                          file=sys.stderr)
-                    continue
-            for seq_id in cds_locations:
-                locations = cds_locations[seq_id]
-                locations.sort()
-                end = -1
-                start = -1
-                new_locations = []
-                for location in locations:
-                    if start == -1:
-                        start = location[0]
-                        end = location[1]
-                        continue
-                    if end < location[0]:
-                        new_locations.append((start, end))
-                        start = location[0]
-                        end = location[1]
-                    else:
-                        end = location[1]
-                if end != -1:
+                if end < location[0]:
                     new_locations.append((start, end))
-                cds_locations[seq_id] = new_locations
-        return cds_locations
+                    start = location[0]
+                    end = location[1]
+                else:
+                    end = location[1]
+            if end != -1:
+                new_locations.append((start, end))
+            cds_locations[seq_id] = new_locations
+    return cds_locations
 
-    def determine_identity(gen_accession, seq_accession, coords):
-        # if gen_accession not in intercds_dict:
+
+def determine_identity(gen_accession, 
+                       seq_accession, 
+                       coords,
+                       location,
+                       contig_count,
+                       verbose):
+        locations = get_cds_list(location, contig_count)
+        if verbose >= DEBUG:
+            print("contig_count: {} location: {}".format(contig_count,
+                                                         location),
+                                                         file=sys.stderr)
+        if locations[seq_accession]:
+            coords = tuple(map(int, coords.split("-")))
+            for loc in locations[seq_accession]:
+                if coords[0] >= loc[0] and coords[1] < loc[1]:
+                    if verbose >= DEBUG:
+                        print(coords, loc, gen_accession, seq_accession,
+                              file=sys.stderr)
+                    return CD
+                elif ((coords[0] >= loc[0] and coords[0] < loc[1]) or
+                      (coords[1] >= loc[0] and coords[1] < loc[1]) or
+                      (loc[0] >= coords[0] and loc[1] < coords[1])):
+                    if verbose >= DEBUG:
+                        print(coords, loc, gen_accession, seq_accession,
+                              file=sys.stderr)
+                    return MIXED
+            if verbose >= DEBUG:
+                print(coords, locations[seq_accession], gen_accession,
+                      seq_accession, file=sys.stderr)
+            return INTERCD
+        else:
+            if verbose >= DEBUG:
+                print(locations[seq_accession], gen_accession, seq_accession,
+                      file=sys.stderr)
+            return UNKNOWN    
+
+
+def label(fasta_file, cds_index, cds_dir, output, processes=1, verbose=0):
+    """Divide the fasta file based on the identity of the sequence."""
+    if isinstance(output, str):
+        output = open(output, "w")
+    index = pickle.load(open(cds_index, "rb"))
+    reader = SeqReader(fasta_file)
+    # intercds_dict = {}
+    type_counter = defaultdict(int)
+    count = 0
+    pool = Pool(processes=processes)
+    pd_list = []
+    for record in reader:
+        coords = record[0].split(":")
+        gen_accession = coords[0]
+        seq_accession = coords[2]
+        coords_range = coords[3]
         try:
             location = index["genomes"][gen_accession]['location']
             location = os.path.join(cds_dir + location)
@@ -272,50 +328,16 @@ def divide(fasta_file, cds_index, cds_dir, output, verbose=0):
             contig_count = index["genomes"][gen_accession]['contig_count']
         except KeyError:
             contig_count = False
-        locations = get_cds_list(location, contig_count)
-        if verbose >= DEBUG:
-            print("contig_count: {} location: {}".format(contig_count, 
-                                                         location), 
-                                                         file=sys.stderr)
-        # locations = intercds_dict[gen_accession]
-        if locations[seq_accession]:
-            coords = tuple(map(int, coords.split("-")))
-            for loc in locations[seq_accession]:
-                if coords[0] >= loc[0] and coords[1] < loc[1]:
-                    if verbose >= DEBUG:
-                        print(coords, loc, gen_accession, seq_accession, 
-                              file=sys.stderr)
-                    return CD
-                elif ((coords[0] >= loc[0] and coords[0] < loc[1]) or
-                      (coords[1] >= loc[0] and coords[1] < loc[1]) or
-                      (loc[0] >= coords[0] and loc[1] < coords[1])):
-                    if verbose >= DEBUG:
-                        print(coords, loc, gen_accession, seq_accession, 
-                              file=sys.stderr)
-                    return MIXED
-            if verbose >= DEBUG:
-                print(coords, locations[seq_accession], gen_accession, 
-                      seq_accession, file=sys.stderr)
-            return INTERCD
-        else:
-            if verbose >= DEBUG:
-                print(locations[seq_accession], gen_accession, seq_accession, 
-                      file=sys.stderr)
-            return UNKNOWN
-    
-    if isinstance(output, str):
-        output = open(output, "w")
-    location_pattern = re.compile("location=[0-9|a-zA-z|)|(|..|,|>|<|=]+")
-    range_pattern = re.compile("[0-9]+\.\.[0-9]+")
-    loc_split = re.compile("\.+")
-    index = pickle.load(open(cds_index, "rb"))
-    reader = SeqReader(fasta_file)
-    # intercds_dict = {}
-    type_counter = defaultdict(int)
-    count = 0
-    for record in reader:
-        coords = record[0].split(":")
-        record_identity = determine_identity(coords[0], coords[2], coords[3])
+        pd_list.append(pool.apply_async(determine_identity, 
+                                        args=(gen_accession, 
+                                              seq_accession, 
+                                              coords_range,
+                                              location,
+                                              contig_count,
+                                              verbose,
+                                              )))
+    for pd in pd_list:
+        record_identity = pd.get() 
         type_counter[record_identity] += 1
         if verbose >= DEBUG:
             print("identity: {}".format(record_identity), file=sys.stderr)
@@ -329,6 +351,8 @@ def divide(fasta_file, cds_index, cds_dir, output, verbose=0):
         count += 1
     if verbose == 1:
         sys.stderr.write("\n")
+    pool.close()
+    pool.join()
     return type_counter, count
 
 
@@ -961,6 +985,9 @@ def main():
                          help="The location of the Radogest CDs index.")
     p_label.add_argument("cds_dir", type=str,
                          help="The location of the CDs directory.")
+    p_label.add_argument("--processes", "-p", type=int,
+                         help="The number of processes to use.",
+                         default=1)
     p_label.add_argument("--output", "-o", type=str,
                          help="A file to write the output.",
                          default=sys.stdout)
@@ -1006,11 +1033,12 @@ def main():
         print("Identity mappings: CD:{}, INTERCD:{}, "
               "MIXED:{}, UNKNOWN:{}".format(CD, INTERCD, MIXED, UNKNOWN),
               file=sys.stderr)
-        counts, total = divide(args.fasta_file,
+        counts, total = label(args.fasta_file,
                                args.cds_index,
                                args.cds_dir,
                                args.output,
-                               args.verbose)
+                               processes=args.processes,
+                               verbose=args.verbose)
         print("There were CD: {}, INTERCD: {}, MIXED: {}, UNKNOWN: {} "
               "with a total {} records.".format(counts[CD],
                                                 counts[INTERCD],
