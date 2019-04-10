@@ -875,6 +875,50 @@ def scale_up_cds(cds_directory, genome_directory,
     return count, total
 
 
+def extract(input_file, label_file, label, output, fasta=False, verbose=0):
+    """
+    Extract a set of records that correspond to a label.
+
+    Parameters
+    ----------
+    input_file: str
+        The location of a file to extract records from.
+    label_file: str
+        The location of the label file where each line is a number.
+        Each line corresponds with a record (row) in the input_file.
+    label: int
+        A record label to extract.
+    output: str or writable
+        The location to print extracted recrods.
+    fasta: boolean
+        True if the input_file is a fasta file.  Otherwise, each record
+        will be assumed to be on a single line in the input_file.
+    verbose: int
+        Controls the level of verbosity.
+
+    Returns
+    -------
+    count: int
+        The number of records extracted.
+
+    """
+    if isinstance(output, str):
+        output = open(output, "w")
+    label_fd = open(label_file, "r")
+    if fasta:
+        reader = SeqReader(input_file)
+        writer = SeqWriter(output)
+    else:
+        reader = open(input_file, "r")
+        writer = output
+    count = 0
+    for record, record_label in zip(reader, label_fd):
+        if int(record_label) == int(label):
+            writer.write(record)
+            count += 1
+    return count
+
+
 def main():
     """Parse arguments."""
     tick = datetime.datetime.now()
@@ -994,6 +1038,28 @@ def main():
     p_label.add_argument("--verbose", "-v", type=int,
                          help="The level of verbosity.",
                          default=0)
+    p_extract = subparsers.add_parser("extract",
+                                      help="Extract a set of records "
+                                      "with given labels.",
+                                      formatter_class=argparse.
+                                      ArgumentDefaultsHelpFormatter)
+    p_extract.add_argument("input_file", type=str,
+                           help="An input file to extract records.")
+    p_extract.add_argument("label_file", type=str,
+                           help="The CDs labels that correspond to the input.")
+    p_extract.add_argument("--label", "-l", type=int,
+                           help="The label to extract.",
+                           default=0)
+    p_extract.add_argument("--fasta", "-f", action="store_true",
+                           help="If the input_file is a fasta file, "
+                           "set to true.",
+                           default=False)
+    p_extract.add_argument("--output", "-o", type=str,
+                           help="A file to write the output.",
+                           default=sys.stdout)
+    p_extract.add_argument("--verbose", "-v", type=int,
+                           help="The level of verbosity.",
+                           default=0)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -1034,17 +1100,26 @@ def main():
               "MIXED:{}, UNKNOWN:{}".format(CD, INTERCD, MIXED, UNKNOWN),
               file=sys.stderr)
         counts, total = label(args.fasta_file,
-                               args.cds_index,
-                               args.cds_dir,
-                               args.output,
-                               processes=args.processes,
-                               verbose=args.verbose)
+                              args.cds_index,
+                              args.cds_dir,
+                              args.output,
+                              processes=args.processes,
+                              verbose=args.verbose)
         print("There were CD: {}, INTERCD: {}, MIXED: {}, UNKNOWN: {} "
               "with a total {} records.".format(counts[CD],
                                                 counts[INTERCD],
                                                 counts[MIXED],
                                                 counts[UNKNOWN],
                                                 total),
+              file=sys.stderr)
+    elif mode == "extract":
+        count = extract(args.input_file,
+                        args.label_file,
+                        args.label,
+                        args.output,
+                        fasta=args.fasta,
+                        verbose=args.verbose)
+        print("There were {} records extracted.".format(count),
               file=sys.stderr)
     else:
         parser.error("The mode was not recognized.  Please to check.")
