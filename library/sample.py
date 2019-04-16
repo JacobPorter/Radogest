@@ -1036,8 +1036,17 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         processes=processes,
                                         verbose=verbose)
         test_count, test_fasta = test_output
-        shutil.move(os.path.join(data_dir, str(taxid), "train"),
-                    os.path.join(data_dir, str(taxid), "test"))
+        if test_count == (0, 0):
+            return ({}, 0)
+        try:
+            file_to_move = os.path.join(data_dir, str(taxid), "train")
+            shutil.move(file_to_move,
+                        os.path.join(data_dir, str(taxid), "test"))
+        except FileNotFoundError:
+            print("The file was not found: {}.  "
+                  "Skipping the rest".format(file_to_move),
+                  file=sys.stderr)
+            return ({}, 0)
         if save_genomes:
             destination = os.path.join(data_dir, str(taxid), "test_genome")
             try:
@@ -1187,7 +1196,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                                threshold)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
-        return (0, 0, [])
+        return ((0, 0), [])
     print("Getting the kmer samples.", file=sys.stderr)
     sys.stderr.flush()
     random_str = get_random_string()
