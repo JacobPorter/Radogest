@@ -609,7 +609,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
     -------
     int, list
         A count of the number of fasta records written.
-        A list of fata file locations used in sampling is returned.
+        A list of fasta file locations used in sampling is returned.
 
     """
     if processes == 1:
@@ -1016,9 +1016,10 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
             sublevels = [taxid for taxid in sublevels if not 
                          'species' in ncbi.get_rank([taxid])[taxid]]
             if not sublevels:
-                print("The taxid has no non-species sublevel for the "
-                      "GenomeHoldoutSpecies sampling.")
-                return (0, 0)
+                print("The taxid {} has no non-species below it for the "
+                      "GenomeHoldoutSpecies sampling.".format(taxid),
+                      file=sys.stderr)
+                return ({}, 0)
         test_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                         number, length, data_dir,
                                         index_dir,
@@ -1166,7 +1167,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
 
     Returns
     -------
-    (int, int, list)
+    ((int, int), list)
         A tuple of the number of fasta records sampled
         and permuted records written.  A list of fasta file
         locations that were used in sampling is returned.
