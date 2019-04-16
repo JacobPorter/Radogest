@@ -1009,8 +1009,16 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     print("The index selection strategy is {}".format(strategy),
           file=sys.stderr)
     if strategy.startswith("GH"):
-        print("Getting the testing data with genome holdout.",
+        print("Getting the testing data with genome holdout.  "
+              "Saving to {}".format(data_dir),
               file=sys.stderr)
+        if strategy == "GHSL" or strategy == "GHST":
+            sublevels = [taxid for taxid in sublevels if not 
+                         'species' in ncbi.get_rank([taxid])[taxid]]
+            if not sublevels:
+                print("The taxid has no non-species sublevel for the "
+                      "GenomeHoldoutSpecies sampling.")
+                return (0, 0)
         test_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                         number, length, data_dir,
                                         index_dir,
@@ -1031,13 +1039,17 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                     os.path.join(data_dir, str(taxid), "test"))
         if save_genomes:
             destination = os.path.join(data_dir, str(taxid), "test_genome")
-            os.makedirs(destination)
+            try:
+                os.makedirs(destination)
+            except FileExistsError:
+                pass
             with open(os.path.join(destination, str(taxid) + ".taxid"), 
                       "w") as tf:
                 for f, txd in test_fasta:
                     shutil.copy(f, destination)
                     print("{}\t{}".format(f, txd), file=tf)
-        print("Getting the training data with genome holdout.",
+        print("Getting the training data with genome holdout.  "
+              "Saving to {}".format(data_dir),
               file=sys.stderr)
         train_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                          number, length, data_dir,
@@ -1057,7 +1069,10 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
         train_count, train_fasta = train_output
         if save_genomes:
             destination = os.path.join(data_dir, str(taxid), "train_genome")
-            os.makedirs(destination)
+            try:
+                os.makedirs(destination)
+            except FileExistsError:
+                pass
             with open(os.path.join(destination, str(taxid) + ".taxid"), 
                       "w") as tf:
                 for f, txd in train_fasta:
