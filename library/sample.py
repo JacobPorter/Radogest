@@ -609,7 +609,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
     -------
     int, list
         A count of the number of fasta records written.
-        A list of fata file locations used in sampling is returned.
+        A list of fasta file locations used in sampling is returned.
 
     """
     if processes == 1:
@@ -1009,8 +1009,17 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
     print("The index selection strategy is {}".format(strategy),
           file=sys.stderr)
     if strategy.startswith("GH"):
-        print("Getting the testing data with genome holdout.",
+        print("Getting the testing data with genome holdout.  "
+              "Saving to {}".format(data_dir),
               file=sys.stderr)
+        if strategy == "GHSL" or strategy == "GHST":
+            sublevels = [taxid for taxid in sublevels if not 
+                         'species' in ncbi.get_rank([taxid])[taxid]]
+            if not sublevels:
+                print("The taxid {} has no non-species below it for the "
+                      "GenomeHoldoutSpecies sampling.".format(taxid),
+                      file=sys.stderr)
+                return ({}, 0)
         test_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                         number, length, data_dir,
                                         index_dir,
@@ -1027,17 +1036,30 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         processes=processes,
                                         verbose=verbose)
         test_count, test_fasta = test_output
-        shutil.move(os.path.join(data_dir, str(taxid), "train"),
-                    os.path.join(data_dir, str(taxid), "test"))
+        if test_count == (0, 0):
+            return ({}, 0)
+        try:
+            file_to_move = os.path.join(data_dir, str(taxid), "train")
+            shutil.move(file_to_move,
+                        os.path.join(data_dir, str(taxid), "test"))
+        except FileNotFoundError:
+            print("The file was not found: {}.  "
+                  "Skipping the rest".format(file_to_move),
+                  file=sys.stderr)
+            return ({}, 0)
         if save_genomes:
             destination = os.path.join(data_dir, str(taxid), "test_genome")
-            os.makedirs(destination)
+            try:
+                os.makedirs(destination)
+            except FileExistsError:
+                pass
             with open(os.path.join(destination, str(taxid) + ".taxid"), 
                       "w") as tf:
                 for f, txd in test_fasta:
                     shutil.copy(f, destination)
                     print("{}\t{}".format(f, txd), file=tf)
-        print("Getting the training data with genome holdout.",
+        print("Getting the training data with genome holdout.  "
+              "Saving to {}".format(data_dir),
               file=sys.stderr)
         train_output = get_sample_worker(taxid, sublevels, index, genomes_dir,
                                          number, length, data_dir,
@@ -1057,7 +1079,10 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
         train_count, train_fasta = train_output
         if save_genomes:
             destination = os.path.join(data_dir, str(taxid), "train_genome")
-            os.makedirs(destination)
+            try:
+                os.makedirs(destination)
+            except FileExistsError:
+                pass
             with open(os.path.join(destination, str(taxid) + ".taxid"), 
                       "w") as tf:
                 for f, txd in train_fasta:
@@ -1151,7 +1176,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
 
     Returns
     -------
-    (int, int, list)
+    ((int, int), list)
         A tuple of the number of fasta records sampled
         and permuted records written.  A list of fasta file
         locations that were used in sampling is returned.
@@ -1171,7 +1196,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                                threshold)
     if not accession_counts:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
-        return (0, 0, [])
+        return ((0, 0), [])
     print("Getting the kmer samples.", file=sys.stderr)
     sys.stderr.flush()
     random_str = get_random_string()
