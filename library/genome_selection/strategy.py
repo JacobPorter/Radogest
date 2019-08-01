@@ -627,7 +627,7 @@ class GHGenome(GenomeHoldout):
                 j = i % self.num_categories
                 if samples[j] < self.select_number[j]:
                     select_type = j
-                    break  
+                    break
         samples = sum(samples)
         return samples
 
