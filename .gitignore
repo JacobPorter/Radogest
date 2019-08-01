@@ -6,6 +6,8 @@ __pycache__/
 # Mac stuff
 .DS_Store
 
+# Jupyter notebook stuff
+.ipynb_checkpoints/
 
 # Eclipse stuff
 .pydevproject
