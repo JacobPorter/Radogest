@@ -1100,7 +1100,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                        amino_acid=amino_acid, temp_dir=temp_dir,
                                        threshold=thresholds[0],
                                        processes=processes, verbose=verbose)
-        return sample_out[0]
+        return ([sample_out[0][0]], sample_out[0][1])
 
 
 def get_sample_worker(taxid, sublevels, index, genomes_dir,
@@ -1186,7 +1186,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         return ''.join(random.choice(
             string.ascii_uppercase + string.digits + string.ascii_lowercase)
             for _ in range(RAND_LEN))
-    print("Determining accessions for {} to sample from.".format(taxid), 
+    print("Determining accessions for taxid {} to sample from.".format(taxid),
           file=sys.stderr)
     sys.stderr.flush()
     accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
