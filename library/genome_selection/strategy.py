@@ -10,6 +10,10 @@ from random import shuffle
 
 EXCLUDED_GENOMES = {}
 
+# The id to use with Genome holdout genome strategies
+# when a taxid has a single genome.
+SINGLETON = -1
+
 
 def filter_genomes(accessions, index):
     """
@@ -444,30 +448,30 @@ class GenomeHoldout(GenomeSelection):
         """
         super().__init__(index)
         self.select_number = select_number
-        # 1 is train, 2 is test, 
+        # 1 is train, 2 is test,
         # 3 is validate (if applicable, may not be implemented.).
         self.select_type = 0
         # The number of data categories.  2 means train and test.
-        # 3 means train, test, and validate.  (May not work well.)
+        # 3 means train, test, and validate.  (Not implemented.  Probably.)
         self.num_categories = 2
         # If random, select random genomes.  Otherwise sort the genomes.
         self.random = random
         # Set the inclusion to all genomes to False (0).
         self.set_all_genomes(boolean=0)
- 
+
 
     def get_genomes(self, genome_list):
         """
         Get a list of genomes in a sorted list or in a random list.
-        
+
         Parameters
         ----------
         genome_list: a list of genome accessions.
-        
+
         Returns
         -------
         A list of genome accessions.
-        
+
         """
         if self.random:
             shuffle(genome_list)
@@ -481,11 +485,11 @@ class GHLeaf(GenomeHoldout):
     Handle an inner node in genome holdout leaf strategies.
     All genomes from children are propagated to the parent.
     """
-    
+
     def inner_node(self, parent, children):
         """
         Propagate all genomes from the children to the parent.
-        
+
         Parameters
         ----------
         parent: int
@@ -493,12 +497,12 @@ class GHLeaf(GenomeHoldout):
         children: iterable
             An iterable of children taxonomic ids of the parent.  A leaf
             node is represented by [] or False.
-        
+
         Returns
         -------
         samples: int
             The number of genomes selected.
-        
+
         """
         samples = 0
         for child in children:
@@ -517,11 +521,11 @@ class GHTree(GenomeHoldout):
     Handle an inner node in genome holdout tree strategies.
     A select number of children genomes will be propagated to the parent.
     """
-    
+
     def inner_node(self, parent, children):
         """
         Propagate some number of genomes from the children to the parent.
-        
+
         Parameters
         ----------
         parent: int
@@ -529,12 +533,12 @@ class GHTree(GenomeHoldout):
         children: iterable
             An iterable of children taxonomic ids of the parent.  A leaf
             node is represented by [] or False.
-        
+
         Returns
         -------
         samples: int
             The number of genomes selected.
-        
+
         """
         samples = 0
         for i in range(self.num_categories):
@@ -561,21 +565,21 @@ class GHSpecies(GenomeHoldout):
     Handle a leaf node in genome holdout species strategies.
     Whole species are marked as in one set or another.
     """
-    
+
     def leaf_node(self, parent):
         """
         Mark chosen genomes as in a set.
-                
+
         Parameters
         ----------
         parent: int
             Taxonomic id of the parent.
-        
+
         Returns
         -------
         samples: int
             The number of genomes selected.
-        
+
         """
         include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
@@ -595,21 +599,21 @@ class GHGenome(GenomeHoldout):
     Handle a leaf node in genome holdout genome strategies.
     Whole genomes are marked as in one set or another.
     """
-    
+
     def leaf_node(self, parent):
         """
         Mark chosen genomes as in a set.
-                
+
         Parameters
         ----------
         parent: int
             Taxonomic id of the parent.
-        
+
         Returns
         -------
         samples: int
             The number of genomes selected.
-        
+
         """
         include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
@@ -617,12 +621,12 @@ class GHGenome(GenomeHoldout):
         samples = [0] * self.num_categories
         select_type = 0
         for accession in my_genomes:
-            if min([samples[i] >= self.select_number[i] for 
+            if min([samples[i] >= self.select_number[i] for
                         i in range(self.num_categories)]):
                 break
             self.index['taxids'][parent][accession] = select_type + 1
             samples[select_type] += 1
-            for i in range(select_type + 1, 
+            for i in range(select_type + 1,
                            select_type + + 1 + self.num_categories):
                 j = i % self.num_categories
                 if samples[j] < self.select_number[j]:
@@ -725,20 +729,20 @@ class GHGenomeLeaf(GHLeaf, GHGenome):
         else:
             samples = self.leaf_node(parent)
         return samples
-    
-    
+
+
 class GHGenomeTree(GHTree, GHGenome):
     """
     Include whole genomes in train and test data sets.
     Pass up the genomes in the tree and down select genomes
     at each level to a uniform number.
     """
-    
+
     def select(self, parent, children):
         """
         Choose genomes for train and test sets at each level.
         Choose genomes up to a fixed number at each taxonomic level.
-        
+
         Parameters
         ----------
         parent: int
@@ -746,12 +750,12 @@ class GHGenomeTree(GHTree, GHGenome):
         children: iterable
             An iterable of children taxonomic ids of the parent.  A leaf
             node is represented by [] or False.
-        
+
         Returns
         -------
         samples: int
             The number of genomes selected.
-        
+
         """
         if children:  # Inner node
             samples = self.inner_node(parent, children)

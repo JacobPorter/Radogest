@@ -7,7 +7,12 @@ Chop genomes into smaller sequences with a possibly overlapping window.
 
 import sys
 import os
+import random
+import operator
 from SeqIterator.SeqIterator import SeqReader, SeqWriter
+
+# The default seed for the random number generator for subsampling.
+_SEED = 42
 
 
 def chop_a_genome(location,
@@ -17,7 +22,10 @@ def chop_a_genome(location,
                   writer,
                   queue=None,
                   include_wild=False,
-                  window_length=50):
+                  window_length=50,
+                  subsample=0,
+                  sub_cutoff=0.2,
+                  seed=_SEED):
     """
     Cut up a single genome into kmers and write to a file.
 
@@ -40,6 +48,19 @@ def chop_a_genome(location,
         Determines whether to include kmers with wildcard characters.
     window_length: int
         The amount to slide the window when taking kmers.
+    subsample: int
+        Determine whether random subsampling should occur.
+        If 0, then do not subsample.
+        If 1, then subsample where samples are taken
+        if the random number is >= sub_cutoff
+        If -1, then subsample where samples are taken
+        if a random number is < sub_cutoff
+    sub_cutoff: float
+        A number between [0, 1.0).
+        This determines the percentage of kmers to sample.
+    seed: str or float or int
+        The object to seed the random number generator.
+        This allows for a deterministic sampling procedure.
 
 
     Returns
@@ -48,6 +69,12 @@ def chop_a_genome(location,
         The number of records written.
 
     """
+    if subsample:
+        random.seed(seed)
+    if subsample > 0:
+        op = operator.ge
+    elif subsample < 0:
+        op = operator.lt
     number_written = 0
     only_files = [f for f in os.listdir(location) if
                   os.path.isfile(os.path.join(location, f))
@@ -66,11 +93,15 @@ def chop_a_genome(location,
                 seq_id = "{}:{}:{}:{}-{}".format(
                         accession, taxid, header.split()[0],
                         i, i+length)
-                if queue:
+                keep = True
+                if subsample and not op(random.random(), sub_cutoff):
+                    keep = False
+                if queue and keep:
                     queue.put((seq_id, substring, str(taxid)))
-                if writer:
+                if writer and keep:
                     writer.write((seq_id, substring))
-                number_written += 1
+                if keep:
+                    number_written += 1
     return number_written
 
 
@@ -108,7 +139,10 @@ def chop_genomes(accessions_list,
                  output,
                  queue=None,
                  include_wild=False,
-                 window_length=50):
+                 window_length=50,
+                 subsample=0,
+                 sub_cutoff=0.2,
+                 seed=_SEED):
     """
     Chop the DNA strings from fasta files from a list of genomes and
     write them to a fasta file.  This is a higher level function.
@@ -133,6 +167,19 @@ def chop_genomes(accessions_list,
         Determines whether to include kmers with wildcard characters.
     window_length: int
         The amount to slide the window when taking kmers.
+    subsample: int
+        Determine whether random subsampling should occur.
+        If 0, then do not subsample.
+        If 1, then subsample where samples are taken
+        if the random number is >= sub_cutoff
+        If -1, then subsample where samples are taken
+        if a random number is < sub_cutoff
+    sub_cutoff: float
+        A number between [0, 1.0).
+        This determines the percentage of kmers to sample.
+    seed: str or float or int
+        The object to seed the random number generator.
+        This allows for a deterministic sampling procedure.
 
     Returns
     -------
@@ -156,5 +203,8 @@ def chop_genomes(accessions_list,
                                         writer,
                                         queue=queue,
                                         include_wild=include_wild,
-                                        window_length=window_length)
+                                        window_length=window_length,
+                                        subsample=subsample,
+                                        sub_cutoff=sub_cutoff,
+                                        seed=seed)
     return number_written
