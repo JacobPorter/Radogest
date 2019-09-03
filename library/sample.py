@@ -25,6 +25,7 @@ from SeqIterator.SeqIterator import SeqReader, SeqWriter
 from library.permute import randomly_permute_fasta_taxid
 from library.chop import chop_genomes
 from library.util import which
+from library.genome_selection.strategy import SINGLETON
 
 from config import BEDTOOLS
 
@@ -54,6 +55,10 @@ _RC_PROB = 0.5
 # the data set that a genome will be in.
 _TRAIN = 1
 _TEST = 2
+
+# The percent of testing samples to take for 
+# genome holdout genome strategies when there is only one genome.
+_GHG_CHOP_SUB_CUT = 0.2
 
 # Length of the random string
 RAND_LEN = 24
@@ -243,19 +248,26 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         Determines the value from the genomes index that determines
         if the genome will be included for consideration.  Ordinarily,
         this will be set to [True], but for the genome holdout strategy,
-        it could be [1] or [2].
+        it could be [1] (train) or [2] (test).
     threshold: int
         A value that controls how much genomic content to include.
 
     Returns
     -------
-    dict
-        A dictionary keyed on taxids where the value is the number of sequences
+    list
+        A list of 3-tuples.
+        The first element in the tuple is a taxid.
+        The second element is a dictionary keyed on taxids where the value is the number of sequences
         to sample for each taxid.
+        The third element is a dictionary keyed on accessions where the value is a dictonary
+        determining the chopping subsampling.
 
     """
     taxid_accessions = {}
+#     strategy = index['select']['strategy']
+#     taxid_chop_subs = {}
     for taxid in sublevels:
+#         accession_chop_subs = {}         
         my_accessions = [accession
                          for accession in index['taxids'][taxid]
                          if include_accession(accession,
@@ -267,6 +279,21 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
                                               amino_acid,
                                               temp_dir,
                                               include_list)]
+#         for accession in my_accessions:
+#             accession_chop_subs[accession] = {"subsample": 0,
+#                                               "sub_cutoff": None}
+#         if strategy.startswith("GHG"):  
+#             # Detect if there is a singleton genome for genome holdout genome.
+#             init_accessions = [accession
+#                                for accession in index['taxids'][taxid]]
+#             if len(init_accessions) == 1:
+#                     my_accessions = init_accessions
+#                     subsample = -1 if include_list[0] == _TRAIN else 1
+#                     accession_chop_subs[my_accessions[0]] = {"subsample": 
+#                                                              subsample,
+#                                                              "sub_cutoff": 
+#                                                              _GHG_CHOP_SUB_CUT
+#                                                              }
         my_sums = [index['genomes'][accession]['contig_sum']
                    for accession in my_accessions]
         if threshold and my_accessions:
@@ -281,6 +308,7 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         if my_accessions:
             taxid_accessions[taxid] = [my_accessions,
                                        my_sums]
+#         taxid_chop_subs[taxid] = accession_chop_subs
     if not taxid_accessions:
         return None
     try:
@@ -293,6 +321,7 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
                                       uniform_samples(taxid,
                                                       taxid_accessions[taxid],
                                                       uniform_number)))
+#                                       taxid_chop_subs[taxid]))
     return uniform_sample_counts
 
 
@@ -560,6 +589,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
               thresholding=False, chop=False,
               amino_acid=False,
               temp_dir='/localscratch/',
+              include_list=[],
               processes=1,
               verbose=0):
     """
@@ -637,7 +667,7 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
 #         index_process.start()
         file_process.start()
     drawn_accessions = []
-    for taxid, accession_counts in accession_counts_list:
+    for taxid, accession_counts in accession_counts_list:  #  for taxid, accession_counts, accession_chop_subs in accession_counts_list:
         my_fasta_record_count = 0
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
@@ -664,6 +694,12 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                         accession]['contig_sum']) / length) or chop:
                 location = genomes_dir + index['genomes'][accession][
                         'location']
+                if index['taxids'][taxid][accession] == SINGLETON:
+                    subsample = 1 if include_list[0] == _TRAIN else -1  # accession_chop_subs[accession]["subsample"]
+                    sub_cutoff = _GHG_CHOP_SUB_CUT #  accession_chop_subs[accession]["sub_cutoff"]
+                else:
+                    subsample = 0
+                    sub_cutoff = None
                 if processes == 1:
                     records_written = chop_genomes([accession],
                                                    length,
@@ -672,7 +708,10 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                                    final_file,
                                                    queue=None,
                                                    include_wild=include_wild,
-                                                   window_length=window_length)
+                                                   window_length=window_length,
+                                                   subsample=subsample,
+                                                   sub_cutoff=sub_cutoff,
+                                                   seed=accession)
                     for _ in range(records_written):
                         taxid_file.write(str(taxid) + "\n")
                     my_fasta_record_count += records_written
@@ -685,7 +724,10 @@ def get_fasta(accession_counts_list, length, index, genomes_dir,
                                            None,
                                            queue,
                                            include_wild,
-                                           window_length))
+                                           window_length,
+                                           subsample,
+                                           sub_cutoff,
+                                           accession))
                 drawn_accessions.append((fasta_location, taxid))
                 continue
             drawn_accessions.append((fasta_location, taxid))
@@ -1100,7 +1142,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                        amino_acid=amino_acid, temp_dir=temp_dir,
                                        threshold=thresholds[0],
                                        processes=processes, verbose=verbose)
-        return ([sample_out[0][0]], sample_out[0][1])
+        return ([sample_out[0][0]], sample_out[0][1]) 
 
 
 def get_sample_worker(taxid, sublevels, index, genomes_dir,
@@ -1189,12 +1231,13 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     print("Determining accessions for taxid {} to sample from.".format(taxid),
           file=sys.stderr)
     sys.stderr.flush()
-    accession_counts = uniform_samples_at_rank(index, sublevels, genomes_dir,
-                                               number, length,
-                                               include_wild, amino_acid,
-                                               temp_dir, include_list,
-                                               threshold)
-    if not accession_counts:
+    accession_counts_list = uniform_samples_at_rank(index, sublevels,
+                                                    genomes_dir,
+                                                    number, length,
+                                                    include_wild, amino_acid,
+                                                    temp_dir, include_list,
+                                                    threshold)
+    if not accession_counts_list:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return ((0, 0), [])
     print("Getting the kmer samples.", file=sys.stderr)
@@ -1205,7 +1248,7 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                    ".init.fasta")
     taxid_path = os.path.join(temp_dir, str(taxid) + "." + random_str +
                               ".taxid")
-    get_fasta_output = get_fasta(accession_counts, length,
+    get_fasta_output = get_fasta(accession_counts_list, length,
                                  index, genomes_dir, fasta_path_init,
                                  taxid_path,
                                  index_dir,
@@ -1215,10 +1258,12 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
                                  thresholding=thresholding,
                                  chop=chop,
                                  amino_acid=amino_acid,
+                                 include_list=include_list,
                                  processes=processes,
                                  verbose=verbose)
     fasta_records_count, drawn_fasta = get_fasta_output
-    print("Finished getting the kmer samples.", file=sys.stderr)
+    print("Finished getting the kmer samples", 
+          file=sys.stderr)
     sys.stderr.flush()
     if not amino_acid:
         print("Getting the reverse complements.", file=sys.stderr)
@@ -1371,8 +1416,11 @@ def parallel_sample(taxid_list, genomes_dir, ranks, index_dir, number, length,
             str1 += "}\t"
         return str1
     def printer(taxid, counts):
-        print("For taxid {}, drawn {} \n\t and written: {}.".
-              format(taxid, count_string(counts[0]), counts[1]), file=sys.stderr)
+        try:
+            print("For taxid {}, drawn {} \n\t and written: {}.".
+                  format(taxid, count_string(counts[0]), counts[1]), file=sys.stderr)
+        except ValueError:
+            print(taxid, counts, file=sys.stderr) 
     output = []
     if len(taxid_list) == 1:
         taxid = taxid_list[0]
