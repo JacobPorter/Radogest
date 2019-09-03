@@ -482,7 +482,7 @@ class GenomeHoldout(GenomeSelection):
 
 class GHLeaf(GenomeHoldout):
     """
-    Handle an inner node in genome holdout leaf strategies.
+    Handle an inner node in genome holdout leaf species strategies.
     All genomes from children are propagated to the parent.
     """
 
@@ -514,6 +514,78 @@ class GHLeaf(GenomeHoldout):
                         'taxids'][child][accession]
                     samples += 1
         return samples
+
+
+# class GHLeafS(GenomeHoldout):
+#     """
+#     Handle an inner node in genome holdout leaf species strategies.
+#     All genomes from children are propagated to the parent.
+#     """
+# 
+#     def inner_node(self, parent, children):
+#         """
+#         Propagate all genomes from the children to the parent.
+# 
+#         Parameters
+#         ----------
+#         parent: int
+#             Taxonomic id of the parent.
+#         children: iterable
+#             An iterable of children taxonomic ids of the parent.  A leaf
+#             node is represented by [] or False.
+# 
+#         Returns
+#         -------
+#         samples: int
+#             The number of genomes selected.
+# 
+#         """
+#         samples = 0
+#         for child in children:
+#             include, _ = filter_genomes(self.index['taxids'][child].keys(),
+#                                         self.index)
+#             for accession in include:
+#                 if self.index['taxids'][child][accession]:
+#                     self.index['taxids'][parent][accession] = self.index[
+#                         'taxids'][child][accession]
+#                     samples += 1
+#         return samples
+# 
+#  
+# class GHLeafG(GenomeHoldout):
+#     """
+#     Handle an inner node in genome holdout leaf species strategies.
+#     All genomes from children are propagated to the parent.
+#     """
+# 
+#     def inner_node(self, parent, children):
+#         """
+#         Propagate all genomes from the children to the parent.
+# 
+#         Parameters
+#         ----------
+#         parent: int
+#             Taxonomic id of the parent.
+#         children: iterable
+#             An iterable of children taxonomic ids of the parent.  A leaf
+#             node is represented by [] or False.
+# 
+#         Returns
+#         -------
+#         samples: int
+#             The number of genomes selected.
+# 
+#         """
+#         samples = 0
+#         for child in children:
+#             include, _ = filter_genomes(self.index['taxids'][child].keys(),
+#                                         self.index)
+#             for accession in include:
+#                 if self.index['taxids'][child][accession]:
+#                     self.index['taxids'][parent][accession] = self.index[
+#                         'taxids'][child][accession]
+#                     samples += 1
+#         return samples
 
 
 class GHTree(GenomeHoldout):
@@ -620,6 +692,10 @@ class GHGenome(GenomeHoldout):
         my_genomes = self.get_genomes(include)
         samples = [0] * self.num_categories
         select_type = 0
+        if len(my_genomes) == 1:
+            for accession in my_genomes:
+                self.index['taxids'][parent][accession] = SINGLETON
+            return 1
         for accession in my_genomes:
             if min([samples[i] >= self.select_number[i] for
                         i in range(self.num_categories)]):
