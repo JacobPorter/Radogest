@@ -14,7 +14,6 @@ EXCLUDED_GENOMES = {}
 # when a taxid has a single genome.
 SINGLETON = -1
 
-
 def filter_genomes(accessions, index):
     """
     Filter unwanted genomes.
@@ -613,8 +612,11 @@ class GHTree(GenomeHoldout):
 
         """
         samples = 0
-        for i in range(self.num_categories):
-            my_category = i + 1
+        for i in range(-1, self.num_categories, 1):
+            if i != SINGLETON:
+                my_category = i + 1
+            else:
+                my_category = i  # This will propagate SINGLETON genomes, which can make things unbalanced.
             children_genomes = []
             for child in children:
                 include, _ = filter_genomes(self.index['taxids'][child].
