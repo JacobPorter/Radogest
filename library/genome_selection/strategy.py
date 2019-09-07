@@ -6,13 +6,16 @@ Genome selection strategies.
 """
 
 import sys
-from random import shuffle
+from random import shuffle, random
+from collections import defaultdict
+from itertools import accumulate, chain
 
 EXCLUDED_GENOMES = {}
 
 # The id to use with Genome holdout genome strategies
 # when a taxid has a single genome.
 SINGLETON = -1
+
 
 def filter_genomes(accessions, index):
     """
@@ -458,7 +461,6 @@ class GenomeHoldout(GenomeSelection):
         # Set the inclusion to all genomes to False (0).
         self.set_all_genomes(boolean=0)
 
-
     def get_genomes(self, genome_list):
         """
         Get a list of genomes in a sorted list or in a random list.
@@ -520,11 +522,11 @@ class GHLeaf(GenomeHoldout):
 #     Handle an inner node in genome holdout leaf species strategies.
 #     All genomes from children are propagated to the parent.
 #     """
-# 
+#
 #     def inner_node(self, parent, children):
 #         """
 #         Propagate all genomes from the children to the parent.
-# 
+#
 #         Parameters
 #         ----------
 #         parent: int
@@ -532,12 +534,12 @@ class GHLeaf(GenomeHoldout):
 #         children: iterable
 #             An iterable of children taxonomic ids of the parent.  A leaf
 #             node is represented by [] or False.
-# 
+#
 #         Returns
 #         -------
 #         samples: int
 #             The number of genomes selected.
-# 
+#
 #         """
 #         samples = 0
 #         for child in children:
@@ -549,18 +551,18 @@ class GHLeaf(GenomeHoldout):
 #                         'taxids'][child][accession]
 #                     samples += 1
 #         return samples
-# 
-#  
+#
+#
 # class GHLeafG(GenomeHoldout):
 #     """
 #     Handle an inner node in genome holdout leaf species strategies.
 #     All genomes from children are propagated to the parent.
 #     """
-# 
+#
 #     def inner_node(self, parent, children):
 #         """
 #         Propagate all genomes from the children to the parent.
-# 
+#
 #         Parameters
 #         ----------
 #         parent: int
@@ -568,12 +570,12 @@ class GHLeaf(GenomeHoldout):
 #         children: iterable
 #             An iterable of children taxonomic ids of the parent.  A leaf
 #             node is represented by [] or False.
-# 
+#
 #         Returns
 #         -------
 #         samples: int
 #             The number of genomes selected.
-# 
+#
 #         """
 #         samples = 0
 #         for child in children:
@@ -611,28 +613,209 @@ class GHTree(GenomeHoldout):
             The number of genomes selected.
 
         """
+        total_selected = sum(self.select_number)
+        genome_label_dict = defaultdict(list)
+        # Get all genomes from the child nodes and their labels.
+        len_genome_set = 0
+        for child in children:
+            child_dict = defaultdict(list)
+            filt_genomes, _ = filter_genomes(self.index['taxids']
+                                             [child].keys(), self.index)
+            for accession in filt_genomes:
+                if self.index['taxids'][child][accession]:
+                    child_dict[self.index['taxids'][child]
+                               [accession]].append(accession)
+                    len_genome_set += 1
+            for key in child_dict:
+                genome_label_dict[key].append(
+                    self.get_genomes(child_dict[key]))
+        # If there are singleton genomes and the genome set is large,
+        # randomly assign singleton genomes to another label.
+#         if parent == 89373:
+#             print(children, len(children))
+#             print([len(genome_label_dict[key]) for key in genome_label_dict])
+        if len_genome_set >= self.num_categories and genome_label_dict[SINGLETON]:
+            select_type = 0
+            singleton_dict = defaultdict(list)
+            samples =[0] * self.num_categories 
+            single_genomes = self.get_genomes(
+                list(chain.from_iterable(genome_label_dict[SINGLETON])))
+            freq = list(accumulate(self.select_number))
+            freq = [num / total_selected for num in freq]
+            for accession in single_genomes:
+                if min([samples[i] >= self.select_number[i] for
+                        i in range(self.num_categories)]):
+                    # Randomly assign remaining genomes to labels.
+                    prob = random()
+                    for i, f in enumerate(freq):
+                        if prob <= f:
+                            singleton_dict[i + 1].append(accession)
+                            break
+                else:  # Fill each category up to its limit.
+                    singleton_dict[select_type + 1].append(accession)
+                    samples[select_type] += 1
+                    for i in range(select_type + 1,
+                                   select_type + 1 + self.num_categories):
+                        j = i % self.num_categories
+                        if samples[j] < self.select_number[j]:
+                            select_type = j
+                            break
+            genome_label_dict[SINGLETON] = []
+            for key in singleton_dict:
+                genome_label_dict[key].append(
+                    self.get_genomes(singleton_dict[key]))
+        # Down select genomes from each category
+        # and assign a label for the parent node.
+#         if parent == 89373:
+#             print([len(genome_label_dict[key]) for key in genome_label_dict])
+#             c = 0
+#             dup = {}
+#             for key in genome_label_dict:
+#                 for l in genome_label_dict[key]:
+#                     for a in l:
+#                         if a in dup:
+#                             print(a)
+#                         else:
+#                             dup[a] = 1
+#                         c += 1
+#             print(len_genome_set, c)
         samples = 0
-        for i in range(-1, self.num_categories, 1):
-            if i != SINGLETON:
-                my_category = i + 1
+        for label in genome_label_dict:
+            shuffle(genome_label_dict[label])  # Randomize choice of child. 
+            if label != SINGLETON:
+                my_genomes = select_equal(genome_label_dict[label],
+                                          self.select_number[label - 1])
             else:
-                my_category = i  # This will propagate SINGLETON genomes, which can make things unbalanced.
-            children_genomes = []
-            for child in children:
-                include, _ = filter_genomes(self.index['taxids'][child].
-                                            keys(), self.index)
-                include = [accession for accession in include
-                           if self.index['taxids'][child][accession] ==
-                           my_category]
-                child_genomes = self.get_genomes(include)
-                children_genomes.append(child_genomes)
-            my_genomes = select_equal(children_genomes,
-                                      self.select_number[i])
+                my_genomes = list(chain.from_iterable(
+                    genome_label_dict[SINGLETON]))
             for accession in my_genomes:
                 samples += 1
-                self.index['taxids'][parent][accession] = my_category
+                self.index['taxids'][parent][accession] = label
         return samples
 
+
+# GHTree with down selection for each child.
+# class GHTree(GenomeHoldout):
+#     """
+#     Handle an inner node in genome holdout tree strategies.
+#     A select number of children genomes will be propagated to the parent.
+#     """
+# 
+#     def inner_node(self, parent, children):
+#         """
+#         Propagate some number of genomes from the children to the parent.
+# 
+#         Parameters
+#         ----------
+#         parent: int
+#             Taxonomic id of the parent.
+#         children: iterable
+#             An iterable of children taxonomic ids of the parent.  A leaf
+#             node is represented by [] or False.
+# 
+#         Returns
+#         -------
+#         samples: int
+#             The number of genomes selected.
+# 
+#         """
+#         total_selected = sum(self.select_number)
+#         genome_label_dict = defaultdict(list)
+#         # Get all genomes from the child nodes and their labels.
+#         for child in children:
+#             len_genome_set = 0
+#             child_dict = defaultdict(list)
+#             filt_genomes, _ = filter_genomes(self.index['taxids']
+#                                              [child].keys(), self.index)
+#             for accession in filt_genomes:
+#                 if self.index['taxids'][child][accession]:
+#                     child_dict[self.index['taxids'][child]
+#                                [accession]].append(accession)
+#                     len_genome_set += 1
+#             # If there are singleton genomes and the genome set is large,
+#             # randomly assign singleton genomes to another label
+#             # after filling the different categories with genomes.
+#             if (len_genome_set > total_selected and 
+#                 child_dict[SINGLETON]):
+#                 samples = [len(child_dict[i + 1]) 
+#                            for i in range(self.num_categories)]
+#                 select_type = 0
+#                 single_genomes = self.get_genomes(child_dict[SINGLETON])
+#                 freq = list(accumulate(self.select_number))
+#                 freq = [num / total_selected for num in freq]
+#                 for accession in single_genomes:
+#                     if min([samples[i] >= self.select_number[i] for
+#                             i in range(self.num_categories)]):
+#                         # random assignment
+#                         prob = random()
+#                         for i, f in enumerate(freq):
+#                             if prob <= f:
+#                                 child_dict[i + 1].append(accession)
+#                                 break
+#                     child_dict[select_type + 1].append(accession)
+#                     samples[select_type] += 1
+#                     for i in range(select_type + 1,
+#                                    select_type + 1 + self.num_categories):
+#                         j = i % self.num_categories
+#                         if samples[j] < self.select_number[j]:
+#                             select_type = j
+#                             break
+#                         
+# #                         
+# #                 
+# #                 all_genomes = list(chain.from_iterable(
+# #                     [child_dict[key] for key in child_dict]))
+# #                 all_genomes = self.get_genomes(all_genomes)
+# #                 
+# #                 
+# #                 for accession in all_genomes:
+# #                     if min([samples[i] >= self.select_number[i] for
+# #                             i in range(self.num_categories)]):
+# #                         break
+# #                     self.index['taxids'][parent][accession] = select_type + 1
+# #                     samples[select_type] += 1
+# #                     for i in range(select_type + 1,
+# #                                    select_type + 1 + self.num_categories):
+# #                         j = i % self.num_categories
+# #                         if samples[j] < self.select_number[j]:
+# #                             select_type = j
+# #                             break
+# #                         
+# #                 
+# #                 
+# #                 
+# #                 
+# #                 singleton_dict = defaultdict(list)
+# #                 freq = list(accumulate(self.select_number))
+# #                 freq = [num / total_selected for num in freq]
+# #                 for g_list in child_dict[SINGLETON]:
+# #                     for accession in g_list:
+# #                         prob = random()
+# #                         for i, f in enumerate(freq):
+# #                             if prob <= f:
+# #                                 singleton_dict[i + 1].append(accession)
+#                 child_dict[SINGLETON] = []
+# #                 for key in singleton_dict:
+# #                     child_dict[key].append(
+# #                         self.get_genomes(singleton_dict[key]))
+#             for key in child_dict:
+#                 genome_label_dict[key].append(
+#                     self.get_genomes(child_dict[key]))
+#         # Down select genomes from each category
+#         # and assign a label for the parent node.
+#         samples = 0
+#         for label in genome_label_dict:
+#             shuffle(genome_label_dict[label])  # Randomize choice of child. 
+#             if label != SINGLETON:
+#                 my_genomes = select_equal(genome_label_dict[label],
+#                                           self.select_number[label - 1])
+#             else:
+#                 my_genomes = list(chain.from_iterable(
+#                     genome_label_dict[SINGLETON]))
+#             for accession in my_genomes:
+#                 samples += 1
+#                 self.index['taxids'][parent][accession] = label
+#         return samples
 
 class GHSpecies(GenomeHoldout):
     """
@@ -656,7 +839,7 @@ class GHSpecies(GenomeHoldout):
 
         """
         include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
+                                    self.index)
         my_genomes = self.get_genomes(include)
         samples = 0
         for accession in my_genomes:
@@ -690,7 +873,7 @@ class GHGenome(GenomeHoldout):
 
         """
         include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
+                                    self.index)
         my_genomes = self.get_genomes(include)
         samples = [0] * self.num_categories
         select_type = 0
@@ -700,7 +883,7 @@ class GHGenome(GenomeHoldout):
             return 1
         for accession in my_genomes:
             if min([samples[i] >= self.select_number[i] for
-                        i in range(self.num_categories)]):
+                    i in range(self.num_categories)]):
                 break
             self.index['taxids'][parent][accession] = select_type + 1
             samples[select_type] += 1
