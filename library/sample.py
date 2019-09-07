@@ -1248,8 +1248,9 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
         return ((0, 0), [])
 #     if taxid == 89373:
 #         print(accession_counts_list)
-    print("Getting the kmer samples from {} taxids.".format(
-        len(accession_counts_list)), file=sys.stderr)
+    print("Getting the kmer samples from {} taxids of {} "
+          "possible taxids.".format(
+        len(accession_counts_list), len(sublevels)), file=sys.stderr)
     sys.stderr.flush()
     random_str = get_random_string()
     fasta_path_init = os.path.join(temp_dir,
