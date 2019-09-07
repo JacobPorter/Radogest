@@ -308,6 +308,8 @@ def uniform_samples_at_rank(index, sublevels, genomes_dir,
         if my_accessions:
             taxid_accessions[taxid] = [my_accessions,
                                        my_sums]
+#         if taxid == 319458:
+#             print(my_accessions)
 #         taxid_chop_subs[taxid] = accession_chop_subs
     if not taxid_accessions:
         return None
@@ -367,10 +369,14 @@ def include_accession(accession, taxid, index, genomes_dir,
     """
     if not index['taxids'][taxid][accession] in include_list:
         return False
+    if (index['taxids'][taxid][accession] in include_list and 
+        index["select"]["strategy"].startswith("GH")):
+        return True
     mean = index['genomes'][accession]['contig_mean']
     std = index['genomes'][accession]['contig_std']
     mx = index['genomes'][accession]['contig_max']
     cnt = index['genomes'][accession]['contig_count']
+    # This could prune taxids that have only one genome.
     if cnt > 5:
         inside_std = (kmer_length >= mean - _STD_DEV * std and
                       kmer_length <= mean + _STD_DEV * std and
@@ -378,7 +384,7 @@ def include_accession(accession, taxid, index, genomes_dir,
     else:
         inside_std = kmer_length <= mx
     if (kmer_length > _WILDCARD_KMER_T and not include_wild
-            and not amino_acid and inside_std):
+            and not amino_acid and inside_std):  # What does this do?
         file_locations_d = file_locations(accession, genomes_dir,
                                           index, temp_dir)
         fai_location = file_locations_d["fai"]
@@ -398,7 +404,7 @@ def include_accession(accession, taxid, index, genomes_dir,
                                                include_wild=include_wild,
                                                amino_acid=amino_acid,
                                                temp_dir=temp_dir)
-        return (records_with_n / records_written < _WILDCARD_PERCENT_T)
+        return ((records_with_n / records_written) < _WILDCARD_PERCENT_T) # ??
     return inside_std
 
 
@@ -1073,7 +1079,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                         window_length=window_length,
                                         amino_acid=amino_acid,
                                         temp_dir=temp_dir,
-                                        include_list=[_TEST],
+                                        include_list=[_TEST, SINGLETON],
                                         threshold=thresholds[_TEST-1],
                                         processes=processes,
                                         verbose=verbose)
@@ -1114,7 +1120,7 @@ def get_sample(taxid, sublevels, index_dir, genomes_dir,
                                          window_length=window_length,
                                          amino_acid=amino_acid,
                                          temp_dir=temp_dir,
-                                         include_list=[_TRAIN],
+                                         include_list=[_TRAIN, SINGLETON],
                                          threshold=thresholds[_TRAIN-1],
                                          processes=processes,
                                          verbose=verbose)
@@ -1240,7 +1246,11 @@ def get_sample_worker(taxid, sublevels, index, genomes_dir,
     if not accession_counts_list:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return ((0, 0), [])
-    print("Getting the kmer samples.", file=sys.stderr)
+#     if taxid == 89373:
+#         print(accession_counts_list)
+    print("Getting the kmer samples from {} taxids of {} "
+          "possible taxids.".format(
+        len(accession_counts_list), len(sublevels)), file=sys.stderr)
     sys.stderr.flush()
     random_str = get_random_string()
     fasta_path_init = os.path.join(temp_dir,
