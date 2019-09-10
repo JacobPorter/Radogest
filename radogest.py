@@ -195,6 +195,7 @@ def main():
                           help=('The location to store the index with '
                                 'the down selected genomes.'),
                           default='./index_down.pck')
+    p_select.add_argument(*verbose.args, **verbose.kwargs)
     p_sample = subparsers.add_parser("sample",
                                      help=("Create random samples of "
                                            "kmers from the genomes storage."
@@ -487,9 +488,10 @@ def main():
                            "select_amount": select_amount}
         traversal = TaxTreeTraversal(tree, strategy)
         levels_visited = traversal.select_genomes(args.taxid)
-        for accession in EXCLUDED_GENOMES:
-            print("WARNING: {} excluded because {}.".format(
-                accession, EXCLUDED_GENOMES[accession]), file=sys.stderr)
+        if args.verbose >= 1:
+            for accession in EXCLUDED_GENOMES:
+                print("WARNING: {} excluded because {}.".format(
+                    accession, EXCLUDED_GENOMES[accession]), file=sys.stderr)
         print("Levels visited: {}".format(levels_visited), file=sys.stderr)
         print("Creating a pickled index at {}.".format(args.output),
               file=sys.stderr)

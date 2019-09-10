@@ -75,15 +75,12 @@ def create_initial_index(index, genome_info, verbose=True):
     return count
 
 
-def update_index_path(root_directory, path, files, verbose=0):
+def update_index_path(path, files, verbose=0):
     """
     Calculate necessary things from a single path for the index.
 
     Parameters
     ----------
-    root_directory: str
-        A string giving the location of the root directory where genomes
-        are found.
     path: str
         The path to a directory containing files
     files: iterable
@@ -137,8 +134,7 @@ def update_index_root(index, root_directory, verbose=0):
         if counter % 5000 == 0 and verbose >= 1:
             sys.stderr.write("Processed: {}\n".format(counter))
             sys.stderr.flush()
-        number, contigs_dict = update_index_path(root_directory,
-                                                 path,
+        number, contigs_dict = update_index_path(path,
                                                  files,
                                                  verbose=verbose)
         accession = os.path.basename(path)
