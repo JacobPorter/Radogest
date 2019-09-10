@@ -321,6 +321,18 @@ def main():
                       default=False)
     p_rc.add_argument(*prob.args, **prob.kwargs)
     p_rc.add_argument(*verbose.args, **verbose.kwargs)
+    p_subtree = subparsers.add_parser("util_subtree",
+                                      help=("Get a list of all taxonomic "
+                                            "ids underneath and including "
+                                            "the given taxonomic id."),
+                                      formatter_class=argparse.
+                                      ArgumentDefaultsHelpFormatter)
+    p_subtree.add_argument("taxid",
+                           help=("The taxid for the root of the subtree."))
+    p_subtree.add_argument("--species", "-s", action="store_true",
+                           help=("Include species taxonomic ids."),
+                           default=False)
+    p_subtree.add_argument(*tree.args, **tree.kwargs)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -553,6 +565,14 @@ def main():
                                                    verbose=args.verbose)
         print("There were {} records read and {} records written.".format(
             read_counter, write_counter), file=sys.stderr)
+    elif mode == "util_subtree":
+        from library.taxid_subtree import get_subtree
+        root = int(args.taxid)
+        tree = pickle.load(open(args.tree, "rb"))
+        taxid_list = []
+        get_subtree(tree, root, taxid_list, args.species)
+        for t in taxid_list:
+            print(t, file=sys.stdout)
     else:
         parser.print_usage()
         print("There was no command specified.", file=sys.stderr)
