@@ -38,7 +38,9 @@ def filter_genomes(accessions, index):
         return (accession_info['section'] == 'genbank' and
                 accession_info['gbrs_paired_asm'] != '' and
                 accession_info['paired_asm_comp'] == 'identical' and
-                index['genomes'][accession_info['gbrs_paired_asm']]
+                index['genomes'][accession_info['gbrs_paired_asm']] and
+                (index['genomes'][accession_info['gbrs_paired_asm']][
+                    'species_taxid'] == accession_info['species_taxid'])
                 )
     include = []
     exclude = []
@@ -46,6 +48,8 @@ def filter_genomes(accessions, index):
         if 'contig_sum' not in index['genomes'][accession]:
             exclude.append(accession)
             EXCLUDED_GENOMES[accession] = 'the contig_sum does not exist'
+        elif len(accessions) == 1:
+            include.append(accession)
         elif genbank_duplicate(index['genomes'][accession], index):
             exclude.append(accession)
             EXCLUDED_GENOMES[accession] = 'duplicate genome found in refseq'
@@ -637,7 +641,7 @@ class GHTree(GenomeHoldout):
         if len_genome_set >= self.num_categories and genome_label_dict[SINGLETON]:
             select_type = 0
             singleton_dict = defaultdict(list)
-            samples =[0] * self.num_categories 
+            samples =[0] * self.num_categories
             single_genomes = self.get_genomes(
                 list(chain.from_iterable(genome_label_dict[SINGLETON])))
             freq = list(accumulate(self.select_number))
@@ -681,7 +685,7 @@ class GHTree(GenomeHoldout):
 #             print(len_genome_set, c)
         samples = 0
         for label in genome_label_dict:
-            shuffle(genome_label_dict[label])  # Randomize choice of child. 
+            shuffle(genome_label_dict[label])  # Randomize choice of child.
             if label != SINGLETON:
                 my_genomes = select_equal(genome_label_dict[label],
                                           self.select_number[label - 1])
@@ -700,11 +704,11 @@ class GHTree(GenomeHoldout):
 #     Handle an inner node in genome holdout tree strategies.
 #     A select number of children genomes will be propagated to the parent.
 #     """
-# 
+#
 #     def inner_node(self, parent, children):
 #         """
 #         Propagate some number of genomes from the children to the parent.
-# 
+#
 #         Parameters
 #         ----------
 #         parent: int
@@ -712,12 +716,12 @@ class GHTree(GenomeHoldout):
 #         children: iterable
 #             An iterable of children taxonomic ids of the parent.  A leaf
 #             node is represented by [] or False.
-# 
+#
 #         Returns
 #         -------
 #         samples: int
 #             The number of genomes selected.
-# 
+#
 #         """
 #         total_selected = sum(self.select_number)
 #         genome_label_dict = defaultdict(list)
@@ -735,9 +739,9 @@ class GHTree(GenomeHoldout):
 #             # If there are singleton genomes and the genome set is large,
 #             # randomly assign singleton genomes to another label
 #             # after filling the different categories with genomes.
-#             if (len_genome_set > total_selected and 
+#             if (len_genome_set > total_selected and
 #                 child_dict[SINGLETON]):
-#                 samples = [len(child_dict[i + 1]) 
+#                 samples = [len(child_dict[i + 1])
 #                            for i in range(self.num_categories)]
 #                 select_type = 0
 #                 single_genomes = self.get_genomes(child_dict[SINGLETON])
@@ -760,14 +764,14 @@ class GHTree(GenomeHoldout):
 #                         if samples[j] < self.select_number[j]:
 #                             select_type = j
 #                             break
-#                         
-# #                         
-# #                 
+#
+# #
+# #
 # #                 all_genomes = list(chain.from_iterable(
 # #                     [child_dict[key] for key in child_dict]))
 # #                 all_genomes = self.get_genomes(all_genomes)
-# #                 
-# #                 
+# #
+# #
 # #                 for accession in all_genomes:
 # #                     if min([samples[i] >= self.select_number[i] for
 # #                             i in range(self.num_categories)]):
@@ -780,11 +784,11 @@ class GHTree(GenomeHoldout):
 # #                         if samples[j] < self.select_number[j]:
 # #                             select_type = j
 # #                             break
-# #                         
-# #                 
-# #                 
-# #                 
-# #                 
+# #
+# #
+# #
+# #
+# #
 # #                 singleton_dict = defaultdict(list)
 # #                 freq = list(accumulate(self.select_number))
 # #                 freq = [num / total_selected for num in freq]
@@ -805,7 +809,7 @@ class GHTree(GenomeHoldout):
 #         # and assign a label for the parent node.
 #         samples = 0
 #         for label in genome_label_dict:
-#             shuffle(genome_label_dict[label])  # Randomize choice of child. 
+#             shuffle(genome_label_dict[label])  # Randomize choice of child.
 #             if label != SINGLETON:
 #                 my_genomes = select_equal(genome_label_dict[label],
 #                                           self.select_number[label - 1])
