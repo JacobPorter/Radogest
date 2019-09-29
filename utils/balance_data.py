@@ -14,19 +14,23 @@ import os
 import math
 from random import shuffle
 from collections import defaultdict
-from multiprocessing import Pool
+from multiprocessing import Pool, Lock
 from SeqIterator import SeqReader, SeqWriter
 
 
-def fix_files_helper(dir_name, files, dest_dir, min_size=0):
-    """Launch fix_files for both directories."""
-    return fix_files(dir_name, files, dest_dir, "train", min_size) + fix_files(dir_name, files, dest_dir, "test", min_size)
+# def fix_files_helper(dir_name, files, dest_dir, min_size=0):
+#     """Launch fix_files for both directories."""
+#     return fix_files(dir_name, files, dest_dir, "train", min_size) + fix_files(dir_name, files, dest_dir, "test", min_size)
+
+lock = Lock()
 
 
 def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
     """Fix the files."""
     fasta_file = [f for f in files if f.endswith("fasta")][0]
-    taxid = fasta_file.split(".")
+    taxid_work = fasta_file.split(".")[0]
+    print("Working on: {} {} {}".format(dir_name, files, taxid_work), file=sys.stderr)
+    sys.stderr.flush()
     fasta_reader = SeqReader(os.path.join(dir_name, fasta_file))
     fasta_records = defaultdict(list)
     for record in fasta_reader:
@@ -54,35 +58,52 @@ def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
         dup_amount = math.ceil(min_size / total_count)
         all_fasta *= dup_amount
     shuffle(all_fasta)
-    os.makedirs(os.path.join(dest_dir, taxid, dir_type))
-    fasta_writer = SeqWriter(open(os.path.join(dest_dir, taxid, dir_type, taxid + ".fasta"), "w"))
-    with open(os.path.join(dest_dir, taxid, dir_type, taxid + ".taxid"), "w") as taxid_fd:
+    lock.acquire()
+    try:
+        create_dir = os.path.join(dest_dir, taxid_work, dir_type)
+        os.makedirs(create_dir)
+    except FileExistsError:
+        print("Directory for {} already exists.".format(create_dir), file=sys.stderr)
+        sys.stderr.flush()
+    lock.release()
+    fasta_writer = SeqWriter(open(os.path.join(dest_dir, taxid_work, dir_type, taxid_work + ".fasta"), "w"))
+    with open(os.path.join(dest_dir, taxid_work, dir_type, taxid_work + ".taxid"), "w") as taxid_fd:
         for tup in all_fasta:
             fasta_writer.write(tup[0])
             print(tup[1], file=taxid_fd)
         taxid_fd.flush()
     fasta_writer.flush()
     fasta_writer.close()
-    return int(taxid), dir_type, len(all_fasta)
+    ret_value = (int(taxid_work), dir_type, len(all_fasta))
+    print(ret_value, file=sys.stdout)
+    sys.stdout.flush()
+    return ret_value
 
 
 def traverse_directory(src_dir, dest_dir, min_size=0, pool_size=20):
     """Traverse a directory and fix the files."""
     with Pool(processes=pool_size) as pool:
         res_list = []
+        # lock = Lock()
         for dir_name, subdirs, files in os.walk(src_dir):
             # print(dir_name, subdirs, files, file=sys.stderr)
             dir_type = None
             if dir_name.endswith("train"):
                 dir_type = "train"
-            if dir_type:
-                res = pool.apply_async(fix_files_helper, (dir_name,
-                                                          files,
-                                                          dest_dir,
-                                                          min_size))
+            if dir_name.endswith("test"):
+                dir_type = "test"
+            if dir_type and pool_size > 1:
+                res = pool.apply_async(fix_files, (dir_name,
+                                                   files,
+                                                   dest_dir,
+                                                   dir_type,
+                                                   min_size))
                 res_list.append(res)
-        for res in res_list:
-            print(res.get(), file=sys.stdout)
+            elif dir_type and pool_size == 1:
+                fix_files(dir_name, files, dest_dir, dir_type, min_size)
+        if pool_size > 1:
+            for res in res_list:
+                res.get()
 
 
 def main():
