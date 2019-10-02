@@ -79,7 +79,7 @@ def main():
                                 default=False)
     window_length = ArgClass("--window_length", "-w", type=int,
                              help=("The window length to use when using "
-                                   "thresholding."),
+                                   "thresholding or chopping."),
                              default=50)
     kmer_size = ArgClass("--kmer_size", "-k", type=int,
                          help=("The length in base pairs i "

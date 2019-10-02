@@ -9,27 +9,24 @@ until the minimum size of the file is above a threshold.
 """
 import argparse
 import datetime
-import sys
-import os
 import math
-from random import shuffle
+import os
+import sys
 from collections import defaultdict
-from multiprocessing import Pool, Lock
+from multiprocessing import Lock, Pool
+from random import shuffle
+
 from SeqIterator import SeqReader, SeqWriter
 
-
-# def fix_files_helper(dir_name, files, dest_dir, min_size=0):
-#     """Launch fix_files for both directories."""
-#     return fix_files(dir_name, files, dest_dir, "train", min_size) + fix_files(dir_name, files, dest_dir, "test", min_size)
-
-lock = Lock()
+LOCK = Lock()
 
 
 def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
     """Fix the files."""
     fasta_file = [f for f in files if f.endswith("fasta")][0]
     taxid_work = fasta_file.split(".")[0]
-    print("Working on: {} {} {}".format(dir_name, files, taxid_work), file=sys.stderr)
+    print("Working on: {} {} {}".format(dir_name, files, taxid_work),
+          file=sys.stderr)
     sys.stderr.flush()
     fasta_reader = SeqReader(os.path.join(dir_name, fasta_file))
     fasta_records = defaultdict(list)
@@ -37,7 +34,10 @@ def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
         taxid = record[0].split(":")[1]
         fasta_records[taxid].append(record)
     fasta_reader.close()
-    taxid_counts = {taxid: len(fasta_records[taxid]) for taxid in fasta_records}
+    taxid_counts = {
+        taxid: len(fasta_records[taxid])
+        for taxid in fasta_records
+    }
     taxid_max = max([taxid_counts[taxid] for taxid in taxid_counts])
     new_fasta = defaultdict(list)
     for taxid in fasta_records:
@@ -58,16 +58,22 @@ def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
         dup_amount = math.ceil(min_size / total_count)
         all_fasta *= dup_amount
     shuffle(all_fasta)
-    lock.acquire()
+    LOCK.acquire()
     try:
         create_dir = os.path.join(dest_dir, taxid_work, dir_type)
         os.makedirs(create_dir)
     except FileExistsError:
-        print("Directory for {} already exists.".format(create_dir), file=sys.stderr)
+        print("Directory for {} already exists.".format(create_dir),
+              file=sys.stderr)
         sys.stderr.flush()
-    lock.release()
-    fasta_writer = SeqWriter(open(os.path.join(dest_dir, taxid_work, dir_type, taxid_work + ".fasta"), "w"))
-    with open(os.path.join(dest_dir, taxid_work, dir_type, taxid_work + ".taxid"), "w") as taxid_fd:
+    LOCK.release()
+    fasta_writer = SeqWriter(
+        open(
+            os.path.join(dest_dir, taxid_work, dir_type,
+                         taxid_work + ".fasta"), "w"))
+    with open(
+            os.path.join(dest_dir, taxid_work, dir_type,
+                         taxid_work + ".taxid"), "w") as taxid_fd:
         for tup in all_fasta:
             fasta_writer.write(tup[0])
             print(tup[1], file=taxid_fd)
@@ -93,11 +99,8 @@ def traverse_directory(src_dir, dest_dir, min_size=0, pool_size=20):
             if dir_name.endswith("test"):
                 dir_type = "test"
             if dir_type and pool_size > 1:
-                res = pool.apply_async(fix_files, (dir_name,
-                                                   files,
-                                                   dest_dir,
-                                                   dir_type,
-                                                   min_size))
+                res = pool.apply_async(
+                    fix_files, (dir_name, files, dest_dir, dir_type, min_size))
                 res_list.append(res)
             elif dir_type and pool_size == 1:
                 fix_files(dir_name, files, dest_dir, dir_type, min_size)
@@ -110,20 +113,29 @@ def main():
     """Parse arguments."""
     tic = datetime.datetime.now()
     parser = argparse.ArgumentParser(description=('Copy data.'))
-    parser.add_argument("src_directory", type=str,
+    parser.add_argument("src_directory",
+                        type=str,
                         help=("A directory with fasta files and taxid files."))
-    parser.add_argument("dest_directory", type=str,
+    parser.add_argument("dest_directory",
+                        type=str,
                         help=("The directory to copy fasta files and "
                               "taxid files."))
-    parser.add_argument("--min_size", "-m", type=int,
+    parser.add_argument("--min_size",
+                        "-m",
+                        type=int,
                         help=("The minimum number of records.  "
                               "If there are fewer records, "
                               "then duplicates will be made."),
                         default=256)
-    parser.add_argument("--processes", "-p", type=int, help=('The number of processes to use.'), default=20)
+    parser.add_argument("--processes",
+                        "-p",
+                        type=int,
+                        help=('The number of processes to use.'),
+                        default=20)
     args = parser.parse_args()
     print(args, file=sys.stderr)
-    traverse_directory(args.src_directory, args.dest_directory, args.min_size, args.processes)
+    traverse_directory(args.src_directory, args.dest_directory, args.min_size,
+                       args.processes)
     toc = datetime.datetime.now()
     print("The process took time: {}".format(toc - tic), file=sys.stderr)
     sys.stdout.flush()
