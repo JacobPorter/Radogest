@@ -51,18 +51,17 @@ def fix_files(dir_name, files, dest_dir, dir_type, min_size=0, inexact=False):
                 exclude_amount += taxid_counts[taxid]
         my_size = (INEXACT_MAX - exclude_amount) / (len(taxid_counts) -
                                                     len(taxid_exclude))
-    else:
-        for taxid in fasta_records:
-            new_fasta[taxid] = fasta_records[taxid]
-            if taxid in taxid_exclude:
-                continue
-            count = len(new_fasta[taxid])
-            pos = 0
-            while count < my_size:
-                pos %= count
-                new_fasta[taxid].append(fasta_records[taxid][0])
-                pos += 1
-                count += 1
+    for taxid in fasta_records:
+        new_fasta[taxid] = fasta_records[taxid]
+        if taxid in taxid_exclude:
+            continue
+        count = len(new_fasta[taxid])
+        pos = 0
+        while count < my_size:
+            pos %= count
+            new_fasta[taxid].append(fasta_records[taxid][0])
+            pos += 1
+            count += 1
     total_count = sum([len(new_fasta[taxid]) for taxid in new_fasta])
     all_fasta = []
     for taxid in new_fasta:
