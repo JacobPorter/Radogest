@@ -19,9 +19,10 @@ from random import shuffle
 from SeqIterator import SeqReader, SeqWriter
 
 LOCK = Lock()
+INEXACT_MAX = 10000000
 
 
-def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
+def fix_files(dir_name, files, dest_dir, dir_type, min_size=0, inexact=False):
     """Fix the files."""
     fasta_file = [f for f in files if f.endswith("fasta")][0]
     taxid_work = fasta_file.split(".")[0]
@@ -40,15 +41,28 @@ def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
     }
     taxid_max = max([taxid_counts[taxid] for taxid in taxid_counts])
     new_fasta = defaultdict(list)
-    for taxid in fasta_records:
-        new_fasta[taxid] = fasta_records[taxid]
-        count = len(new_fasta[taxid])
-        pos = 0
-        while count < taxid_max:
-            pos %= count
-            new_fasta[taxid].append(fasta_records[taxid][0])
-            pos += 1
-            count += 1
+    my_size = taxid_max
+    taxid_exclude = []
+    if inexact:
+        exclude_amount = 0
+        for taxid in taxid_counts:
+            if taxid_counts[taxid] > taxid_max * 0.8:
+                taxid_exclude.append(taxid)
+                exclude_amount += taxid_counts[taxid]
+        my_size = (INEXACT_MAX - exclude_amount) / (len(taxid_counts) -
+                                                    len(taxid_exclude))
+    else:
+        for taxid in fasta_records:
+            new_fasta[taxid] = fasta_records[taxid]
+            if taxid in taxid_exclude:
+                continue
+            count = len(new_fasta[taxid])
+            pos = 0
+            while count < my_size:
+                pos %= count
+                new_fasta[taxid].append(fasta_records[taxid][0])
+                pos += 1
+                count += 1
     total_count = sum([len(new_fasta[taxid]) for taxid in new_fasta])
     all_fasta = []
     for taxid in new_fasta:
@@ -86,7 +100,11 @@ def fix_files(dir_name, files, dest_dir, dir_type, min_size=0):
     return ret_value
 
 
-def traverse_directory(src_dir, dest_dir, min_size=0, pool_size=20):
+def traverse_directory(src_dir,
+                       dest_dir,
+                       inexact=False,
+                       min_size=0,
+                       pool_size=20):
     """Traverse a directory and fix the files."""
     with Pool(processes=pool_size) as pool:
         res_list = []
@@ -100,10 +118,12 @@ def traverse_directory(src_dir, dest_dir, min_size=0, pool_size=20):
                 dir_type = "test"
             if dir_type and pool_size > 1:
                 res = pool.apply_async(
-                    fix_files, (dir_name, files, dest_dir, dir_type, min_size))
+                    fix_files,
+                    (dir_name, files, dest_dir, dir_type, min_size, inexact))
                 res_list.append(res)
             elif dir_type and pool_size == 1:
-                fix_files(dir_name, files, dest_dir, dir_type, min_size)
+                fix_files(dir_name, files, dest_dir, dir_type, min_size,
+                          inexact)
         if pool_size > 1:
             for res in res_list:
                 res.get()
@@ -132,10 +152,15 @@ def main():
                         type=int,
                         help=('The number of processes to use.'),
                         default=20)
+    parser.add_argument("--inexact",
+                        "-i",
+                        action="store_true",
+                        help=("Use an inexact balancing approach."),
+                        default=False)
     args = parser.parse_args()
     print(args, file=sys.stderr)
-    traverse_directory(args.src_directory, args.dest_directory, args.min_size,
-                       args.processes)
+    traverse_directory(args.src_directory, args.dest_directory, args.inexact,
+                       args.min_size, args.processes)
     toc = datetime.datetime.now()
     print("The process took time: {}".format(toc - tic), file=sys.stderr)
     sys.stdout.flush()
