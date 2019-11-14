@@ -10,7 +10,6 @@ traversal of the taxonomic tree.
 
 class StrategyNotFound(Exception):
     """An exception to raise when a genome selection strategy does not exit."""
-
     def __init__(self, *args, **kwargs):
         """Pass to the super class."""
         Exception.__init__(self, *args, **kwargs)
@@ -21,7 +20,6 @@ class TaxTreeTraversal:
     Traverse the taxonomic tree and do genome selection with a
     depth-first post order traversal.
     """
-
     def __init__(self, tree, selection_strategy):
         """Save the input arguments."""
         self.tree = tree

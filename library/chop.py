@@ -5,10 +5,11 @@ Chop genomes into smaller sequences with a possibly overlapping window.
     Jacob Porter <jsporter@vt.edu>
 """
 
-import sys
+import operator
 import os
 import random
-import operator
+import sys
+
 from SeqIterator.SeqIterator import SeqReader, SeqWriter
 
 # The default seed for the random number generator for subsampling.
@@ -76,9 +77,10 @@ def chop_a_genome(location,
     elif subsample < 0:
         op = operator.lt
     number_written = 0
-    only_files = [f for f in os.listdir(location) if
-                  os.path.isfile(os.path.join(location, f))
-                  and f.endswith('fna')]
+    only_files = [
+        f for f in os.listdir(location)
+        if os.path.isfile(os.path.join(location, f)) and f.endswith('fna')
+    ]
     if len(only_files) == 0:
         print("Skipping {}.  Fasta file not found.".format(accession),
               file=sys.stderr)
@@ -87,12 +89,12 @@ def chop_a_genome(location,
     reader = SeqReader(location, file_type='fasta')
     for header, sequence in reader:
         for i in range(0, len(sequence), window_length):
-            substring = sequence[i:i+length].upper()
-            if (len(substring) == length and (
-                    include_wild or 'N' not in substring)):
-                seq_id = "{}:{}:{}:{}-{}".format(
-                        accession, taxid, header.split()[0],
-                        i, i+length)
+            substring = sequence[i:i + length].upper()
+            if (len(substring) == length
+                    and (include_wild or 'N' not in substring)):
+                seq_id = "{}:{}:{}:{}-{}".format(accession, taxid,
+                                                 header.split()[0], i,
+                                                 i + length)
                 keep = True
                 if subsample and not op(random.random(), sub_cutoff):
                     keep = False

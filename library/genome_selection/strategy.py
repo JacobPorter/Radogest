@@ -6,9 +6,9 @@ Genome selection strategies.
 """
 
 import sys
-from random import shuffle, random
 from collections import defaultdict
 from itertools import accumulate, chain
+from random import random, shuffle
 
 EXCLUDED_GENOMES = {}
 
@@ -35,13 +35,13 @@ def filter_genomes(accessions, index):
 
     """
     def genbank_duplicate(accession_info, index):
-        return (accession_info['section'] == 'genbank' and
-                accession_info['gbrs_paired_asm'] != '' and
-                accession_info['paired_asm_comp'] == 'identical' and
-                index['genomes'][accession_info['gbrs_paired_asm']] and
-                (index['genomes'][accession_info['gbrs_paired_asm']][
-                    'species_taxid'] == accession_info['species_taxid'])
-                )
+        return (accession_info['section'] == 'genbank'
+                and accession_info['gbrs_paired_asm'] != ''
+                and accession_info['paired_asm_comp'] == 'identical'
+                and index['genomes'][accession_info['gbrs_paired_asm']]
+                and (index['genomes'][accession_info['gbrs_paired_asm']]
+                     ['species_taxid'] == accession_info['species_taxid']))
+
     include = []
     exclude = []
     for accession in accessions:
@@ -100,20 +100,21 @@ def genome_sort(genomes, index):
             sorted_list += assembly_level_dict[level]
         return sorted_list
 
-    ref_genomes = [index['genomes'][accession] for
-                   accession in genomes if
-                   index['genomes'][accession]['refseq_category'] ==
-                   'reference genome']
-    repr_genomes = [index['genomes'][accession] for
-                    accession in genomes if
-                    index['genomes'][accession]['refseq_category'] ==
-                    'representative genome']
-    other_genomes = [index['genomes'][accession] for
-                     accession in genomes if
-                     index['genomes'][accession]['refseq_category'] !=
-                     'reference genome' and
-                     index['genomes'][accession]['refseq_category'] !=
-                     'representative genome']
+    ref_genomes = [
+        index['genomes'][accession] for accession in genomes
+        if index['genomes'][accession]['refseq_category'] == 'reference genome'
+    ]
+    repr_genomes = [
+        index['genomes'][accession] for accession in genomes
+        if index['genomes'][accession]['refseq_category'] ==
+        'representative genome'
+    ]
+    other_genomes = [
+        index['genomes'][accession] for accession in genomes
+        if index['genomes'][accession]['refseq_category'] != 'reference genome'
+        and index['genomes'][accession]['refseq_category'] !=
+        'representative genome'
+    ]
     my_genomes = sort_by_assembly_and_contig(ref_genomes)
     my_genomes += sort_by_assembly_and_contig(repr_genomes)
     my_genomes += sort_by_assembly_and_contig(other_genomes)
@@ -160,7 +161,6 @@ def select_equal(list_lists, select_number):
 
 class GenomeSelection:
     """The base class for genome selection strategies."""
-
     def __init__(self, index):
         """
         Initialize the GenomeSelection class.
@@ -199,7 +199,6 @@ class ProportionalRandom(GenomeSelection):
     For a given level in the taxonomy tree, select a random fixed number
     of genomes at each level.
     """
-
     def __init__(self, index, select_number):
         """
         Initialize the GenomeSelection class.
@@ -253,8 +252,8 @@ class ProportionalRandom(GenomeSelection):
                 self.index['taxids'][parent][accession] = True
             return samples
         else:
-            my_genomes, _ = filter_genomes(
-                self.index['taxids'][parent].keys(), self.index)
+            my_genomes, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                           self.index)
             shuffle(my_genomes)
             i = 0
             for accession in my_genomes:
@@ -270,7 +269,6 @@ class QualitySortingTree(GenomeSelection):
     For a given level in the taxonomy tree, select a fixed number of genomes
     at each level based on the sorted quality of the genomes.
     """
-
     def __init__(self, index, select_number):
         """
         Initialize the class.
@@ -335,7 +333,6 @@ class QualitySortingLeaf(GenomeSelection):
     For a leaf node, sort the genomes by quality and select a certain number
     of them.  Propagate all selected genomes up the tree.
     """
-
     def __init__(self, index, select_number):
         """
         Initialize the class.
@@ -397,7 +394,6 @@ class QualitySortingLeaf(GenomeSelection):
 
 class AllGenomes(GenomeSelection):
     """Choose all of the genomes."""
-
     def __init__(self, index):
         """
         Initialize the class.
@@ -438,7 +434,6 @@ class AllGenomes(GenomeSelection):
 
 class GenomeHoldout(GenomeSelection):
     """Include whole genomes into separate train anid test data sets."""
-
     def __init__(self, index, select_number, random=False):
         """
         Initialize the GenomeSelection class.
@@ -490,7 +485,6 @@ class GHLeaf(GenomeHoldout):
     Handle an inner node in genome holdout leaf species strategies.
     All genomes from children are propagated to the parent.
     """
-
     def inner_node(self, parent, children):
         """
         Propagate all genomes from the children to the parent.
@@ -598,7 +592,6 @@ class GHTree(GenomeHoldout):
     Handle an inner node in genome holdout tree strategies.
     A select number of children genomes will be propagated to the parent.
     """
-
     def inner_node(self, parent, children):
         """
         Propagate some number of genomes from the children to the parent.
@@ -623,32 +616,35 @@ class GHTree(GenomeHoldout):
         len_genome_set = 0
         for child in children:
             child_dict = defaultdict(list)
-            filt_genomes, _ = filter_genomes(self.index['taxids']
-                                             [child].keys(), self.index)
+            filt_genomes, _ = filter_genomes(
+                self.index['taxids'][child].keys(), self.index)
             for accession in filt_genomes:
                 if self.index['taxids'][child][accession]:
-                    child_dict[self.index['taxids'][child]
-                               [accession]].append(accession)
+                    child_dict[self.index['taxids'][child][accession]].append(
+                        accession)
                     len_genome_set += 1
             for key in child_dict:
-                genome_label_dict[key].append(
-                    self.get_genomes(child_dict[key]))
+                genome_label_dict[key].append(self.get_genomes(
+                    child_dict[key]))
         # If there are singleton genomes and the genome set is large,
         # randomly assign singleton genomes to another label.
 #         if parent == 89373:
 #             print(children, len(children))
 #             print([len(genome_label_dict[key]) for key in genome_label_dict])
-        if len_genome_set >= self.num_categories and genome_label_dict[SINGLETON]:
+        if len_genome_set >= self.num_categories and genome_label_dict[
+                SINGLETON]:
             select_type = 0
             singleton_dict = defaultdict(list)
-            samples =[0] * self.num_categories
+            samples = [0] * self.num_categories
             single_genomes = self.get_genomes(
                 list(chain.from_iterable(genome_label_dict[SINGLETON])))
             freq = list(accumulate(self.select_number))
             freq = [num / total_selected for num in freq]
             for accession in single_genomes:
-                if min([samples[i] >= self.select_number[i] for
-                        i in range(self.num_categories)]):
+                if min([
+                        samples[i] >= self.select_number[i]
+                        for i in range(self.num_categories)
+                ]):
                     # Randomly assign remaining genomes to labels.
                     prob = random()
                     for i, f in enumerate(freq):
@@ -690,8 +686,8 @@ class GHTree(GenomeHoldout):
                 my_genomes = select_equal(genome_label_dict[label],
                                           self.select_number[label - 1])
             else:
-                my_genomes = list(chain.from_iterable(
-                    genome_label_dict[SINGLETON]))
+                my_genomes = list(
+                    chain.from_iterable(genome_label_dict[SINGLETON]))
             for accession in my_genomes:
                 samples += 1
                 self.index['taxids'][parent][accession] = label
@@ -821,12 +817,12 @@ class GHTree(GenomeHoldout):
 #                 self.index['taxids'][parent][accession] = label
 #         return samples
 
+
 class GHSpecies(GenomeHoldout):
     """
     Handle a leaf node in genome holdout species strategies.
     Whole species are marked as in one set or another.
     """
-
     def leaf_node(self, parent):
         """
         Mark chosen genomes as in a set.
@@ -860,7 +856,6 @@ class GHGenome(GenomeHoldout):
     Handle a leaf node in genome holdout genome strategies.
     Whole genomes are marked as in one set or another.
     """
-
     def leaf_node(self, parent):
         """
         Mark chosen genomes as in a set.
@@ -886,13 +881,15 @@ class GHGenome(GenomeHoldout):
                 self.index['taxids'][parent][accession] = SINGLETON
             return 1
         for accession in my_genomes:
-            if min([samples[i] >= self.select_number[i] for
-                    i in range(self.num_categories)]):
+            if min([
+                    samples[i] >= self.select_number[i]
+                    for i in range(self.num_categories)
+            ]):
                 break
             self.index['taxids'][parent][accession] = select_type + 1
             samples[select_type] += 1
             for i in range(select_type + 1,
-                           select_type + + 1 + self.num_categories):
+                           select_type + +1 + self.num_categories):
                 j = i % self.num_categories
                 if samples[j] < self.select_number[j]:
                     select_type = j
@@ -906,7 +903,6 @@ class GHSpeciesLeaf(GHLeaf, GHSpecies):
     Include whole species into separate train and test data sets.
     Down select only at leaves and propagate the selected genomes up the tree.
     """
-
     def select(self, parent, children):
         """
         Alternately choose species for the train and test data sets.
@@ -937,7 +933,6 @@ class GHSpeciesTree(GHTree, GHSpecies):
     Include whole species into separate train and test data sets.
     Select a uniform number of genomes at each level.
     """
-
     def select(self, parent, children):
         """
         Alternately choose species for the train and test data sets.
@@ -969,7 +964,6 @@ class GHGenomeLeaf(GHLeaf, GHGenome):
     Down select only at leaves and propagate the selected genomes up the tree.
     Some inner nodes will have more genomes than others.
     """
-
     def select(self, parent, children):
         """
         Choose whole genomes for the train and test data sets.
@@ -1002,7 +996,6 @@ class GHGenomeTree(GHTree, GHGenome):
     Pass up the genomes in the tree and down select genomes
     at each level to a uniform number.
     """
-
     def select(self, parent, children):
         """
         Choose genomes for train and test sets at each level.
@@ -1034,7 +1027,6 @@ class MinHashTree(GenomeSelection):
     Use a minhash hierarchical clustering tree to select genomes for a given
     taxonomic id.
     """
-
     def __init__(self, index, select_number):
         """
         Initialize the class.

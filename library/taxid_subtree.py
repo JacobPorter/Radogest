@@ -6,6 +6,7 @@ training, validation, and testing partitions.
         Jacob Porter <jsporter@vt.edu>
 """
 
+
 def get_subtree(tree, root, taxid_list, childless):
     """
     Perform a depth first search of the taxonomic tree

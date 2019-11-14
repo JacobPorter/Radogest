@@ -12,6 +12,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from multiprocessing import Pool
+
 from config import SAMTOOLS
 from library.util import which
 
@@ -44,8 +45,11 @@ def name_ends(name, endings, addition=""):
     return False
 
 
-def make_fai_individual(path, files, samtools_path,
-                        leave_compressed=False, verbose=0):
+def make_fai_individual(path,
+                        files,
+                        samtools_path,
+                        leave_compressed=False,
+                        verbose=0):
     """
     Make the fai files and decompress the fasta files.
 
@@ -71,8 +75,8 @@ def make_fai_individual(path, files, samtools_path,
     count = defaultdict(int)
     fasta_exists = False
     for f in files:
-        if (name_ends(f, FASTA_ENDINGS, addition=".gz") or
-                name_ends(f, FASTA_ENDINGS, addition="")):
+        if (name_ends(f, FASTA_ENDINGS, addition=".gz")
+                or name_ends(f, FASTA_ENDINGS, addition="")):
             fasta_exists = True
             break
     if not fasta_exists:
@@ -81,11 +85,8 @@ def make_fai_individual(path, files, samtools_path,
         remove_fai(path, name)
     returncode = 0
     for name in files:
-        count_temp, returncode, _ = make_fai_core(path,
-                                                  name,
-                                                  samtools_path,
-                                                  returncode,
-                                                  leave_compressed,
+        count_temp, returncode, _ = make_fai_core(path, name, samtools_path,
+                                                  returncode, leave_compressed,
                                                   verbose)
         for key in count_temp:
             count[key] += count_temp[key]
@@ -109,11 +110,15 @@ def remove_fai(path, name):
 
     """
     if (name.endswith('fai')):
-            os.remove(os.path.join(path, name))
+        os.remove(os.path.join(path, name))
 
 
-def make_fai_core(path, name, samtools_path,
-                  returncode=0, leave_compressed=False, verbose=0):
+def make_fai_core(path,
+                  name,
+                  samtools_path,
+                  returncode=0,
+                  leave_compressed=False,
+                  verbose=0):
     """
     Remove the file if it is an fai file.
 
@@ -139,23 +144,20 @@ def make_fai_core(path, name, samtools_path,
 
     """
     count = {"gzip": 0, "fai": 0}
-    if (not leave_compressed and
-            name_ends(name, FASTA_ENDINGS, addition='.gz')):
-            if verbose >= 2:
-                sys.stderr.write(name + "\n")
-            complete_p = subprocess.run(["gunzip",
-                                         "-f",
-                                         os.path.join(path, name)])
-            returncode = returncode ^ complete_p.returncode
-            name = name[0:len(name) - 3]
-            if not complete_p.returncode:
-                count["gzip"] += 1
+    if (not leave_compressed
+            and name_ends(name, FASTA_ENDINGS, addition='.gz')):
+        if verbose >= 2:
+            sys.stderr.write(name + "\n")
+        complete_p = subprocess.run(["gunzip", "-f", os.path.join(path, name)])
+        returncode = returncode ^ complete_p.returncode
+        name = name[0:len(name) - 3]
+        if not complete_p.returncode:
+            count["gzip"] += 1
     if (name_ends(name, FASTA_ENDINGS)):
         fa_file = os.path.join(path, name)
         if verbose >= 2:
             sys.stderr.write(name + "\n")
-        complete_p = subprocess.run([
-            samtools_path, "faidx", fa_file])
+        complete_p = subprocess.run([samtools_path, "faidx", fa_file])
         returncode = returncode ^ complete_p.returncode
         if not complete_p.returncode:
             count["fai"] += 1
@@ -180,7 +182,8 @@ def fai_fail_message(returncode, path):
     """
     if returncode:
         print("Making the fai file for {} failed with return code {}.".format(
-            path, returncode), file=sys.stderr)
+            path, returncode),
+              file=sys.stderr)
 
 
 def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
@@ -209,6 +212,7 @@ def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
         if count_local:
             for key in count_local:
                 count[key] += count_local[key]
+
     count = {"gzip": 0, "fai": 0}
     counter = 0
     samtools_path_in = SAMTOOLS + "samtools"
@@ -220,22 +224,18 @@ def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
         pd_list = []
         for path, _, files in os.walk(root_directory):
             for name in files:
-                pd_list.append(pool.apply_async(remove_fai,
-                                                args=(path,
-                                                      name)))
+                pd_list.append(pool.apply_async(remove_fai, args=(path, name)))
         for pd in pd_list:
             pd.get()
         pd_list = []
         for path, _, files in os.walk(root_directory):
             returncode = 0
             for name in files:
-                pd_list.append(pool.apply_async(make_fai_core,
-                                                args=(path,
-                                                      name,
-                                                      samtools_path,
-                                                      returncode,
-                                                      leave_compressed,
-                                                      verbose)))
+                pd_list.append(
+                    pool.apply_async(make_fai_core,
+                                     args=(path, name, samtools_path,
+                                           returncode, leave_compressed,
+                                           verbose)))
         for pd in pd_list:
             count_local, returncode, path = pd.get()
             counter += 1
@@ -247,11 +247,8 @@ def make_fai(root_directory, processes=1, leave_compressed=False, verbose=0):
                 sys.stderr.flush()
     else:
         for path, _, files in os.walk(root_directory):
-            count_local, returncode, _ = make_fai_individual(path,
-                                                             files,
-                                                             samtools_path,
-                                                             leave_compressed,
-                                                             verbose)
+            count_local, returncode, _ = make_fai_individual(
+                path, files, samtools_path, leave_compressed, verbose)
             counter += 1
             if counter % VERBOSE_COUNTER == 0 and verbose >= 1:
                 sys.stderr.write("Processed: {}\n".format(counter))

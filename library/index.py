@@ -7,9 +7,11 @@ Make a genomes index.
 
 import os
 import sys
-from tqdm import tqdm
+
 from ete3 import NCBITaxa
-from library.util import one_loop_stats, faidx_length
+from tqdm import tqdm
+
+from library.util import faidx_length, one_loop_stats
 
 ncbi = NCBITaxa()
 
@@ -65,7 +67,8 @@ def create_initial_index(index, genome_info, verbose=True):
         index['genomes'][accession][
             'location'] = '/{section}/{group}/{accession}/'.format(
                 section=genome_record['section'],
-                group=group, accession=accession)
+                group=group,
+                accession=accession)
         for key in genome_record:
             index['genomes'][accession][key] = genome_record[key]
         for taxid in ncbi.get_lineage(int(genome_record["taxid"])):
@@ -134,9 +137,7 @@ def update_index_root(index, root_directory, verbose=0):
         if counter % 5000 == 0 and verbose >= 1:
             sys.stderr.write("Processed: {}\n".format(counter))
             sys.stderr.flush()
-        number, contigs_dict = update_index_path(path,
-                                                 files,
-                                                 verbose=verbose)
+        number, contigs_dict = update_index_path(path, files, verbose=verbose)
         accession = os.path.basename(path)
         if number == 0:
             accessions_to_remove[accession] = True
@@ -145,7 +146,8 @@ def update_index_root(index, root_directory, verbose=0):
                 for key in contigs_dict:
                     index['genomes'][accession][key] = contigs_dict[key]
             count["fai"] += number
-    index, remove_count = remove_accessions(index, accessions_to_remove,
+    index, remove_count = remove_accessions(index,
+                                            accessions_to_remove,
                                             verbose=verbose)
     count['remove_count'] = remove_count
     sys.stderr.flush()

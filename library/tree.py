@@ -5,10 +5,11 @@ Construct a taxonomic rank tree hierarchy from the genomes index.
     Jacob Porter <jsporter@vt.edu>
 """
 import sys
-from random import shuffle
-from tqdm import tqdm
 from collections import defaultdict
+from random import shuffle
+
 from ete3 import NCBITaxa
+from tqdm import tqdm
 
 ncbi = NCBITaxa()
 
@@ -106,9 +107,8 @@ def remove_only_children_traversal(tree, node, deletion_list, remapping):
     if len(children) == 0:
         return (node, 0)
     for child in children:
-        ret_node, amount = remove_only_children_traversal(tree, child,
-                                                          deletion_list,
-                                                          remapping)
+        ret_node, amount = remove_only_children_traversal(
+            tree, child, deletion_list, remapping)
         if ret_node != child and len(children) != 1:
             remapping[node].append((child, ret_node))
     if len(children) == 1:
@@ -167,8 +167,10 @@ def make_tree(index, verbose=False):
         6. taxid_list: The non-leaf taxonomic id in a random order.
 
     """
-    rank_list = ["superkingdom", "kingdom", "phylum", "class", "order",
-                 "family", "genus", "species"]
+    rank_list = [
+        "superkingdom", "kingdom", "phylum", "class", "order", "family",
+        "genus", "species"
+    ]
     # What does this do?
     # missing_ranks = defaultdict(list)
     looked_at = {}
@@ -186,18 +188,19 @@ def make_tree(index, verbose=False):
         if not index['taxids'][taxid]:
             continue
         lineage_rank = ncbi.get_rank(ncbi.get_lineage(taxid))
-        lineage_rank = {lineage_rank[key]: key for key in lineage_rank if
-                        lineage_rank[key] != 'no rank'}
+        lineage_rank = {
+            lineage_rank[key]: key
+            for key in lineage_rank if lineage_rank[key] != 'no rank'
+        }
         looked_at[taxid] = True
         text_translator = ncbi.get_taxid_translator(ncbi.get_lineage(taxid))
         exclude = False
         for text in text_translator.values():
             if (len(lineage_rank) <= 2 or
                     # 'unclassified' in text or  # Include unclassified?
-                    'uncultured' in text or
-                    'RNA virus' in text or
-                    'satellite RNA' in text or
-                    'environmental samples' in text):
+                    'uncultured' in text or 'RNA virus' in text
+                    or 'satellite RNA' in text
+                    or 'environmental samples' in text):
                 exclude = True
                 break
         if exclude:
@@ -207,10 +210,9 @@ def make_tree(index, verbose=False):
                 break
             if rank not in lineage_rank:
                 continue
-            for j in range(i+1, len(rank_list)):
+            for j in range(i + 1, len(rank_list)):
                 if rank_list[j] in lineage_rank:
-                    ranks[lineage_rank[rank]].add(
-                        lineage_rank[rank_list[j]])
+                    ranks[lineage_rank[rank]].add(lineage_rank[rank_list[j]])
                     break
     for taxid in ranks:
         ranks[taxid] = list(ranks[taxid])
@@ -257,6 +259,5 @@ def make_tree(index, verbose=False):
     counter_dict, taxid_list = count_levels(ranks, ranks[1])
     taxid_list = [1] + taxid_list
     shuffle(taxid_list)
-    return (ranks,
-            unclassified_to_remove,
-            empties_remove, children_removed, counter_dict, taxid_list)
+    return (ranks, unclassified_to_remove, empties_remove, children_removed,
+            counter_dict, taxid_list)

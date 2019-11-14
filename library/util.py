@@ -22,6 +22,7 @@ def which(program):
     """
     def is_exe(fpath):
         return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
     fpath, _ = os.path.split(program)
     if fpath:
         if is_exe(program):
@@ -76,9 +77,14 @@ def one_loop_stats(iterable, num_func, prefix=""):
     except ZeroDivisionError:
         mean = float('inf')
         var = float('inf')
-    return {prefix + "mean": mean, prefix + "std": math.sqrt(var),
-            prefix + "count": n, prefix + "sum": s,
-            prefix + "max": mx, prefix + "min": mn}
+    return {
+        prefix + "mean": mean,
+        prefix + "std": math.sqrt(var),
+        prefix + "count": n,
+        prefix + "sum": s,
+        prefix + "max": mx,
+        prefix + "min": mn
+    }
 
 
 def faidx_length(line):

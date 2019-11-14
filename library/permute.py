@@ -8,6 +8,7 @@ training, validation, and testing partitions.
 
 import sys
 from random import shuffle
+
 from SeqIterator.SeqIterator import SeqReader, SeqWriter
 
 
@@ -46,8 +47,12 @@ def write_fasta_taxid(both_records, fasta_writable, taxid_writable):
     return count
 
 
-def randomly_permute_fasta_taxid(fasta_file, taxid_file, fasta_out,
-                                 taxid_out, split=True, split_amount=0.8):
+def randomly_permute_fasta_taxid(fasta_file,
+                                 taxid_file,
+                                 fasta_out,
+                                 taxid_out,
+                                 split=True,
+                                 split_amount=0.8):
     """
     Randomly permute the fasta and taxid files.  May split the input into
     training, validation, and testing data.
@@ -75,8 +80,7 @@ def randomly_permute_fasta_taxid(fasta_file, taxid_file, fasta_out,
 
     """
     both_records = []
-    for fasta, taxid in zip(SeqReader(fasta_file,
-                                      file_type='fasta'),
+    for fasta, taxid in zip(SeqReader(fasta_file, file_type='fasta'),
                             open(taxid_file, 'r')):
         both_records.append((fasta, taxid.strip()))
     shuffle(both_records)
@@ -98,14 +102,12 @@ def randomly_permute_fasta_taxid(fasta_file, taxid_file, fasta_out,
         extensions = [".train", ".validate", ".test"]
         for i, amount in enumerate(amounts):
             ext = extensions[i] if i < len(extensions) else str(i)
-            end = (begin+amount if
-                   begin+amount <= len(both_records) else
+            end = (begin + amount if begin + amount <= len(both_records) else
                    len(both_records))
             count += write_fasta_taxid(both_records[begin:end],
                                        open(fasta_out + ext, 'w'),
                                        open(taxid_out + ext, 'w'))
             begin = end
         return count
-    return write_fasta_taxid(both_records,
-                             open(fasta_out, 'w'),
+    return write_fasta_taxid(both_records, open(fasta_out, 'w'),
                              open(taxid_out, 'w'))
