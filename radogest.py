@@ -653,6 +653,9 @@ def main():
         from library.taxid_genome import get_taxid_genomes
         genome_set, sample_set, species_set = get_taxid_genomes(
             args.fasta_file, read_ds(args.index))
+        write_ds(genome_set, args.output + ".genomes")
+        write_ds(sample_set, args.output + ".samples")
+        write_ds(species_set, args.output + ".species")
         with open(args.output, "w") as output:
             print("#File: {}".format(args.fasta_file), file=output)
             print("#Genome IDs: {}".format(len(genome_set)), file=output)
