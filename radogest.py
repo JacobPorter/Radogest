@@ -401,6 +401,20 @@ def main():
                            help=("Include species taxonomic ids."),
                            default=False)
     p_subtree.add_argument(*tree.args, **tree.kwargs)
+    p_taxid = subparsers.add_parser(
+        "util_taxid",
+        help=("Give the species taxid, genome ids, and sample ids "
+              "for a Radogest generated fasta file."),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p_taxid.add_argument(
+        "fasta_file",
+        help=("The Radogest fasta file for generating information."))
+    p_taxid.add_argument(
+        "--output",
+        "-o",
+        help=("The output to write taxid and genome id sets to."),
+        default="./genome_taxid_sets.txt")
+    p_taxid.add_argument(*index.args, **index.kwargs)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -635,6 +649,21 @@ def main():
         get_subtree(tree, root, taxid_list, args.species)
         for t in taxid_list:
             print(t, file=sys.stdout)
+    elif mode == "util_taxid":
+        from library.taxid_genome import get_taxid_genomes
+        genome_set, sample_set, species_set = get_taxid_genomes(
+            args.fasta_file, read_ds(args.index))
+        with open(args.output, "w") as output:
+            print("#File: {}".format(args.fasta_file), file=output)
+            print("#Genome IDs: {}".format(len(genome_set)), file=output)
+            for g in genome_set:
+                print("{}\t{}\t{}".format(g[0], g[1], g[2]), file=output)
+            print("#Sample Taxids: {}".format(len(sample_set)), file=output)
+            for s in sample_set:
+                print(s, file=output)
+            print("#Species Taxids: {}".format(len(species_set)), file=output)
+            for c in species_set:
+                print(c, file=output)
     else:
         parser.print_usage()
         print("There was no command specified.", file=sys.stderr)
