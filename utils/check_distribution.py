@@ -11,11 +11,13 @@ import argparse
 import datetime
 import pickle
 import sys
+import json
 from collections import defaultdict
 
 from ete3 import NCBITaxa
+from tqdm import tqdm
 
-from SeqIterator import SeqIterator
+from SeqIterator import SeqReader
 
 ncbi = NCBITaxa()
 
@@ -36,21 +38,24 @@ def check_distribution(fasta_file, index_file, rank):
 
     """
     index = pickle.load(open(index_file, "rb"))
-    seq_reader = SeqIterator(fasta_file, file_type="fasta")
+    seq_reader = SeqReader(fasta_file, file_type="fasta")
     rank_dict = defaultdict(int)
     total = 0
-    for record in seq_reader:
+    for record in tqdm(seq_reader):
         genome_acc = record[0].split(":")[0]
         total += 1
         try:
             taxid = int(index["genomes"][genome_acc]['species_taxid'])
             ranks = ncbi.get_rank(ncbi.get_lineage(taxid))
         except (ValueError, KeyError) as e:
+            rank_dict[-1] += 1
             continue
         for tid in ranks:
             if ranks[tid] == rank:
                 rank_dict[tid] += 1
-    return rank_dict
+        else:
+            rank_dict[0] += 1
+    return rank_dict, total
 
 
 def main():
@@ -74,8 +79,10 @@ def main():
                         default="superkingdom")
     args = parser.parse_args()
     print(args, file=sys.stderr)
-    counts = check_distribution(args.fasta_file, args.index, args.rank)
-    print(counts, file=sys.stdout)
+    rank_dict, total = check_distribution(args.fasta_file, args.index,
+                                          args.rank)
+    print(total, file=sys.stdout)
+    print(json.dumps(rank_dict), file=sys.stdout)
     toc = datetime.datetime.now()
     print("The process took time: {}.".format(toc - tic), file=sys.stderr)
 
