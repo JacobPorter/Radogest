@@ -9,9 +9,9 @@ Radogest generated fasta file.
 """
 import argparse
 import datetime
+import json
 import pickle
 import sys
-import json
 from collections import defaultdict
 
 from ete3 import NCBITaxa
@@ -22,7 +22,7 @@ from SeqIterator import SeqReader
 ncbi = NCBITaxa()
 
 
-def check_distribution(fasta_file, index_file, rank):
+def check_distribution(fasta_file, index_file, rank, g_list=False):
     """
     Get the distribution of the taxids in the fasta file.
 
@@ -38,11 +38,17 @@ def check_distribution(fasta_file, index_file, rank):
 
     """
     index = pickle.load(open(index_file, "rb"))
-    seq_reader = SeqReader(fasta_file, file_type="fasta")
+    if g_list:
+        seq_reader = open(fasta_file, "r")
+    else:
+        seq_reader = SeqReader(fasta_file, file_type="fasta")
     rank_dict = defaultdict(int)
     total = 0
     for record in tqdm(seq_reader):
-        genome_acc = record[0].split(":")[0]
+        if g_list:
+            genome_acc = record.strip().split()[0]
+        else:
+            genome_acc = record[0].split(":")[0]
         total += 1
         try:
             taxid = int(index["genomes"][genome_acc]['species_taxid'])
@@ -53,6 +59,7 @@ def check_distribution(fasta_file, index_file, rank):
         for tid in ranks:
             if ranks[tid] == rank:
                 rank_dict[tid] += 1
+                break
         else:
             rank_dict[0] += 1
     return rank_dict, total
@@ -64,9 +71,10 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=__doc__)
-    parser.add_argument("fasta_file",
-                        type=str,
-                        help=("The Radogest fasta file to check."))
+    parser.add_argument(
+        "file",
+        type=str,
+        help=("The Radogest fasta file or a list of genomes to check."))
     parser.add_argument("--index",
                         "-i",
                         type=str,
@@ -77,10 +85,16 @@ def main():
                         type=str,
                         help=("The rank to calculate a distribution for."),
                         default="superkingdom")
+    parser.add_argument(
+        "--list",
+        "-l",
+        action="store_true",
+        help="Check the distribution from a list of genome accessoins.",
+        default=False)
     args = parser.parse_args()
     print(args, file=sys.stderr)
-    rank_dict, total = check_distribution(args.fasta_file, args.index,
-                                          args.rank)
+    rank_dict, total = check_distribution(args.file, args.index, args.rank,
+                                          args.list)
     print(total, file=sys.stdout)
     print(json.dumps(rank_dict), file=sys.stdout)
     toc = datetime.datetime.now()
