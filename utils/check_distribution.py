@@ -9,10 +9,10 @@ Radogest generated fasta file.
 """
 import argparse
 import datetime
-import json
 import pickle
 import sys
 from collections import defaultdict
+from pprint import pprint
 
 from ete3 import NCBITaxa
 from tqdm import tqdm
@@ -91,12 +91,25 @@ def main():
         action="store_true",
         help="Check the distribution from a list of genome accessoins.",
         default=False)
+    parser.add_argument("--digits",
+                        "-d",
+                        type=int,
+                        help="The number of digits to write percents.",
+                        default=4)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     rank_dict, total = check_distribution(args.file, args.index, args.rank,
                                           args.list)
+    print(args.rank, file=sys.stdout)
     print(total, file=sys.stdout)
-    print(json.dumps(rank_dict), file=sys.stdout)
+    format_string = "{0:." + str(args.digits) + "f}"
+    rank_list = [(taxid, rank_dict[taxid]) for taxid in rank_dict]
+    rank_list.sort(key=lambda x: x[1], reverse=True)
+    rank_list = [[
+        str(pair[0]), pair[1],
+        float(format_string.format(pair[1] / total * 100))
+    ] for pair in rank_list]
+    pprint(rank_list, sys.stdout)
     toc = datetime.datetime.now()
     print("The process took time: {}.".format(toc - tic), file=sys.stderr)
 
