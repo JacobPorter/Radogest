@@ -66,6 +66,12 @@ Cuts up a genome into kmers based on a sliding window.  Outputs a fasta file.
 ### util_rc
 Randomly applies the reverse complement to DNA sequences in a fasta file.  Outputs a new fasta file.
 
+### util_subtree
+Gets a list of all taxonomic ids underneath and including the given taxonomic id.
+
+### util_taxid
+Give the species taxid, genome ids, and sample ids for a Radogest generated fasta file.
+
 
 ## Workflow
 
@@ -145,7 +151,7 @@ radogest.py sample --index /project/GenomesNT/index_GHT.pck --tree /project/Geno
 ## Down selection strategies
 Down selection uses a post-order depth-first search of the taxonomic tree to chooses genomes for each taxonomic id in the taxonomic tree.  There are several genome selection strategies.  
 
-The genome holdout strategies hold out entire genomes.  The sampling strategy will chop up whole genomes if this strategy is selected.  Genome holdout strategies may not be appropriate for very high level taxonomic ids since the number of kmers sampled will be unbalanced since eukaryotic genomes could be much larger than virus genomes, for example.  For sampling kmers at the genus level, genome holdout makes no sense since this strategy holds out entire species for training or testing.
+The genome holdout strategies with GenomeHoldout in their name hold out entire genomes.  The sampling strategy will chop up whole genomes if this strategy is selected.  Genome holdout strategies may not be appropriate for very high level taxonomic ids since the number of kmers sampled will be unbalanced since eukaryotic genomes could be much larger than virus genomes, for example.  For sampling kmers at the genus level, genome holdout makes no sense since this strategy holds out entire species for training or testing.
 
 ### AllGenomes (AG)
 Uses all non-redundant genomes.  This set could be very large for high level taxonomic ids.
@@ -159,11 +165,18 @@ At each level, the genomes are sorted by quality, and a fixed number of genomes 
 ### QualitySortingLeaf (QSL)
 At the species level, the genomes are sorted by quality and a fixed number of genomes is chosen.  These genomes are propagated up the tree so that each parent node selects all of the genomes that each species node under the parent contains.
 
-### GenomeHoldoutLeaf (GHL)
-Alternately label each species as part of the training or the testing data and choose a fixed number of genomes sorted by quality.  Propagate this labeling up the taxonomic tree. 
+### GenomeHoldoutSpeciesLeaf (GHSL)
+Each species is alternatively labeled as either part of the training or the testing data.  A maximum number of genomes for each species is chosen either sorted by quality or randomly.  The training or testing label for each genome is propagated up the taxonomic tree. This strategy does not generate a validation data set.
+ 
+### GenomeHoldoutSpeciesTree (GHST)
+Each species is alternatively labeled as either part of the training or the testing data.  A maximum number of genomes for each species is chosen either sorted by quality or randomly.  At each level of the tree, each genome is labeled as either part of the train or the test set up to a maximum number of genomes. This strategy does not generate a validation data set. 
 
-### GenomeHoldoutTree (GHT)
-This is the recommended holdout strategy since it will be better balanced at intermediate ranks.  It works like GenomeHoldoutLeaf except that the number of genomes in the testing and the training data at each taxonomic level is fixed.
+### GenomeHoldoutGenomeLeaf (GHGL)
+At each species leaf, full genomes are labeled as either part of the training or the testing set.  This labeling is propagated up the tree.  If there is only a single genome for a species, then k-mers from the genome arepartitioned into either the training or the testing sets.  This strategy does not generate a validation data set. 
+
+### GenomeHoldoutGenomeTree (GHGT)
+At each species leaf, full genomes are labeled as either part of the training or the testing set.    If there is only a single genome for a species, then k-mers from the genome are partitioned into either the training or the testing sets.  This strategy does not generate a validation data set. 
+
 
 ## Index format
 
