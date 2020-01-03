@@ -57,6 +57,10 @@ Given a taxonomic id file and a fasta file, this creates up to three sets of ran
 
 Radogest can sample from multiple taxonomic ids by giving it a list of taxonomic ids where each id is on a single line in a file.  The sampling can use multiprocessing where a process is used to sample from each  taxonomic id.  When a single taxonomic id is given, Radogest can use multiple processes to generate data for that single taxonomic id.
 
+## Utilities
+
+The following are some utility functions that can help with analysis.
+
 ### util_permute
 Randomly permutes and optionally splits a fasta file and a taxid file.
 
