@@ -482,7 +482,7 @@ class GenomeHoldout(GenomeSelection):
 
 class GHLeaf(GenomeHoldout):
     """
-    Handle an inner node in genome holdout leaf species strategies.
+    Handle an inner node in genome holdout leaf strategies.
     All genomes from children are propagated to the parent.
     """
     def inner_node(self, parent, children):
