@@ -159,6 +159,46 @@ def select_equal(list_lists, select_number):
     return output_list
 
 
+def select_genomes(self, genome_list, index, selection_type="random", selection_number=None):
+        """
+        Get a list of genomes in a sorted list or in a random list.
+
+        Parameters
+        ----------
+        genome_list: list
+            A list of genome accessions.
+        index: dict
+            The Radogest index structure
+        selection_type: str
+            The type of list ordering to perform.
+            'random' puts the list in random order
+            'sort' puts the list in sorted order
+            'dist' uses genome distances (e.g. Mash)
+        selection_amount: int
+            The number of genomes to select.
+            If this is None, then the list will not be cut.
+
+        Returns
+        -------
+        A list of genome accessions.
+
+        """
+        def splice(a_list):
+            if selection_number and selection_number < len(a_list):
+                return a_list[0: selection_number]
+            else:
+                return a_list
+        if selection_type.startswith("random"):
+            shuffle(genome_list)
+            return splice(genome_list)
+        elif selection_type.startswith("sort"):
+            return splice(genome_sort(genome_list, index))
+        elif selection_type.startswith("dist"):
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
+
+
 class GenomeSelection:
     """The base class for genome selection strategies."""
     def __init__(self, index):
@@ -430,6 +470,70 @@ class AllGenomes(GenomeSelection):
         for accession in exclude:
             self.index['taxids'][parent][accession] = False
         return len(include)
+
+
+class TreeDist(GenomeSelection):
+    """Choose genomes with maximum distance in the taxonomic tree."""
+    def __init__(self, index, select_number, selection_type):
+        """
+        Initialize the class.
+
+        Parameters
+        ----------
+        index: dict
+            A dictionary representing the index of genomes.
+
+        """
+        super().__init__(index)
+        self.select_number = select_number
+        self.selection_type = selection_type
+        self.set_all_genomes(boolean=False)
+    
+    def _merge(self, l_lists):
+        """
+        Merge a list of lists into one list.  Choose elements so that
+        the first element of the first list is chosen first, and then the 
+        first element of the second list is chosen second, and so on.
+        
+        Parameters
+        ----------
+        l_lists: list
+            A list of lists to be merged.
+    
+        Returns
+        -------
+            A list that represents merged elements.
+        """
+        def cond(self, pos):
+            for i, l in enumerate(l_lists):
+                if pos[i] < len(l):
+                    return True
+            return False
+        new_list = []
+        pos = [0] * len(l_lists)
+        while cond(self, pos):
+            for i, l in enumerate(l_lists):
+                if pos[i] < len(l):
+                    new_list.append(l[i])
+                    pos[i] += 1
+        return new_list
+    
+    def select(self, parent, children, genome_lists):
+        if children: # Inner node
+            shuffle(genome_lists)
+            my_genomes = self._merge(genome_lists)[:self.select_number]
+            for accession in my_genomes:
+                self.index['taxids'][parent][accession] = True
+            return my_genomes
+        else: # Child node
+            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                        self.index)
+            my_genomes = select_genomes(include, self.index, 
+                                        selection_type=self.selection_type, 
+                                        selection_amount=self.select_number)
+            for accession in my_genomes:
+                self.index['taxids'][parent][accession] = True
+            return my_genomes
 
 
 class GenomeHoldout(GenomeSelection):

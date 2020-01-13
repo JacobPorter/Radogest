@@ -192,11 +192,12 @@ def main():
         "--strategy",
         '-s',
         action='store',
-        choices=['PR', 'QST', 'QSL', 'GHST', 'GHSL', 'GHGT', 'GHGL', 'AG'],
+        choices=['PR', 'QST', 'QSL', 'TD', 'GHST', 'GHSL', 'GHGT', 'GHGL', 'AG'],
         help=('Choose the genome selection strategy.  '
               'The choices are: ProportionalRandom (PR), '
               'QualitySortingTree (QST), '
-              'QualitySortingLeaf (QSL),'
+              'QualitySortingLeaf (QSL), '
+              'TreeDistance (TD), '
               'GenomeHoldoutSpeciesTree (GHST), '
               'GenomeHoldoutSpeciesLeaf (GHSL), '
               'GenomeHoldoutGenomeTree (GHGT), '
@@ -512,6 +513,7 @@ def main():
         from library.genome_selection.strategy import QualitySortingTree
         from library.genome_selection.strategy import QualitySortingLeaf
         from library.genome_selection.strategy import AllGenomes
+        from library.genome_selection.strategy import TreeDist
         from library.genome_selection.strategy import GHSpeciesLeaf
         from library.genome_selection.strategy import GHSpeciesTree
         from library.genome_selection.strategy import GHGenomeLeaf
@@ -519,6 +521,7 @@ def main():
         from library.genome_selection.strategy import EXCLUDED_GENOMES
         from library.genome_selection.traversal import StrategyNotFound
         from library.genome_selection.traversal import TaxTreeTraversal
+        from library.genome_selection.traversal import TaxTreeListTraversal
         strategy_string = args.strategy.upper()
         index = read_ds(args.index)
         tree = read_ds(args.tree)
@@ -561,14 +564,22 @@ def main():
                 raise StrategyNotFound()
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
+        elif strategy_string == 'TD':
+            strategy = TreeDist(index, 
+                                select_amount, 
+                                selection_type = "random" if args.random else "sort")
         else:
             raise StrategyNotFound()
         index["select"] = {
             "strategy": strategy_string,
             "select_amount": select_amount
         }
-        traversal = TaxTreeTraversal(tree, strategy)
-        levels_visited = traversal.select_genomes(args.taxid)
+        if strategy_string == 'TD':
+            traversal = TaxTreeListTraversal(tree, strategy)
+            levels_visited = traversal.select_genomes(args.taxid)[0]
+        else:
+            traversal = TaxTreeTraversal(tree, strategy)
+            levels_visited = traversal.select_genomes(args.taxid)
         if args.verbose >= 1:
             for accession in EXCLUDED_GENOMES:
                 print("WARNING: {} excluded because {}.".format(

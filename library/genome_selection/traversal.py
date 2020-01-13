@@ -36,3 +36,27 @@ class TaxTreeTraversal:
             levels_visited += self.select_genomes(child)
         self.selection_strategy.select(taxid, children)
         return 1 + levels_visited
+
+
+class TaxTreeListTraversal(TaxTreeTraversal):
+    """
+    Traverse the taxonomic tree and do genome selection with a
+    depth-first post order traversal.
+    """
+    def __init__(self, tree, selection_strategy):
+        """Save the input arguments."""
+        super.__init__(tree, selection_strategy)
+
+    def select_genomes(self, taxid):
+        """
+        Perform depth-first post order traversal of the taxonomic tree that
+        selects genomes at each level.
+        """
+        children = self.tree[taxid]
+        genome_lists = []
+        levels_visited = 0
+        for child in children:
+            levels_child, genomes_child = self.select_genomes(child)
+            genome_lists.append(genomes_child)
+            levels_visited += levels_child
+        return (1 + levels_visited, self.selection_strategy.select(taxid, children, genome_lists))
