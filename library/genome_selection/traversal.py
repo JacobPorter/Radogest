@@ -38,14 +38,15 @@ class TaxTreeTraversal:
         return 1 + levels_visited
 
 
-class TaxTreeListTraversal(TaxTreeTraversal):
+class TaxTreeListTraversal:
     """
     Traverse the taxonomic tree and do genome selection with a
     depth-first post order traversal.
     """
     def __init__(self, tree, selection_strategy):
         """Save the input arguments."""
-        super.__init__(tree, selection_strategy)
+        self.tree = tree
+        self.selection_strategy = selection_strategy
 
     def select_genomes(self, taxid):
         """

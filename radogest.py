@@ -566,8 +566,8 @@ def main():
             strategy = AllGenomes(index)
         elif strategy_string == 'TD':
             strategy = TreeDist(index, 
-                                select_amount, 
-                                selection_type = "random" if args.random else "sort")
+                                select_amount[0], 
+                                select_type = "random" if args.random else "sort")
         else:
             raise StrategyNotFound()
         index["select"] = {
