@@ -482,6 +482,10 @@ class TreeDist(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
+        select_amount: int
+            The amount of genomes to select.
+        select_type: str
+            Down selection method: random, sort
 
         """
         super().__init__(index)
@@ -503,6 +507,7 @@ class TreeDist(GenomeSelection):
         Returns
         -------
             A list that represents merged elements.
+        
         """
         def cond(self, pos):
             for i, l in enumerate(l_lists):
@@ -519,13 +524,31 @@ class TreeDist(GenomeSelection):
         return new_list
     
     def select(self, parent, children, genome_lists):
+        """
+        Select genomes to include.
+        
+        Parameters
+        ----------
+        parent: int
+            The taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+        genome_lists: list
+            A list of lists of genome accessions.
+        
+        Returns
+        -------
+            A list of genome accessions.
+        
+        """
         if children: # Inner node
             shuffle(genome_lists)
             my_genomes = self._merge(genome_lists)[:self.select_amount]
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
             return my_genomes
-        else: # Child node
+        else: # Leaf (species) node
             include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
             my_genomes = select_genomes(include, self.index, 
@@ -582,6 +605,89 @@ class GenomeHoldout(GenomeSelection):
             return genome_list
         else:
             return genome_sort(genome_list, self.index)
+
+
+class GHTreeDist(GenomeHoldout, TreeDist):
+    """Apply full genome holdout using the TreeDist traversal method. """
+    def __init__(self, index, select_amount, select_type):
+        """
+        Initialize the class.
+
+        Parameters
+        ----------
+        index: dict
+            A dictionary representing the index of genomes.
+        select_amount: int
+            The amount of genomes to select.
+        select_type: str
+            Down selection method: random, sort
+
+        """
+        super().__init__(index, select_amount, 
+                         random=0 if select_type == "sort" else 1)
+        self.downselect = select_type
+        
+    def select(self, parent, children, genome_lists):
+        """
+        Select genomes to include.
+        
+        Parameters
+        ----------
+        parent: int
+            The taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+        genome_lists: list
+            A list of lists of lists of genome accessions.
+            Each inner list has three lists for train, test, and singleton 
+            [[[] [] []] [[] [] []] [[] [] []]]
+        
+        Returns
+        -------
+            A list of genome accessions.
+        
+        """
+        if children: # Inner node
+            shuffle(genome_lists)
+            the_end_list = []
+            for i in range(3):
+                the_list = [item[i] for item in genome_lists]
+                my_genomes = self._merge(the_list)[:self.select_amount]
+                for accession in my_genomes:
+                    self.index['taxids'][parent][accession] = i + 1 if i < 2 else SINGLETON
+                the_end_list.append(my_genomes)
+            return the_end_list
+        else: # Leaf (species) node 
+            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                        self.index)
+            my_genomes = select_genomes(include, self.index, 
+                                        select_type=self.downselect,
+                                        select_amount=self.select_amount)
+            samples = [0] * self.num_categories
+            select_type = 0
+            if len(my_genomes) == 1:
+                for accession in my_genomes:
+                    self.index['taxids'][parent][accession] = SINGLETON
+                return [[], [], my_genomes]
+            selected_genomes = [[], [], []]
+            for accession in my_genomes:
+                if min([
+                        samples[i] >= self.select_amount[i]
+                        for i in range(self.num_categories)
+                ]):
+                    break
+                self.index['taxids'][parent][accession] = select_type + 1
+                selected_genomes[select_type].append(accession)
+                samples[select_type] += 1
+                for i in range(select_type + 1,
+                               select_type + +1 + self.num_categories):
+                    j = i % self.num_categories
+                    if samples[j] < self.select_amount[j]:
+                        select_type = j
+                        break
+            samples = sum(samples)
+            return selected_genomes
 
 
 class GHLeaf(GenomeHoldout):
