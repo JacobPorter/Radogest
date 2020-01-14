@@ -192,18 +192,20 @@ def main():
         "--strategy",
         '-s',
         action='store',
-        choices=['PR', 'QST', 'QSL', 'TD', 'GHST', 'GHSL', 'GHGT', 'GHGL', 'AG'],
+        choices=['PR', 'QST', 'QSL', 'TD', 
+                 'GHTD', 'GHST', 'GHSL', 'GHGT', 'GHGL', 'AG'],
         help=('Choose the genome selection strategy.  '
               'The choices are: ProportionalRandom (PR), '
               'QualitySortingTree (QST), '
               'QualitySortingLeaf (QSL), '
               'TreeDistance (TD), '
+              'GenomeHoldoutTreeDistance (GHTD), '
               'GenomeHoldoutSpeciesTree (GHST), '
               'GenomeHoldoutSpeciesLeaf (GHSL), '
               'GenomeHoldoutGenomeTree (GHGT), '
               'GenomeHoldoutGenomeLeaf (GHGL), '
               'AllGenomes (AG)'),
-        default='PR')
+        default='TD')
     p_select.add_argument('--select_amount',
                           '-n',
                           nargs='+',
@@ -514,6 +516,7 @@ def main():
         from library.genome_selection.strategy import QualitySortingLeaf
         from library.genome_selection.strategy import AllGenomes
         from library.genome_selection.strategy import TreeDist
+        from library.genome_selection.strategy import GHTreeDist
         from library.genome_selection.strategy import GHSpeciesLeaf
         from library.genome_selection.strategy import GHSpeciesTree
         from library.genome_selection.strategy import GHGenomeLeaf
@@ -560,6 +563,10 @@ def main():
                 strategy = GHGenomeTree(index,
                                         select_amount,
                                         random=args.random)
+            elif strategy_string == 'GHTD':
+                strategy = GHTreeDist(index, 
+                                      select_amount, 
+                                      select_type = "random" if args.random else "sort")
             else:
                 raise StrategyNotFound()
         elif strategy_string == 'AG':
@@ -574,7 +581,7 @@ def main():
             "strategy": strategy_string,
             "select_amount": select_amount
         }
-        if strategy_string == 'TD':
+        if strategy_string == 'TD' or strategy_string == 'GHTD':
             traversal = TaxTreeListTraversal(tree, strategy)
             levels_visited = traversal.select_genomes(args.taxid)[0]
         else:

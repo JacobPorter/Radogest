@@ -211,6 +211,7 @@ class GenomeSelection:
             A dictionary representing the index of genomes.
 
         """
+        print("GenomeSelection")
         self.index = index
 
     def set_all_genomes(self, boolean=False):
@@ -488,6 +489,7 @@ class TreeDist(GenomeSelection):
             Down selection method: random, sort
 
         """
+        print("TreeDist")
         super().__init__(index)
         self.select_amount = select_amount
         self.select_type = select_type
@@ -574,7 +576,8 @@ class GenomeHoldout(GenomeSelection):
             to select at each level.
 
         """
-        super().__init__(index)
+        print("GenomeHoldout")
+        GenomeSelection.__init__(self, index)
         self.select_amount = select_amount
         # 1 is train, 2 is test,
         # 3 is validate (if applicable, may not be implemented.).
@@ -623,8 +626,8 @@ class GHTreeDist(GenomeHoldout, TreeDist):
             Down selection method: random, sort
 
         """
-        super().__init__(index, select_amount, 
-                         random=0 if select_type == "sort" else 1)
+        GenomeHoldout.__init__(self, index, select_amount, 
+                               0 if select_type == "sort" else 1)
         self.downselect = select_type
         
     def select(self, parent, children, genome_lists):
@@ -653,7 +656,7 @@ class GHTreeDist(GenomeHoldout, TreeDist):
             the_end_list = []
             for i in range(3):
                 the_list = [item[i] for item in genome_lists]
-                my_genomes = self._merge(the_list)[:self.select_amount]
+                my_genomes = self._merge(the_list)[:self.select_amount[i % 2]]
                 for accession in my_genomes:
                     self.index['taxids'][parent][accession] = i + 1 if i < 2 else SINGLETON
                 the_end_list.append(my_genomes)
@@ -663,7 +666,7 @@ class GHTreeDist(GenomeHoldout, TreeDist):
                                         self.index)
             my_genomes = select_genomes(include, self.index, 
                                         select_type=self.downselect,
-                                        select_amount=self.select_amount)
+                                        select_amount=None)
             samples = [0] * self.num_categories
             select_type = 0
             if len(my_genomes) == 1:
