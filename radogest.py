@@ -8,8 +8,8 @@ NCBI (National Center for Biotechnology Information)
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: genome holdout genome methods are not splitting the 
-# appropriate number of genomes between test and train sets.  
+# TODO: genome holdout genome methods are not splitting the
+# appropriate number of genomes between test and train sets.
 # Example: taxid 89373.
 # TODO: Exclude species, levels? where there are too few genomes.
 
@@ -183,34 +183,55 @@ def main():
         help=('Create genome sketches.'),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p_sketch.add_argument("directory", type=str)
-    p_sketch.add_argument("--kmer_size", "-k", type=int, help=("The kmer size for the sketch 1-32"), default=21)
-    p_sketch.add_argument("--sketch_size", "-s", type=int, help=("The sketch size."), 
+    p_sketch.add_argument("--kmer_size",
+                          "-k",
+                          type=int,
+                          help=("The kmer size for the sketch. 1-32"),
+                          default=21)
+    p_sketch.add_argument("--sketch_size",
+                          "-s",
+                          type=int,
+                          help=("The sketch size."),
                           default=5000)
     p_sketch.add_argument("--processes",
-                       "-p",
-                       type=int,
-                       default=1,
-                       help=("The number of processes to use."))
-    p_cluster = subparsers.add_parser(
-        "cluster",
-        help=('Compute a hierarchical cluster tree of genomes for each species.'),
+                          "-p",
+                          type=int,
+                          default=1,
+                          help=("The number of processes to use."))
+    p_dist = subparsers.add_parser(
+        "dist",
+        help=(
+            'Compute a distance matrix of genomes for each species.'
+        ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # root_dir, root_taxid, tree, index, output_dir, processes=1
-    p_cluster.add_argument("output_dir", type=str, help=("The directory to output the "
-                                               "results of the clusters.  "
-                                               "This will be used to save a "
-                                               "matrix for all of the species "
-                                               "taxids under the root taxid."))
-    p_cluster.add_argument("--root_taxid", "-t", help=("The root taxid for the tree to do clustering."), type=str, default=1)
-    p_cluster.add_argument("--root_dir", "-r", type=str,
+    p_dist.add_argument("output_dir",
+                           type=str,
+                           help=("The directory to output the "
+                                 "results of the clusters.  "
+                                 "This will be used to save a "
+                                 "matrix for all of the species "
+                                 "taxids under the root taxid."))
+    p_dist.add_argument(
+        "--root_taxid",
+        "-t",
+        help=("The root taxid for the tree to do clustering."),
+        type=int,
+        default=1)
+    p_dist.add_argument("--root_dir",
+                           "-d",
+                           type=str,
                            help=("The root directory that contains "
                                  "all of the genomes where the index "
-                                 "was built."), 
+                                 "was built."),
                            default="./")
-    p_cluster.add_argument(*index.args, **index.kwargs)
-    p_cluster.add_argument(*tree.args, **tree.kwargs)
-    p_cluster.add_argument("--processes", "-p", type=int, 
-                           help=("The number of processes to use."), default=1)
+    p_dist.add_argument(*index.args, **index.kwargs)
+    p_dist.add_argument(*tree.args, **tree.kwargs)
+    p_dist.add_argument("--processes",
+                           "-p",
+                           type=int,
+                           help=("The number of processes to use."),
+                           default=1)
     p_select = subparsers.add_parser(
         "select",
         help=("Select which genomes to "
@@ -223,24 +244,25 @@ def main():
                           type=int,
                           help=('The taxonomic id for '
                                 'the root.'))
-    p_select.add_argument(
-        "--strategy",
-        '-s',
-        action='store',
-        choices=['PR', 'QST', 'QSL', 'TD', 
-                 'GHTD', 'GHST', 'GHSL', 'GHGT', 'GHGL', 'AG'],
-        help=('Choose the genome selection strategy.  '
-              'The choices are: ProportionalRandom (PR), '
-              'QualitySortingTree (QST), '
-              'QualitySortingLeaf (QSL), '
-              'TreeDistance (TD), '
-              'GenomeHoldoutTreeDistance (GHTD), '
-              'GenomeHoldoutSpeciesTree (GHST), '
-              'GenomeHoldoutSpeciesLeaf (GHSL), '
-              'GenomeHoldoutGenomeTree (GHGT), '
-              'GenomeHoldoutGenomeLeaf (GHGL), '
-              'AllGenomes (AG)'),
-        default='TD')
+    p_select.add_argument("--strategy",
+                          '-s',
+                          action='store',
+                          choices=[
+                              'PR', 'QST', 'QSL', 'TD', 'GHTD', 'GHST', 'GHSL',
+                              'GHGT', 'GHGL', 'AG'
+                          ],
+                          help=('Choose the genome selection strategy.  '
+                                'The choices are: ProportionalRandom (PR), '
+                                'QualitySortingTree (QST), '
+                                'QualitySortingLeaf (QSL), '
+                                'TreeDistance (TD), '
+                                'GenomeHoldoutTreeDistance (GHTD), '
+                                'GenomeHoldoutSpeciesTree (GHST), '
+                                'GenomeHoldoutSpeciesLeaf (GHSL), '
+                                'GenomeHoldoutGenomeTree (GHGT), '
+                                'GenomeHoldoutGenomeLeaf (GHGL), '
+                                'AllGenomes (AG)'),
+                          default='TD')
     p_select.add_argument('--select_amount',
                           '-n',
                           nargs='+',
@@ -547,20 +569,21 @@ def main():
                 print(taxid, file=taxid_file)
     elif mode == "sketch":
         from library.sketch import sketch_root
-        ret_code = sketch_root(args.directory, 
-                               args.kmer_size, 
-                               args.sketch_size, 
-                               args.processes)
-        print("The sketches were completed. [{}]".format(ret_code), 
+        ret_code = sketch_root(args.directory, args.kmer_size,
+                               args.sketch_size, args.processes)
+        print("The sketches were completed. [{}]".format(ret_code),
               file=sys.stderr)
-    elif mode == "cluster":
-        from library.cluster import cluster_all
-        ret_value = cluster_all(args.root_dir, args.root_taxid,
-                                read_ds(args.tree),
-                                read_ds(args.index),
-                                args.output_dir,
-                                processes=args.processes)
-        print("The number of clusters produced: {}".format(ret_value), 
+    elif mode == "dist":
+        from library.dist import dist_all
+        attempted, failed = dist_all(args.root_dir,
+                                        args.root_taxid,
+                                        read_ds(args.tree),
+                                        read_ds(args.index),
+                                        args.output_dir,
+                                        processes=args.processes)
+        print("The number of distance matrices produced: {}".format(attempted - failed),
+              file=sys.stderr)
+        print("The number of distance matrices that failed: {}".format(failed),
               file=sys.stderr)
     elif mode == "select":
         from library.genome_selection.strategy import ProportionalRandom
@@ -616,17 +639,19 @@ def main():
                                         select_amount,
                                         random=args.random)
             elif strategy_string == 'GHTD':
-                strategy = GHTreeDist(index, 
-                                      select_amount, 
-                                      select_type = "random" if args.random else "sort")
+                strategy = GHTreeDist(
+                    index,
+                    select_amount,
+                    select_type="random" if args.random else "sort")
             else:
                 raise StrategyNotFound()
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
         elif strategy_string == 'TD':
-            strategy = TreeDist(index, 
-                                select_amount[0],
-                                select_type = "random" if args.random else "sort")
+            strategy = TreeDist(
+                index,
+                select_amount[0],
+                select_type="random" if args.random else "sort")
         else:
             raise StrategyNotFound()
         index["select"] = {

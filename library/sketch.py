@@ -51,6 +51,23 @@ def sketch(genome_file, output, k, s, sketch_prog=MASH_LOC):
 
 def sketch_dir(path, files, k, s):
     """
+    For a directory, produce sketches for all fasta files in that directory.
+
+    Parameters
+    ----------
+    path: str
+        The location of a directory.
+    files: list
+        A list of all of the files in the directory path
+    k: int
+        The number of k-mers in a sketch (For mash, [1-32])
+    s: int
+        The sketch size.
+
+    Parameters
+    ----------
+    int
+        Return code.  1 if abnormal.  0 if normal.
 
     """
     ret_codes = []
@@ -60,16 +77,30 @@ def sketch_dir(path, files, k, s):
             f, FASTA_ENDINGS, addition=".gz")
         if len_end:
             genome_file = os.path.join(path, f)
-            ret_codes.append(
-                sketch(genome_file,
-                       genome_file,
-                       k, s))
-                       # genome_file[0:len(genome_file) - len_end - 1], k, s))
+            ret_codes.append(sketch(genome_file, genome_file, k, s))
     return 1 if any(ret_codes) else 0
 
 
 def sketch_root(root_directory, k, s, processes=1):
     """
+    Produce sketches for all fasta files under a directory and its subdirectories.
+
+    Parameters
+    ----------
+    root_directory: str
+        The root directory where fasta files are located.
+    k: int
+        The number of k-mers in a sketch (For mash, [1-32])
+    s: int
+        The sketch size.
+    processes: int
+        The number of processes to use for parallelism.
+        Each process takes a directory.
+
+    Returns:
+    -------
+    int
+        A return code.  If everything went well, then 0, else non-0.
 
     """
     pool = Pool(processes=processes)
