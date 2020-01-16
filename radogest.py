@@ -8,7 +8,9 @@ NCBI (National Center for Biotechnology Information)
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: genome holdout genome methods are not splitting the appropriate number of genomes between test and train sets.  Example: taxid 89373.
+# TODO: genome holdout genome methods are not splitting the 
+# appropriate number of genomes between test and train sets.  
+# Example: taxid 89373.
 # TODO: Exclude species, levels? where there are too few genomes.
 
 import argparse
@@ -176,6 +178,19 @@ def main():
     p_tree.add_argument(*tree.args, **tree.kwargs)
     p_tree.add_argument(*taxid.args, **taxid.kwargs)
     p_tree.add_argument(*verbose.args, **verbose.kwargs)
+    p_sketch = subparsers.add_parser(
+        "sketch",
+        help=('Create genome sketches.'),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p_sketch.add_argument("directory", type=str)
+    p_sketch.add_argument("--kmer_size", "-k", type=int, help=("The kmer size for the sketch 1-32"), default=21)
+    p_sketch.add_argument("--sketch_size", "-s", type=int, help=("The sketch size."), 
+                          default=5000)
+    p_sketch.add_argument("--processes",
+                       "-p",
+                       type=int,
+                       default=1,
+                       help=("The number of processes to use."))
     p_select = subparsers.add_parser(
         "select",
         help=("Select which genomes to "
@@ -510,6 +525,14 @@ def main():
         with open(args.taxid, "w") as taxid_file:
             for taxid in taxid_list:
                 print(taxid, file=taxid_file)
+    elif mode == "sketch":
+        from library.sketch import sketch_root
+        ret_code = sketch_root(args.directory, 
+                               args.kmer_size, 
+                               args.sketch_size, 
+                               args.processes)
+        print("The sketches were completed. [{}]".format(ret_code), 
+              file=sys.stderr)
     elif mode == "select":
         from library.genome_selection.strategy import ProportionalRandom
         from library.genome_selection.strategy import QualitySortingTree
