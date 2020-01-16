@@ -6,9 +6,15 @@ Genome selection strategies.
 """
 
 import sys
+import os
+import pickle
 from collections import defaultdict
 from itertools import accumulate, chain
 from random import random, shuffle
+
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering
+
 
 EXCLUDED_GENOMES = {}
 
@@ -16,6 +22,7 @@ EXCLUDED_GENOMES = {}
 # when a taxid has a single genome.
 SINGLETON = -1
 
+EPS = 2e-24
 
 def filter_genomes(accessions, index):
     """
@@ -199,6 +206,33 @@ def select_genomes(genome_list, index, select_type="random", select_amount=None)
             raise NotImplementedError
 
 
+def cluster(taxid, n_clusters, dist_location):
+    dist_taxid = os.path.join(dist_location, str(taxid))
+    if not os.path.isdir(dist_taxid):
+        return None
+    X = np.load(dist_taxid + str(taxid) + "_X.npy")
+    mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck"))
+    if n_clusters > len(mapping):
+        return list(mapping.keys())
+    labels = AgglomerativeClustering(n_clusters=n_clusters,
+                                     affinity="precomputed",
+                                     linkage="average").fit(X).labels_
+    id_label = defaultdict([])
+    genome_list = []
+    for i, label in enumerate(labels):
+        id_label[label].append(i)
+    for label in id_label:
+        rows={}
+        shuffle(id_label[label])
+        for i in id_label[label]:
+            rows[i] = sum([X[i][j] for j in id_label[label]])
+        min_value = min(rows.values())
+        min_pos = [pos for pos in rows if abs(rows[pos] - min_value) <= EPS][0]
+        genome_list.append(mapping[min_pos])
+    return genome_list
+        
+                
+                                        
 class GenomeSelection:
     """The base class for genome selection strategies."""
     def __init__(self, index):
