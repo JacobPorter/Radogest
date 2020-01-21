@@ -8,12 +8,13 @@ Genome selection strategies.
 import sys
 import os
 import pickle
-from collections import defaultdict
+from collections import defaultdict, Counter
 from itertools import accumulate, chain
 from random import random, shuffle
 
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
+from pip._internal.utils.misc import dist_location
 
 
 EXCLUDED_GENOMES = {}
@@ -166,7 +167,9 @@ def select_equal(list_lists, select_amount):
     return output_list
 
 
-def select_genomes(genome_list, index, select_type="random", select_amount=None):
+def select_genomes(genome_list, index, taxid, 
+                   select_type="random", select_amount=None, 
+                   dist_location=None):
         """
         Get a list of genomes in a sorted list or in a random list.
 
@@ -176,6 +179,8 @@ def select_genomes(genome_list, index, select_type="random", select_amount=None)
             A list of genome accessions.
         index: dict
             The Radogest index structure
+        taxid: int
+            The taxonomic id associated with the genome list.
         select_type: str
             The type of list ordering to perform.
             'random' puts the list in random order
@@ -184,6 +189,8 @@ def select_genomes(genome_list, index, select_type="random", select_amount=None)
         select_amount: int
             The number of genomes to select.
             If this is None, then the list will not be cut.
+        dist_location: str
+            The location of the distance matrices, if any.
 
         Returns
         -------
@@ -201,15 +208,42 @@ def select_genomes(genome_list, index, select_type="random", select_amount=None)
         elif select_type.startswith("sort"):
             return splice(genome_sort(genome_list, index))
         elif select_type.startswith("dist"):
-            raise NotImplementedError
+            genome_list, _, _, _ = cluster(taxid, select_amount, dist_location)
+            return genome_list
         else:
             raise NotImplementedError
 
 
 def cluster(taxid, n_clusters, dist_location):
+    """
+    Get genomes representing each cluster from a taxid.
+    The genomes are sorted in descending order of cluster size.
+    
+    Parameters
+    ----------
+    taxid: int
+        The taxonomic id to get clusters for.
+    n_clusters: int
+        The number of clusters to request.
+    dist_location:
+        The directory where distances are stored.
+        
+    Returns
+    -------
+    genome_list: list
+        A list of up to n_clusters genomes.
+    labels: numpy array
+        A list of cluster labels
+    X: numpy array
+        The distances between genomes.
+    mapping: dict
+        A mapping of label positions to genome ids. 
+    
+    """
     dist_taxid = os.path.join(dist_location, str(taxid))
     if not os.path.isdir(dist_taxid):
         return None
+    # Get the distances and cluster the genomes.
     X = np.load(dist_taxid + str(taxid) + "_X.npy")
     mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck"))
     if n_clusters > len(mapping):
@@ -217,10 +251,14 @@ def cluster(taxid, n_clusters, dist_location):
     labels = AgglomerativeClustering(n_clusters=n_clusters,
                                      affinity="precomputed",
                                      linkage="average").fit(X).labels_
+    # Find a genome that best represents the cluster
+    # by finding the genome that has the least distance from 
+    # all other genomes.
     id_label = defaultdict([])
     genome_list = []
     for i, label in enumerate(labels):
         id_label[label].append(i)
+    labels_count = Counter(labels)
     for label in id_label:
         rows={}
         shuffle(id_label[label])
@@ -228,10 +266,12 @@ def cluster(taxid, n_clusters, dist_location):
             rows[i] = sum([X[i][j] for j in id_label[label]])
         min_value = min(rows.values())
         min_pos = [pos for pos in rows if abs(rows[pos] - min_value) <= EPS][0]
-        genome_list.append(mapping[min_pos])
-    return genome_list
-        
-                
+        genome_list.append((mapping[min_pos], label, labels_count[label]))
+    # Sort the genomes in descending order of cluster size.
+    genome_list.sort(key=lambda x: x[2], reverse=True)
+    genome_list = [item[0] for item in genome_list]
+    return genome_list, labels, X, mapping
+
                                         
 class GenomeSelection:
     """The base class for genome selection strategies."""
@@ -509,7 +549,7 @@ class AllGenomes(GenomeSelection):
 
 class TreeDist(GenomeSelection):
     """Choose genomes with maximum distance in the taxonomic tree."""
-    def __init__(self, index, select_amount, select_type):
+    def __init__(self, index, select_amount, select_type, dist_location):
         """
         Initialize the class.
 
@@ -527,6 +567,7 @@ class TreeDist(GenomeSelection):
         super().__init__(index)
         self.select_amount = select_amount
         self.select_type = select_type
+        self.dist_location = dist_location
         self.set_all_genomes(boolean=False)
     
     def _merge(self, l_lists):
@@ -587,9 +628,10 @@ class TreeDist(GenomeSelection):
         else: # Leaf (species) node
             include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
-            my_genomes = select_genomes(include, self.index, 
+            my_genomes = select_genomes(include, self.index, parent,
                                         select_type=self.select_type, 
-                                        select_amount=self.select_amount)
+                                        select_amount=self.select_amount,
+                                        dist_location=self.dist_location)
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
             return my_genomes
@@ -646,7 +688,7 @@ class GenomeHoldout(GenomeSelection):
 
 class GHTreeDist(GenomeHoldout, TreeDist):
     """Apply full genome holdout using the TreeDist traversal method. """
-    def __init__(self, index, select_amount, select_type):
+    def __init__(self, index, select_amount, select_type, dist_location):
         """
         Initialize the class.
 
@@ -662,6 +704,7 @@ class GHTreeDist(GenomeHoldout, TreeDist):
         """
         GenomeHoldout.__init__(self, index, select_amount, 
                                0 if select_type == "sort" else 1)
+        self.dist_location = dist_location
         self.downselect = select_type
         
     def select(self, parent, children, genome_lists):
@@ -698,9 +741,10 @@ class GHTreeDist(GenomeHoldout, TreeDist):
         else: # Leaf (species) node 
             include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
-            my_genomes = select_genomes(include, self.index, 
+            my_genomes = select_genomes(include, self.index, parent, 
                                         select_type=self.downselect,
-                                        select_amount=None)
+                                        select_amount=None,
+                                        dist_location=self.dist_location)
             samples = [0] * self.num_categories
             select_type = 0
             if len(my_genomes) == 1:

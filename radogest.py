@@ -276,14 +276,17 @@ def main():
                                 'data, and the second one for '
                                 'testing data.'),
                           default=[10])
-    p_select.add_argument('--random',
+    p_select.add_argument('--downselect',
                           '-d',
-                          action='store_true',
-                          help="Select genomes at random rather than sort "
-                          "them by quality when selecting genomes for "
-                          "genome holdout strategies.  This option only "
-                          "applies to genome holdout strategies.",
-                          default=False)
+                          type=str,
+                          choices=["sort", "random", "dist"],
+                          help="Choose how to downselect genomes.  If dist is chosen, then sketches and distance matrices must be computed and dist_location must be given.",
+                          default="sort")
+    p_select.add_argument("--dist_location",
+                          "-l",
+                          type=str,
+                          help="The location of the precomputed distance matrices for the 'dist' downselection.",
+                          default="./distances")
     p_select.add_argument('--output',
                           '-o',
                           type=str,
@@ -604,6 +607,12 @@ def main():
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         select_amount = args.select_amount
+        if args.downselect == "sort":
+            radon = 0
+        elif args.downselect == "random":
+            radon = 1
+        else:
+            radon = 3
         if not min(list(map(lambda x: x > 0, select_amount))):
             parser.error('The sample amount needs to be a positive integer.')
         if strategy_string == 'PR':
@@ -623,26 +632,27 @@ def main():
             if strategy_string == 'GHSL':
                 strategy = GHSpeciesLeaf(index,
                                          select_amount,
-                                         random=args.random)
+                                         random=radon)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHST':
                 strategy = GHSpeciesTree(index,
                                          select_amount,
-                                         random=args.random)
+                                         random=radon)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHGL':
                 strategy = GHGenomeLeaf(index,
                                         select_amount,
-                                        random=args.random)
+                                        random=radon)
             elif strategy_string == 'GHGT':
                 strategy = GHGenomeTree(index,
                                         select_amount,
-                                        random=args.random)
+                                        random=radon)
             elif strategy_string == 'GHTD':
                 strategy = GHTreeDist(
                     index,
                     select_amount,
-                    select_type="random" if args.random else "sort")
+                    args.downselect,
+                    args.dist_location)
             else:
                 raise StrategyNotFound()
         elif strategy_string == 'AG':
@@ -651,7 +661,8 @@ def main():
             strategy = TreeDist(
                 index,
                 select_amount[0],
-                select_type="random" if args.random else "sort")
+                args.downselect,
+                args.dist_location)
         else:
             raise StrategyNotFound()
         index["select"] = {
