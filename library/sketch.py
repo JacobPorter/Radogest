@@ -7,6 +7,7 @@ This can be used to create distances and cluster genomes.
 """
 
 import os
+import sys
 import subprocess
 from multiprocessing import Pool
 
@@ -46,19 +47,14 @@ def sketch(genome_file, output, k, s, sketch_prog=MASH_LOC):
         str(k), "-s",
         str(s), "-o", output, genome_file
     ], capture_output=True)
-    output = cp.stdout
-    for line in output:
-        if line.startswith("Writing"):
-            output = line.strip()
-            break
-    else:
-        output = ""
+    output = cp.stderr.decode()
     return cp.returncode, output
 
 
 def sketch_dir(path, files, k, s):
     """
     For a directory, produce sketches for all fasta files in that directory.
+    Does not search subdirectories.
 
     Parameters
     ----------
@@ -78,14 +74,17 @@ def sketch_dir(path, files, k, s):
 
     """
     ret_codes = []
+    out_statements = []
     for f in files:
         len_end = name_ends(f, FASTA_ENDINGS, addition="")
         len_end = len_end if len_end else name_ends(
             f, FASTA_ENDINGS, addition=".gz")
         if len_end:
             genome_file = os.path.join(path, f)
-            ret_codes.append(sketch(genome_file, genome_file, k, s))
-    return 1 if any(ret_codes) else 0
+            ret = sketch(genome_file, genome_file, k, s)
+            ret_codes.append(ret[0])
+            out_statements.append(ret[1])
+    return 1 if any(ret_codes) else 0, out_statements
 
 
 def sketch_root(root_directory, k, s, processes=1):
@@ -118,5 +117,7 @@ def sketch_root(root_directory, k, s, processes=1):
     for pd in pd_list:
         out = pd.get()
         retcode = retcode ^ out[0]
-        print(out[1])
+        for s in out[1]:
+            print(s, file=sys.stderr)
+            sys.stderr.flush()
     return retcode
