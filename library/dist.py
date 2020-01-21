@@ -69,8 +69,14 @@ def distance_matrix(taxid, sketch_locs, square=True):
 
     """
     n = len(sketch_locs)
-    if n <= 1:
-        return 1, None
+    if n == 1:
+        # Is it better to return an empty matrix?
+        return (1, None, None, None)
+#         return (0, taxid, 
+#                 numpy.zeros((1,1)), 
+#                 {0: list(sketch_locs.keys())[0]})
+    elif n == 0:
+        return (1, None, None, None)
     genome_pos_map = {}
     pos_genome_map = {}
     for i, genome in enumerate(sketch_locs.keys()):

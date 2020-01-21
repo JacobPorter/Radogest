@@ -45,8 +45,15 @@ def sketch(genome_file, output, k, s, sketch_prog=MASH_LOC):
         sketch_prog, "sketch", "-k",
         str(k), "-s",
         str(s), "-o", output, genome_file
-    ])
-    return cp.returncode
+    ], capture_output=True)
+    output = cp.stdout
+    for line in output:
+        if line.startswith("Writing"):
+            output = line.strip()
+            break
+    else:
+        output = ""
+    return cp.returncode, output
 
 
 def sketch_dir(path, files, k, s):
@@ -109,5 +116,7 @@ def sketch_root(root_directory, k, s, processes=1):
     for path, _, files in os.walk(root_directory):
         pd_list.append(pool.apply_async(sketch_dir, args=(path, files, k, s)))
     for pd in pd_list:
-        retcode = retcode ^ pd.get()
+        out = pd.get()
+        retcode = retcode ^ out[0]
+        print(out[1])
     return retcode

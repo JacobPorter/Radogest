@@ -23,6 +23,9 @@ SINGLETON = -1
 
 EPS = 2e-24
 
+class ClusterError(Exception):
+    pass
+
 
 def filter_genomes(accessions, index):
     """
@@ -211,19 +214,29 @@ def select_genomes(genome_list,
     elif select_type.startswith("sort"):
         return splice(genome_sort(genome_list, index))
     elif select_type.startswith("dist"):
-        genome_list, _, _, _ = cluster(taxid, select_amount, dist_location)
-        return genome_list
+        genomes_clustered = cluster(genome_list, 
+                                   taxid, 
+                                   select_amount, 
+                                   dist_location)
+        if taxid == 5755:
+            print("Taxid:{}".format(taxid))
+            print(genome_list)
+            for item in genomes_clustered:
+                print(item)
+        return genomes_clustered[0]
     else:
         raise NotImplementedError
 
 
-def cluster(taxid, n_clusters, dist_location):
+def cluster(genome_list, taxid, n_clusters, dist_location):
     """
     Get genomes representing each cluster from a taxid.
     The genomes are sorted in descending order of cluster size.
 
     Parameters
     ----------
+    genome_list: list
+            A list of genome accessions.
     taxid: int
         The taxonomic id to get clusters for.
     n_clusters: int
@@ -243,21 +256,26 @@ def cluster(taxid, n_clusters, dist_location):
         A mapping of label positions to genome ids.
 
     """
+    # Check the location of the distances.
+    if len(genome_list) == 1:
+        return (genome_list, np.ones((1,1)), 
+                np.zeros((1,1)), {0: genome_list[0]})
     dist_taxid = os.path.join(dist_location, str(taxid))
     if not os.path.isdir(dist_taxid):
-        return None
+        raise ClusterError("The distance location path was not a directory:{}".format(dist_taxid))
     # Get the distances and cluster the genomes.
+    dist_taxid += "/"
     X = np.load(dist_taxid + str(taxid) + "_X.npy")
-    mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck"))
+    mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck", "rb"))
     if n_clusters > len(mapping):
-        return list(mapping.keys())
+        return [genome_list]
     labels = AgglomerativeClustering(n_clusters=n_clusters,
                                      affinity="precomputed",
                                      linkage="average").fit(X).labels_
     # Find a genome that best represents the cluster
     # by finding the genome that has the least distance from
     # all other genomes.
-    id_label = defaultdict([])
+    id_label = defaultdict(list)
     genome_list = []
     for i, label in enumerate(labels):
         id_label[label].append(i)
@@ -288,7 +306,6 @@ class GenomeSelection:
             A dictionary representing the index of genomes.
 
         """
-        print("GenomeSelection")
         self.index = index
 
     def set_all_genomes(self, boolean=False):
@@ -566,7 +583,6 @@ class TreeDist(GenomeSelection):
             Down selection method: random, sort
 
         """
-        print("TreeDist")
         super().__init__(index)
         self.select_amount = select_amount
         self.select_type = select_type
