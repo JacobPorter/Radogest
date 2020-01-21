@@ -200,38 +200,35 @@ def main():
                           help=("The number of processes to use."))
     p_dist = subparsers.add_parser(
         "dist",
-        help=(
-            'Compute a distance matrix of genomes for each species.'
-        ),
+        help=('Compute a distance matrix of genomes for each species.'),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # root_dir, root_taxid, tree, index, output_dir, processes=1
     p_dist.add_argument("output_dir",
-                           type=str,
-                           help=("The directory to output the "
-                                 "results of the clusters.  "
-                                 "This will be used to save a "
-                                 "matrix for all of the species "
-                                 "taxids under the root taxid."))
-    p_dist.add_argument(
-        "--root_taxid",
-        "-t",
-        help=("The root taxid for the tree to do clustering."),
-        type=int,
-        default=1)
+                        type=str,
+                        help=("The directory to output the "
+                              "results of the clusters.  "
+                              "This will be used to save a "
+                              "matrix for all of the species "
+                              "taxids under the root taxid."))
+    p_dist.add_argument("--root_taxid",
+                        "-t",
+                        help=("The root taxid for the tree to do clustering."),
+                        type=int,
+                        default=1)
     p_dist.add_argument("--root_dir",
-                           "-d",
-                           type=str,
-                           help=("The root directory that contains "
-                                 "all of the genomes where the index "
-                                 "was built."),
-                           default="./")
+                        "-d",
+                        type=str,
+                        help=("The root directory that contains "
+                              "all of the genomes where the index "
+                              "was built."),
+                        default="./")
     p_dist.add_argument(*index.args, **index.kwargs)
     p_dist.add_argument(*tree.args, **tree.kwargs)
     p_dist.add_argument("--processes",
-                           "-p",
-                           type=int,
-                           help=("The number of processes to use."),
-                           default=1)
+                        "-p",
+                        type=int,
+                        help=("The number of processes to use."),
+                        default=1)
     p_select = subparsers.add_parser(
         "select",
         help=("Select which genomes to "
@@ -280,12 +277,17 @@ def main():
                           '-d',
                           type=str,
                           choices=["sort", "random", "dist"],
-                          help="Choose how to downselect genomes.  If dist is chosen, then sketches and distance matrices must be computed and dist_location must be given.",
+                          help=("Choose how to downselect genomes.  "
+                                "If dist is chosen, then sketches "
+                                "and distance matrices must be computed. "
+                                "dist_location must be given."),
                           default="sort")
     p_select.add_argument("--dist_location",
                           "-l",
                           type=str,
-                          help="The location of the precomputed distance matrices for the 'dist' downselection.",
+                          help=("The location of the "
+                                "precomputed distance matrices "
+                                "for the 'dist' downselection."),
                           default="./distances")
     p_select.add_argument('--output',
                           '-o',
@@ -579,12 +581,13 @@ def main():
     elif mode == "dist":
         from library.dist import dist_all
         attempted, failed = dist_all(args.root_dir,
-                                        args.root_taxid,
-                                        read_ds(args.tree),
-                                        read_ds(args.index),
-                                        args.output_dir,
-                                        processes=args.processes)
-        print("The number of distance matrices produced: {}".format(attempted - failed),
+                                     args.root_taxid,
+                                     read_ds(args.tree),
+                                     read_ds(args.index),
+                                     args.output_dir,
+                                     processes=args.processes)
+        print("The number of distance matrices produced: {}".format(attempted -
+                                                                    failed),
               file=sys.stderr)
         print("The number of distance matrices that failed: {}".format(failed),
               file=sys.stderr)
@@ -630,39 +633,25 @@ def main():
             warning = ("Species holdout strategies may not make sense "
                        "for selecting genera.")
             if strategy_string == 'GHSL':
-                strategy = GHSpeciesLeaf(index,
-                                         select_amount,
-                                         random=radon)
+                strategy = GHSpeciesLeaf(index, select_amount, random=radon)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHST':
-                strategy = GHSpeciesTree(index,
-                                         select_amount,
-                                         random=radon)
+                strategy = GHSpeciesTree(index, select_amount, random=radon)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHGL':
-                strategy = GHGenomeLeaf(index,
-                                        select_amount,
-                                        random=radon)
+                strategy = GHGenomeLeaf(index, select_amount, random=radon)
             elif strategy_string == 'GHGT':
-                strategy = GHGenomeTree(index,
-                                        select_amount,
-                                        random=radon)
+                strategy = GHGenomeTree(index, select_amount, random=radon)
             elif strategy_string == 'GHTD':
-                strategy = GHTreeDist(
-                    index,
-                    select_amount,
-                    args.downselect,
-                    args.dist_location)
+                strategy = GHTreeDist(index, select_amount, args.downselect,
+                                      args.dist_location)
             else:
                 raise StrategyNotFound()
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
         elif strategy_string == 'TD':
-            strategy = TreeDist(
-                index,
-                select_amount[0],
-                args.downselect,
-                args.dist_location)
+            strategy = TreeDist(index, select_amount[0], args.downselect,
+                                args.dist_location)
         else:
             raise StrategyNotFound()
         index["select"] = {

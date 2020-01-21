@@ -5,17 +5,15 @@ Genome selection strategies.
     Jacob Porter <jsporter@vt.edu>
 """
 
-import sys
 import os
 import pickle
-from collections import defaultdict, Counter
+import sys
+from collections import Counter, defaultdict
 from itertools import accumulate, chain
 from random import random, shuffle
 
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
-from pip._internal.utils.misc import dist_location
-
 
 EXCLUDED_GENOMES = {}
 
@@ -24,6 +22,7 @@ EXCLUDED_GENOMES = {}
 SINGLETON = -1
 
 EPS = 2e-24
+
 
 def filter_genomes(accessions, index):
     """
@@ -167,10 +166,13 @@ def select_equal(list_lists, select_amount):
     return output_list
 
 
-def select_genomes(genome_list, index, taxid, 
-                   select_type="random", select_amount=None, 
+def select_genomes(genome_list,
+                   index,
+                   taxid,
+                   select_type="random",
+                   select_amount=None,
                    dist_location=None):
-        """
+    """
         Get a list of genomes in a sorted list or in a random list.
 
         Parameters
@@ -197,28 +199,29 @@ def select_genomes(genome_list, index, taxid,
         A list of genome accessions.
 
         """
-        def splice(a_list):
-            if select_amount != None and select_amount < len(a_list):
-                return a_list[0: select_amount]
-            else:
-                return a_list
-        if select_type.startswith("random"):
-            shuffle(genome_list)
-            return splice(genome_list)
-        elif select_type.startswith("sort"):
-            return splice(genome_sort(genome_list, index))
-        elif select_type.startswith("dist"):
-            genome_list, _, _, _ = cluster(taxid, select_amount, dist_location)
-            return genome_list
+    def splice(a_list):
+        if select_amount != None and select_amount < len(a_list):
+            return a_list[0:select_amount]
         else:
-            raise NotImplementedError
+            return a_list
+
+    if select_type.startswith("random"):
+        shuffle(genome_list)
+        return splice(genome_list)
+    elif select_type.startswith("sort"):
+        return splice(genome_sort(genome_list, index))
+    elif select_type.startswith("dist"):
+        genome_list, _, _, _ = cluster(taxid, select_amount, dist_location)
+        return genome_list
+    else:
+        raise NotImplementedError
 
 
 def cluster(taxid, n_clusters, dist_location):
     """
     Get genomes representing each cluster from a taxid.
     The genomes are sorted in descending order of cluster size.
-    
+
     Parameters
     ----------
     taxid: int
@@ -227,7 +230,7 @@ def cluster(taxid, n_clusters, dist_location):
         The number of clusters to request.
     dist_location:
         The directory where distances are stored.
-        
+
     Returns
     -------
     genome_list: list
@@ -237,8 +240,8 @@ def cluster(taxid, n_clusters, dist_location):
     X: numpy array
         The distances between genomes.
     mapping: dict
-        A mapping of label positions to genome ids. 
-    
+        A mapping of label positions to genome ids.
+
     """
     dist_taxid = os.path.join(dist_location, str(taxid))
     if not os.path.isdir(dist_taxid):
@@ -252,7 +255,7 @@ def cluster(taxid, n_clusters, dist_location):
                                      affinity="precomputed",
                                      linkage="average").fit(X).labels_
     # Find a genome that best represents the cluster
-    # by finding the genome that has the least distance from 
+    # by finding the genome that has the least distance from
     # all other genomes.
     id_label = defaultdict([])
     genome_list = []
@@ -260,7 +263,7 @@ def cluster(taxid, n_clusters, dist_location):
         id_label[label].append(i)
     labels_count = Counter(labels)
     for label in id_label:
-        rows={}
+        rows = {}
         shuffle(id_label[label])
         for i in id_label[label]:
             rows[i] = sum([X[i][j] for j in id_label[label]])
@@ -272,7 +275,7 @@ def cluster(taxid, n_clusters, dist_location):
     genome_list = [item[0] for item in genome_list]
     return genome_list, labels, X, mapping
 
-                                        
+
 class GenomeSelection:
     """The base class for genome selection strategies."""
     def __init__(self, index):
@@ -569,28 +572,29 @@ class TreeDist(GenomeSelection):
         self.select_type = select_type
         self.dist_location = dist_location
         self.set_all_genomes(boolean=False)
-    
+
     def _merge(self, l_lists):
         """
         Merge a list of lists into one list.  Choose elements so that
-        the first element of the first list is chosen first, and then the 
+        the first element of the first list is chosen first, and then the
         first element of the second list is chosen second, and so on.
-        
+
         Parameters
         ----------
         l_lists: list
             A list of lists to be merged.
-    
+
         Returns
         -------
             A list that represents merged elements.
-        
+
         """
         def cond(self, pos):
             for i, l in enumerate(l_lists):
                 if pos[i] < len(l):
                     return True
             return False
+
         new_list = []
         pos = [0] * len(l_lists)
         while cond(self, pos):
@@ -599,11 +603,11 @@ class TreeDist(GenomeSelection):
                     new_list.append(l[pos[i]])
                     pos[i] += 1
         return new_list
-    
+
     def select(self, parent, children, genome_lists):
         """
         Select genomes to include.
-        
+
         Parameters
         ----------
         parent: int
@@ -613,23 +617,25 @@ class TreeDist(GenomeSelection):
             node is represented by [] or False.
         genome_lists: list
             A list of lists of genome accessions.
-        
+
         Returns
         -------
             A list of genome accessions.
-        
+
         """
-        if children: # Inner node
+        if children:  # Inner node
             shuffle(genome_lists)
             my_genomes = self._merge(genome_lists)[:self.select_amount]
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
             return my_genomes
-        else: # Leaf (species) node
+        else:  # Leaf (species) node
             include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
-            my_genomes = select_genomes(include, self.index, parent,
-                                        select_type=self.select_type, 
+            my_genomes = select_genomes(include,
+                                        self.index,
+                                        parent,
+                                        select_type=self.select_type,
                                         select_amount=self.select_amount,
                                         dist_location=self.dist_location)
             for accession in my_genomes:
@@ -702,15 +708,15 @@ class GHTreeDist(GenomeHoldout, TreeDist):
             Down selection method: random, sort
 
         """
-        GenomeHoldout.__init__(self, index, select_amount, 
+        GenomeHoldout.__init__(self, index, select_amount,
                                0 if select_type == "sort" else 1)
         self.dist_location = dist_location
         self.downselect = select_type
-        
+
     def select(self, parent, children, genome_lists):
         """
         Select genomes to include.
-        
+
         Parameters
         ----------
         parent: int
@@ -720,28 +726,31 @@ class GHTreeDist(GenomeHoldout, TreeDist):
             node is represented by [] or False.
         genome_lists: list
             A list of lists of lists of genome accessions.
-            Each inner list has three lists for train, test, and singleton 
+            Each inner list has three lists for train, test, and singleton
             [[[] [] []] [[] [] []] [[] [] []]]
-        
+
         Returns
         -------
             A list of genome accessions.
-        
+
         """
-        if children: # Inner node
+        if children:  # Inner node
             shuffle(genome_lists)
             the_end_list = []
             for i in range(3):
                 the_list = [item[i] for item in genome_lists]
                 my_genomes = self._merge(the_list)[:self.select_amount[i % 2]]
                 for accession in my_genomes:
-                    self.index['taxids'][parent][accession] = i + 1 if i < 2 else SINGLETON
+                    self.index['taxids'][parent][
+                        accession] = i + 1 if i < 2 else SINGLETON
                 the_end_list.append(my_genomes)
             return the_end_list
-        else: # Leaf (species) node 
+        else:  # Leaf (species) node
             include, _ = filter_genomes(self.index['taxids'][parent].keys(),
                                         self.index)
-            my_genomes = select_genomes(include, self.index, parent, 
+            my_genomes = select_genomes(include,
+                                        self.index,
+                                        parent,
                                         select_type=self.downselect,
                                         select_amount=None,
                                         dist_location=self.dist_location)
