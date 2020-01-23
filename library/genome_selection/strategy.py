@@ -23,7 +23,7 @@ SINGLETON = -1
 
 EPS = 2e-24
 
-class ClusterError(Exception):
+class DistRecordError(Exception):
     pass
 
 
@@ -172,58 +172,60 @@ def select_equal(list_lists, select_amount):
 def select_genomes(genome_list,
                    index,
                    taxid,
-                   select_type="random",
+                   down_select="random",
                    select_amount=None,
-                   dist_location=None):
+                   X=None,
+                   mapping=None):
     """
-        Get a list of genomes in a sorted list or in a random list.
+    Get a list of genomes in a sorted list or in a random list.
 
-        Parameters
-        ----------
-        genome_list: list
-            A list of genome accessions.
-        index: dict
-            The Radogest index structure
-        taxid: int
-            The taxonomic id associated with the genome list.
-        select_type: str
-            The type of list ordering to perform.
-            'random' puts the list in random order
-            'sort' puts the list in sorted order
-            'dist' uses genome distances (e.g. Mash)
-        select_amount: int
-            The number of genomes to select.
-            If this is None, then the list will not be cut.
-        dist_location: str
-            The location of the distance matrices, if any.
-
-        Returns
-        -------
+    Parameters
+    ----------
+    genome_list: list
         A list of genome accessions.
+    index: dict
+        The Radogest index structure
+    taxid: int
+        The taxonomic id associated with the genome list.
+    down_select: str
+        The type of list ordering to perform.
+        'random' puts the list in random order
+        'sort' puts the list in sorted order
+        'dist' uses genome distances (e.g. Mash)
+    select_amount: int
+        The number of genomes to select.
+        If this is None, then the list will not be cut.
+    dist_location: str
+        The location of the distance matrices, if any.
 
-        """
+    Returns
+    -------
+    A list of genome accessions.
+
+    """
     def splice(a_list):
         if select_amount != None and select_amount < len(a_list):
             return a_list[0:select_amount]
         else:
             return a_list
 
-    if select_type.startswith("random"):
+    if down_select.startswith("random"):
         shuffle(genome_list)
         return splice(genome_list)
-    elif select_type.startswith("sort"):
+    elif down_select.startswith("sort"):
         return splice(genome_sort(genome_list, index))
-    elif select_type.startswith("dist"):
+    elif down_select.startswith("dist"):
         genomes_clustered = cluster(genome_list, 
                                    taxid, 
-                                   select_amount, 
-                                   dist_location)
+                                   select_amount,
+                                   X,
+                                   mapping)
         return genomes_clustered[0]
     else:
         raise NotImplementedError
 
 
-def cluster(genome_list, taxid, n_clusters, dist_location):
+def cluster(genome_list, taxid, n_clusters, X, mapping):
     """
     Get genomes representing each cluster from a taxid.
     The genomes are sorted in descending order of cluster size.
@@ -251,19 +253,21 @@ def cluster(genome_list, taxid, n_clusters, dist_location):
         A mapping of label positions to genome ids.
 
     """
-    # Check the location of the distances.
+    # If there is only one genome, just include it.
     if len(genome_list) == 1:
         return (genome_list, np.ones((1,1)), 
                 np.zeros((1,1)), {0: genome_list[0]})
-    dist_taxid = os.path.join(dist_location, str(taxid))
-    if not os.path.isdir(dist_taxid):
-        raise ClusterError("The distance location path was not a directory:{}".format(dist_taxid))
-    # Get the distances and cluster the genomes.
-    dist_taxid += "/"
-    X = np.load(dist_taxid + str(taxid) + "_X.npy")
-    mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck", "rb"))
+#     dist_taxid = os.path.join(dist_location, str(taxid))
+#     if not os.path.isdir(dist_taxid):
+#         raise ClusterError("The distance location path was not a directory:{}".format(dist_taxid))
+#     # Get the distances
+#     dist_taxid += "/"
+#     X = np.load(dist_taxid + str(taxid) + "_X.npy")
+#     mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck", "rb"))
+    # Include all genomes if the number of clusters is too high.
     if n_clusters > len(mapping):
         return [genome_list]
+    # Cluster the genomes.
     labels = AgglomerativeClustering(n_clusters=n_clusters,
                                      affinity="precomputed",
                                      linkage="average").fit(X).labels_
@@ -562,9 +566,10 @@ class AllGenomes(GenomeSelection):
         return len(include)
 
 
-class TreeDist(GenomeSelection):
+class TreeDistSuper(GenomeSelection):
     """Choose genomes with maximum distance in the taxonomic tree."""
-    def __init__(self, index, select_amount, select_type, dist_location):
+    def __init__(self, index, select_amount, 
+                 down_select, dist_location):
         """
         Initialize the class.
 
@@ -574,16 +579,16 @@ class TreeDist(GenomeSelection):
             A dictionary representing the index of genomes.
         select_amount: int
             The amount of genomes to select.
-        select_type: str
+        down_select: str
             Down selection method: random, sort
 
         """
         super().__init__(index)
         self.select_amount = select_amount
-        self.select_type = select_type
+        self.down_select = down_select
         self.dist_location = dist_location
         self.set_all_genomes(boolean=False)
-
+        
     def _merge(self, l_lists):
         """
         Merge a list of lists into one list.  Choose elements so that
@@ -614,6 +619,37 @@ class TreeDist(GenomeSelection):
                     new_list.append(l[pos[i]])
                     pos[i] += 1
         return new_list
+    
+    def _genomes_from_mapping(self, taxid):
+        dist_taxid = os.path.join(self.dist_location, str(taxid))
+        if not os.path.isdir(dist_taxid):
+            raise DistRecordError("The distance records for {} "
+                                  "could not be found".format(taxid))
+        dist_taxid += "/"
+        mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck", "rb"))
+        X = np.load(dist_taxid + str(taxid) + "_X.npy")
+        return (X, mapping)
+
+
+class TreeDist(TreeDistSuper):
+    """Choose genomes with maximum distance in the taxonomic tree."""
+    def __init__(self, index, select_amount, 
+                 down_select, dist_location):
+        """
+        Initialize the class.
+
+        Parameters
+        ----------
+        index: dict
+            A dictionary representing the index of genomes.
+        select_amount: int
+            The amount of genomes to select.
+        down_select: str
+            Down selection method: random, sort
+
+        """
+        super().__init__(index, select_amount, 
+                         down_select, dist_location)
 
     def select(self, parent, children, genome_lists):
         """
@@ -641,14 +677,19 @@ class TreeDist(GenomeSelection):
                 self.index['taxids'][parent][accession] = True
             return my_genomes
         else:  # Leaf (species) node
-            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
+            try:
+                X, mapping = self._genomes_from_mapping(parent)
+                include = list(mapping.values())
+            except DistRecordError:
+                X, mapping = None, None
+                include = filter_genomes(self.index['taxids'][parent].keys(),
+                                         self.index)
             my_genomes = select_genomes(include,
                                         self.index,
                                         parent,
-                                        select_type=self.select_type,
+                                        down_select=self.down_select,
                                         select_amount=self.select_amount,
-                                        dist_location=self.dist_location)
+                                        X=X, mapping=mapping)
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
             return my_genomes
@@ -703,9 +744,9 @@ class GenomeHoldout(GenomeSelection):
             return genome_sort(genome_list, self.index)
 
 
-class GHTreeDist(GenomeHoldout, TreeDist):
+class GHTreeDist(GenomeHoldout, TreeDistSuper):
     """Apply full genome holdout using the TreeDist traversal method. """
-    def __init__(self, index, select_amount, select_type, dist_location):
+    def __init__(self, index, select_amount, down_select, dist_location):
         """
         Initialize the class.
 
@@ -720,9 +761,11 @@ class GHTreeDist(GenomeHoldout, TreeDist):
 
         """
         GenomeHoldout.__init__(self, index, select_amount,
-                               0 if select_type == "sort" else 1)
-        self.dist_location = dist_location
-        self.downselect = select_type
+                               0 if down_select == "sort" else 1)
+        TreeDistSuper.__init__(self, index, select_amount, 
+                 down_select, dist_location)
+        # self.dist_location = dist_location
+        # self.down_select = down_select
 
     def select(self, parent, children, genome_lists):
         """
@@ -757,14 +800,19 @@ class GHTreeDist(GenomeHoldout, TreeDist):
                 the_end_list.append(my_genomes)
             return the_end_list
         else:  # Leaf (species) node
-            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
+            try:
+                X, mapping = self._genomes_from_mapping(parent)
+                include = list(mapping.values())
+            except DistRecordError:
+                X, mapping = None, None
+                include = filter_genomes(self.index['taxids'][parent].keys(),
+                                         self.index)
             my_genomes = select_genomes(include,
                                         self.index,
                                         parent,
-                                        select_type=self.downselect,
+                                        down_select=self.down_select,
                                         select_amount=sum(self.select_amount),
-                                        dist_location=self.dist_location)
+                                        X=X, mapping=mapping)
             samples = [0] * self.num_categories
             select_type = 0
             if len(my_genomes) == 1:

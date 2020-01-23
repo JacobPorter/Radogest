@@ -13,6 +13,7 @@ from multiprocessing import Pool
 import numpy
 
 from library.genome_selection.strategy import filter_genomes
+from library.genome_selection.strategy import select_genomes
 from library.sketch import MASH_LOC
 
 # The ending of sketch files.
@@ -102,7 +103,7 @@ def distance_matrix(taxid, sketch_locs, square=True):
     return 0, taxid, distances, pos_genome_map
 
 
-def get_sketch_locs(root_dir, taxid, index):
+def get_sketch_locs(root_dir, taxid, index, down_select="random", select_amount=None):
     """
     Get a mapping of accessions to sketch file locations.
 
@@ -125,6 +126,12 @@ def get_sketch_locs(root_dir, taxid, index):
     """
     genome_list = list(index["taxids"][taxid].keys())
     genome_list, _ = filter_genomes(genome_list, index)
+    if not (down_select == "none" or select_amount <= 0 or select_amount == None):      
+        genome_list = select_genomes(genome_list,
+                       index,
+                       taxid,
+                       down_select=down_select,
+                       select_amount=select_amount)
     sketch_locs = {}
     for acc in genome_list:
         loc = os.path.join(root_dir, index["genomes"][acc]['location'][1:])
@@ -137,7 +144,8 @@ def get_sketch_locs(root_dir, taxid, index):
     return sketch_locs
 
 
-def dist_all(root_dir, root_taxid, tree, index, output_dir, processes=1):
+def dist_all(root_dir, root_taxid, tree, index, output_dir, 
+             down_select="random", select_amount=None, processes=1):
     """
     Compute distance matrices for all species under
     the given taxonomic id and save them to disk.
@@ -185,7 +193,8 @@ def dist_all(root_dir, root_taxid, tree, index, output_dir, processes=1):
     pd_list = []
     failed = 0
     for taxid in species_list:
-        sketch_locs = get_sketch_locs(root_dir, taxid, index)
+        sketch_locs = get_sketch_locs(root_dir, taxid, index, 
+                                      down_select, select_amount)
         if len(sketch_locs) > 1:
             pd_list.append(
                 pool.apply_async(distance_matrix, args=(taxid, sketch_locs)))

@@ -196,13 +196,12 @@ def main():
     p_sketch.add_argument("--processes",
                           "-p",
                           type=int,
-                          default=1,
+                          default=4,
                           help=("The number of processes to use."))
     p_dist = subparsers.add_parser(
         "dist",
         help=('Compute a distance matrix of genomes for each species.'),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    # root_dir, root_taxid, tree, index, output_dir, processes=1
     p_dist.add_argument("output_dir",
                         type=str,
                         help=("The directory to output the "
@@ -212,7 +211,8 @@ def main():
                               "taxids under the root taxid."))
     p_dist.add_argument("--root_taxid",
                         "-t",
-                        help=("The root taxid for the tree to do clustering."),
+                        help=("The root taxid for the "
+                              "tree to do clustering."),
                         type=int,
                         default=1)
     p_dist.add_argument("--root_dir",
@@ -224,11 +224,29 @@ def main():
                         default="./")
     p_dist.add_argument(*index.args, **index.kwargs)
     p_dist.add_argument(*tree.args, **tree.kwargs)
+    p_dist.add_argument('--select_amount',
+                          '-n',
+                          type=int,
+                          help=("The maximum number of genomes "
+                          "to include in calculating distances."),
+                          default=100)
+    p_dist.add_argument('--down_select',
+                          '-s',
+                          type=str,
+                          choices=["sort", "random", "none"],
+                          help=("Choose how to down select genomes "
+                                "for the distance calculation.  "
+                                "If 'none' is given, then there will "
+                                "be no down selection.  "
+                                "For some species no down selection "
+                                "100s of days."),
+                          default="sort")
     p_dist.add_argument("--processes",
                         "-p",
                         type=int,
-                        help=("The number of processes to use."),
-                        default=1)
+                        help=("The number of processes to use.  "
+                              "Multiple processes is recommended."),
+                        default=4)
     p_select = subparsers.add_parser(
         "select",
         help=("Select which genomes to "
@@ -273,11 +291,11 @@ def main():
                                 'data, and the second one for '
                                 'testing data.'),
                           default=[10])
-    p_select.add_argument('--downselect',
+    p_select.add_argument('--down_select',
                           '-d',
                           type=str,
                           choices=["sort", "random", "dist"],
-                          help=("Choose how to downselect genomes.  "
+                          help=("Choose how to down select genomes.  "
                                 "If dist is chosen, then sketches "
                                 "and distance matrices must be computed. "
                                 "dist_location must be given."),
@@ -287,7 +305,7 @@ def main():
                           type=str,
                           help=("The location of the "
                                 "precomputed distance matrices "
-                                "for the 'dist' downselection."),
+                                "for the 'dist' down selection."),
                           default="./distances")
     p_select.add_argument('--output',
                           '-o',
@@ -585,6 +603,8 @@ def main():
                                      read_ds(args.tree),
                                      read_ds(args.index),
                                      args.output_dir,
+                                     args.down_select,
+                                     args.select_amount,
                                      processes=args.processes)
         print("The number of distance matrices produced: {}".format(attempted -
                                                                     failed),
@@ -610,9 +630,9 @@ def main():
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         select_amount = args.select_amount
-        if args.downselect == "sort":
+        if args.down_select == "sort":
             radon = 0
-        elif args.downselect == "random":
+        elif args.down_select == "random":
             radon = 1
         else:
             radon = 3
@@ -643,14 +663,14 @@ def main():
             elif strategy_string == 'GHGT':
                 strategy = GHGenomeTree(index, select_amount, random=radon)
             elif strategy_string == 'GHTD':
-                strategy = GHTreeDist(index, select_amount, args.downselect,
+                strategy = GHTreeDist(index, select_amount, args.down_select,
                                       args.dist_location)
             else:
                 raise StrategyNotFound()
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
         elif strategy_string == 'TD':
-            strategy = TreeDist(index, select_amount[0], args.downselect,
+            strategy = TreeDist(index, select_amount[0], args.down_select,
                                 args.dist_location)
         else:
             raise StrategyNotFound()
