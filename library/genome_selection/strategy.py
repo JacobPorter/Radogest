@@ -763,7 +763,7 @@ class GHTreeDist(GenomeHoldout, TreeDist):
                                         self.index,
                                         parent,
                                         select_type=self.downselect,
-                                        select_amount=None,
+                                        select_amount=sum(self.select_amount),
                                         dist_location=self.dist_location)
             samples = [0] * self.num_categories
             select_type = 0
@@ -1331,46 +1331,3 @@ class GHGenomeTree(GHTree, GHGenome):
         else:  # Leaf node
             samples = self.leaf_node(parent)
         return samples
-
-
-class MinHashTree(GenomeSelection):
-    """
-    Use a minhash hierarchical clustering tree to select genomes for a given
-    taxonomic id.
-    """
-    def __init__(self, index, select_amount):
-        """
-        Initialize the class.
-
-        Parameters
-        ----------
-        index: dict
-            A dictionary representing the index of genomes.
-        select_amount: int
-            The number of genomes to select at each level.
-
-        """
-        raise NotImplementedError
-        super().__init__(index)
-        self.select_amount = select_amount
-        self.set_all_genomes(boolean=False)
-
-    def select(self, parent, children):
-        """
-        Use a minhash tree to select genomes.
-
-        Parameters
-        ----------
-        parent: int
-            Taxonomic id of the parent.
-        children: iterable
-            An iterable of children taxonomic ids of the parent.  A leaf node
-            is represented when children is [].
-
-        Returns
-        -------
-        samples: int
-            The number of genomes selected.
-
-        """
-        raise NotImplementedError
