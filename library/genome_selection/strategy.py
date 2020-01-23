@@ -218,11 +218,6 @@ def select_genomes(genome_list,
                                    taxid, 
                                    select_amount, 
                                    dist_location)
-        if taxid == 5755:
-            print("Taxid:{}".format(taxid))
-            print(genome_list)
-            for item in genomes_clustered:
-                print(item)
         return genomes_clustered[0]
     else:
         raise NotImplementedError
