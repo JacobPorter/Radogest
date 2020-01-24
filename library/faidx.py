@@ -41,8 +41,8 @@ def name_ends(name, endings, addition=""):
     """
     for end in endings:
         if name.endswith(end + addition):
-            return True
-    return False
+            return len(end + addition)
+    return 0
 
 
 def make_fai_individual(path,

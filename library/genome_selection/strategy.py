@@ -5,16 +5,27 @@ Genome selection strategies.
     Jacob Porter <jsporter@vt.edu>
 """
 
+import os
+import pickle
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from itertools import accumulate, chain
 from random import random, shuffle
+
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering
 
 EXCLUDED_GENOMES = {}
 
 # The id to use with Genome holdout genome strategies
 # when a taxid has a single genome.
 SINGLETON = -1
+
+EPS = 2e-24
+
+
+class DistRecordError(Exception):
+    pass
 
 
 def filter_genomes(accessions, index):
@@ -159,44 +170,106 @@ def select_equal(list_lists, select_amount):
     return output_list
 
 
-def select_genomes(genome_list, index, select_type="random", select_amount=None):
-        """
-        Get a list of genomes in a sorted list or in a random list.
+def select_genomes(genome_list,
+                   index,
+                   down_select="random",
+                   select_amount=None,
+                   X=None,
+                   mapping=None):
+    """
+    Get a list of genomes in a sorted list or in a random list.
 
-        Parameters
-        ----------
-        genome_list: list
-            A list of genome accessions.
-        index: dict
-            The Radogest index structure
-        select_type: str
-            The type of list ordering to perform.
-            'random' puts the list in random order
-            'sort' puts the list in sorted order
-            'dist' uses genome distances (e.g. Mash)
-        select_amount: int
-            The number of genomes to select.
-            If this is None, then the list will not be cut.
-
-        Returns
-        -------
+    Parameters
+    ----------
+    genome_list: list
         A list of genome accessions.
+    index: dict
+        The Radogest index structure
+    down_select: str
+        The type of list ordering to perform.
+        'random' puts the list in random order
+        'sort' puts the list in sorted order
+        'dist' uses genome distances (e.g. Mash)
+    select_amount: int
+        The number of genomes to select.
+        If this is None, then the list will not be cut.
+    dist_location: str
+        The location of the distance matrices, if any.
 
-        """
-        def splice(a_list):
-            if select_amount != None and select_amount < len(a_list):
-                return a_list[0: select_amount]
-            else:
-                return a_list
-        if select_type.startswith("random"):
-            shuffle(genome_list)
-            return splice(genome_list)
-        elif select_type.startswith("sort"):
-            return splice(genome_sort(genome_list, index))
-        elif select_type.startswith("dist"):
-            raise NotImplementedError
+    Returns
+    -------
+    A list of genome accessions.
+
+    """
+    def splice(a_list):
+        if select_amount != None and select_amount < len(a_list):
+            return a_list[0:select_amount]
         else:
-            raise NotImplementedError
+            return a_list
+
+    if down_select.startswith("random"):
+        shuffle(genome_list)
+        return splice(genome_list)
+    elif down_select.startswith("sort"):
+        return splice(genome_sort(genome_list, index))
+    elif down_select.startswith("dist"):
+        return cluster(genome_list, select_amount, X, mapping)[0]
+    else:
+        raise NotImplementedError
+
+
+def cluster(genome_list, n_clusters, X, mapping):
+    """
+    Get genomes representing each cluster from a taxid.
+    The genomes are sorted in descending order of cluster size.
+
+    Parameters
+    ----------
+    genome_list: list
+            A list of genome accessions.
+    taxid: int
+        The taxonomic id to get clusters for.
+    n_clusters: int
+        The number of clusters to request.
+    dist_location:
+        The directory where distances are stored.
+
+    Returns
+    -------
+    genome_list: list
+        A list of up to n_clusters genomes.
+    labels: numpy array
+        A list of cluster labels
+
+    """
+    # If there is only one genome, just include it.
+    # Include all genomes if the number of clusters is too high.
+    if len(genome_list) == 1 or n_clusters > len(genome_list):
+        return (genome_list, np.zeros((1, 1)))
+    # Cluster the genomes.
+    labels = AgglomerativeClustering(n_clusters=n_clusters,
+                                     affinity="precomputed",
+                                     linkage="average").fit(X).labels_
+    # Find a genome that best represents the cluster
+    # by finding the genome that has the least distance from
+    # all other genomes.
+    id_label = defaultdict(list)
+    genome_list = []
+    for i, label in enumerate(labels):
+        id_label[label].append(i)
+    labels_count = Counter(labels)
+    for label in id_label:
+        rows = {}
+        shuffle(id_label[label])
+        for i in id_label[label]:
+            rows[i] = sum([X[i][j] for j in id_label[label]])
+        min_value = min(rows.values())
+        min_pos = [pos for pos in rows if abs(rows[pos] - min_value) <= EPS][0]
+        genome_list.append((mapping[min_pos], label, labels_count[label]))
+    # Sort the genomes in descending order of cluster size.
+    genome_list.sort(key=lambda x: x[2], reverse=True)
+    genome_list = [item[0] for item in genome_list]
+    return genome_list, labels
 
 
 class GenomeSelection:
@@ -211,7 +284,6 @@ class GenomeSelection:
             A dictionary representing the index of genomes.
 
         """
-        print("GenomeSelection")
         self.index = index
 
     def set_all_genomes(self, boolean=False):
@@ -473,9 +545,9 @@ class AllGenomes(GenomeSelection):
         return len(include)
 
 
-class TreeDist(GenomeSelection):
+class TreeDistSuper(GenomeSelection):
     """Choose genomes with maximum distance in the taxonomic tree."""
-    def __init__(self, index, select_amount, select_type):
+    def __init__(self, index, select_amount, down_select, dist_location):
         """
         Initialize the class.
 
@@ -485,37 +557,38 @@ class TreeDist(GenomeSelection):
             A dictionary representing the index of genomes.
         select_amount: int
             The amount of genomes to select.
-        select_type: str
+        down_select: str
             Down selection method: random, sort
 
         """
-        print("TreeDist")
         super().__init__(index)
         self.select_amount = select_amount
-        self.select_type = select_type
+        self.down_select = down_select
+        self.dist_location = dist_location
         self.set_all_genomes(boolean=False)
-    
+
     def _merge(self, l_lists):
         """
         Merge a list of lists into one list.  Choose elements so that
-        the first element of the first list is chosen first, and then the 
+        the first element of the first list is chosen first, and then the
         first element of the second list is chosen second, and so on.
-        
+
         Parameters
         ----------
         l_lists: list
             A list of lists to be merged.
-    
+
         Returns
         -------
             A list that represents merged elements.
-        
+
         """
         def cond(self, pos):
             for i, l in enumerate(l_lists):
                 if pos[i] < len(l):
                     return True
             return False
+
         new_list = []
         pos = [0] * len(l_lists)
         while cond(self, pos):
@@ -524,11 +597,59 @@ class TreeDist(GenomeSelection):
                     new_list.append(l[pos[i]])
                     pos[i] += 1
         return new_list
+
+    def _genomes_from_mapping(self, taxid):
+        dist_taxid = os.path.join(self.dist_location, str(taxid))
+        if not os.path.isdir(dist_taxid):
+            raise DistRecordError("The distance records for {} "
+                                  "could not be found".format(taxid))
+        dist_taxid += "/"
+        mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck", "rb"))
+        X = np.load(dist_taxid + str(taxid) + "_X.npy")
+        return (X, mapping)
     
+    def _get_clustered_genomes(self, parent, the_select_amount):
+        """Get some genomes by clustering them."""
+        try:
+            X, mapping = self._genomes_from_mapping(parent)
+            include = list(mapping.values())
+        except DistRecordError:
+            X, mapping = None, None
+            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                     self.index)
+        my_genomes = select_genomes(include,
+                                    self.index,
+                                    down_select=self.down_select,
+                                    select_amount=the_select_amount,
+                                    X=X,
+                                    mapping=mapping)
+        return my_genomes
+    
+    
+
+
+class TreeDist(TreeDistSuper):
+    """Choose genomes with maximum distance in the taxonomic tree."""
+    def __init__(self, index, select_amount, down_select, dist_location):
+        """
+        Initialize the class.
+
+        Parameters
+        ----------
+        index: dict
+            A dictionary representing the index of genomes.
+        select_amount: int
+            The amount of genomes to select.
+        down_select: str
+            Down selection method: random, sort
+
+        """
+        super().__init__(index, select_amount, down_select, dist_location)
+
     def select(self, parent, children, genome_lists):
         """
         Select genomes to include.
-        
+
         Parameters
         ----------
         parent: int
@@ -538,26 +659,27 @@ class TreeDist(GenomeSelection):
             node is represented by [] or False.
         genome_lists: list
             A list of lists of genome accessions.
-        
+
         Returns
         -------
             A list of genome accessions.
-        
+
         """
-        if children: # Inner node
+        if children:  # Inner node
             shuffle(genome_lists)
             my_genomes = self._merge(genome_lists)[:self.select_amount]
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
             return my_genomes
-        else: # Leaf (species) node
-            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
-            my_genomes = select_genomes(include, self.index, 
-                                        select_type=self.select_type, 
-                                        select_amount=self.select_amount)
+        else:  # Leaf (species) node
+            my_genomes = self._get_clustered_genomes(parent, 
+                                                     self.select_amount)
             for accession in my_genomes:
-                self.index['taxids'][parent][accession] = True
+                try:
+                    self.index['taxids'][parent][accession] = True
+                except TypeError:
+                    print(parent, accession, my_genomes)
+                    raise
             return my_genomes
 
 
@@ -576,7 +698,6 @@ class GenomeHoldout(GenomeSelection):
             to select at each level.
 
         """
-        print("GenomeHoldout")
         GenomeSelection.__init__(self, index)
         self.select_amount = select_amount
         # 1 is train, 2 is test,
@@ -610,9 +731,9 @@ class GenomeHoldout(GenomeSelection):
             return genome_sort(genome_list, self.index)
 
 
-class GHTreeDist(GenomeHoldout, TreeDist):
+class GHTreeDist(GenomeHoldout, TreeDistSuper):
     """Apply full genome holdout using the TreeDist traversal method. """
-    def __init__(self, index, select_amount, select_type):
+    def __init__(self, index, select_amount, down_select, dist_location):
         """
         Initialize the class.
 
@@ -626,14 +747,15 @@ class GHTreeDist(GenomeHoldout, TreeDist):
             Down selection method: random, sort
 
         """
-        GenomeHoldout.__init__(self, index, select_amount, 
-                               0 if select_type == "sort" else 1)
-        self.downselect = select_type
-        
+        GenomeHoldout.__init__(self, index, select_amount,
+                               0 if down_select == "sort" else 1)
+        TreeDistSuper.__init__(self, index, select_amount, down_select,
+                               dist_location)
+
     def select(self, parent, children, genome_lists):
         """
         Select genomes to include.
-        
+
         Parameters
         ----------
         parent: int
@@ -643,30 +765,42 @@ class GHTreeDist(GenomeHoldout, TreeDist):
             node is represented by [] or False.
         genome_lists: list
             A list of lists of lists of genome accessions.
-            Each inner list has three lists for train, test, and singleton 
+            Each inner list has three lists for train, test, and singleton
             [[[] [] []] [[] [] []] [[] [] []]]
-        
+
         Returns
         -------
             A list of genome accessions.
-        
+
         """
-        if children: # Inner node
+        if children:  # Inner node
             shuffle(genome_lists)
             the_end_list = []
             for i in range(3):
                 the_list = [item[i] for item in genome_lists]
                 my_genomes = self._merge(the_list)[:self.select_amount[i % 2]]
                 for accession in my_genomes:
-                    self.index['taxids'][parent][accession] = i + 1 if i < 2 else SINGLETON
+                    self.index['taxids'][parent][
+                        accession] = i + 1 if i < 2 else SINGLETON
                 the_end_list.append(my_genomes)
             return the_end_list
-        else: # Leaf (species) node 
-            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
-            my_genomes = select_genomes(include, self.index, 
-                                        select_type=self.downselect,
-                                        select_amount=None)
+        else:  # Leaf (species) node
+            my_genomes = self._get_clustered_genomes(parent, 
+                                                     sum(self.select_amount))
+#             try:
+#                 X, mapping = self._genomes_from_mapping(parent)
+#                 include = list(mapping.values())
+#             except DistRecordError:
+#                 X, mapping = None, None
+#                 include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+#                                          self.index)
+#             my_genomes = select_genomes(include,
+#                                         self.index,
+#                                         down_select=self.down_select,
+#                                         select_amount=sum(self.select_amount),
+#                                         X=X,
+#                                         mapping=mapping)
+#             my_genomes = self._get_clustered_genomes(parent)
             samples = [0] * self.num_categories
             select_type = 0
             if len(my_genomes) == 1:
@@ -1233,46 +1367,3 @@ class GHGenomeTree(GHTree, GHGenome):
         else:  # Leaf node
             samples = self.leaf_node(parent)
         return samples
-
-
-class MinHashTree(GenomeSelection):
-    """
-    Use a minhash hierarchical clustering tree to select genomes for a given
-    taxonomic id.
-    """
-    def __init__(self, index, select_amount):
-        """
-        Initialize the class.
-
-        Parameters
-        ----------
-        index: dict
-            A dictionary representing the index of genomes.
-        select_amount: int
-            The number of genomes to select at each level.
-
-        """
-        raise NotImplementedError
-        super().__init__(index)
-        self.select_amount = select_amount
-        self.set_all_genomes(boolean=False)
-
-    def select(self, parent, children):
-        """
-        Use a minhash tree to select genomes.
-
-        Parameters
-        ----------
-        parent: int
-            Taxonomic id of the parent.
-        children: iterable
-            An iterable of children taxonomic ids of the parent.  A leaf node
-            is represented when children is [].
-
-        Returns
-        -------
-        samples: int
-            The number of genomes selected.
-
-        """
-        raise NotImplementedError
