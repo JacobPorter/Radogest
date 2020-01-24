@@ -8,10 +8,7 @@ NCBI (National Center for Biotechnology Information)
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: genome holdout genome methods are not splitting the
-# appropriate number of genomes between test and train sets.
-# Example: taxid 89373.
-# TODO: Exclude species, levels? where there are too few genomes.
+# TODO: forbid user for specifying more than 1 select amount for non GH methods.
 
 import argparse
 import datetime
@@ -598,7 +595,7 @@ def main():
               file=sys.stderr)
     elif mode == "dist":
         from library.dist import dist_all
-        attempted, failed = dist_all(args.root_dir,
+        written, failed = dist_all(args.root_dir,
                                      args.root_taxid,
                                      read_ds(args.tree),
                                      read_ds(args.index),
@@ -606,10 +603,10 @@ def main():
                                      args.down_select,
                                      args.select_amount,
                                      processes=args.processes)
-        print("The number of distance matrices produced: {}".format(attempted -
-                                                                    failed),
+        print("The number of distance matrices produced: {}".format(written),
               file=sys.stderr)
-        print("The number of distance matrices that failed: {}".format(failed),
+        print("The number of species without distance matrices"
+              " (taxids with 0 or 1 genomes): {}".format(failed),
               file=sys.stderr)
     elif mode == "select":
         from library.genome_selection.strategy import ProportionalRandom

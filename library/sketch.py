@@ -7,8 +7,8 @@ This can be used to create distances and cluster genomes.
 """
 
 import os
-import sys
 import subprocess
+import sys
 from multiprocessing import Pool
 
 from library.faidx import FASTA_ENDINGS, name_ends
@@ -41,12 +41,14 @@ def sketch(genome_file, output, k, s, sketch_prog=MASH_LOC):
     --------
     Example of running mash:
     mash sketch -k <k> -s <s> -o <outputfile_prefix>
+
     """
     cp = subprocess.run([
         sketch_prog, "sketch", "-k",
         str(k), "-s",
         str(s), "-o", output, genome_file
-    ], capture_output=True)
+    ],
+                        capture_output=True)
     output = cp.stderr.decode()
     return cp.returncode, output
 
@@ -89,7 +91,8 @@ def sketch_dir(path, files, k, s):
 
 def sketch_root(root_directory, k, s, processes=1):
     """
-    Produce sketches for all fasta files under a directory and its subdirectories.
+    Produce sketches for all fasta files
+    under a directory and its subdirectories.
 
     Parameters
     ----------
