@@ -79,7 +79,7 @@ def main():
                      "-t",
                      help=("The file location that lists taxonomic ids, "
                            "one id per file.  "
-                           "For the tree command, this is an output file."),
+                           "For the 'tree' command, this is an output file."),
                      default="./taxid_list.txt")
     leave_compressed = ArgClass("--leave_compressed",
                                 "-l",
