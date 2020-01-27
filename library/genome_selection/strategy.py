@@ -5,16 +5,27 @@ Genome selection strategies.
     Jacob Porter <jsporter@vt.edu>
 """
 
+import os
+import pickle
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from itertools import accumulate, chain
 from random import random, shuffle
+
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering
 
 EXCLUDED_GENOMES = {}
 
 # The id to use with Genome holdout genome strategies
 # when a taxid has a single genome.
 SINGLETON = -1
+
+EPS = 2e-24
+
+
+class DistRecordError(Exception):
+    pass
 
 
 def filter_genomes(accessions, index):
@@ -76,7 +87,7 @@ def genome_sort(genomes, index):
 
     Returns
     -------
-    A sorted list of genome accession numbers.
+    A sorted list of genome accessions.
 
     """
     assembly_level = ["Complete Genome", "Chromosome", "Scaffold", "Contig"]
@@ -121,7 +132,7 @@ def genome_sort(genomes, index):
     return [genome_data['assembly_accession'] for genome_data in my_genomes]
 
 
-def select_equal(list_lists, select_number):
+def select_equal(list_lists, select_amount):
     """
     Select equal elements from a list of lists.
 
@@ -129,12 +140,12 @@ def select_equal(list_lists, select_number):
     ----------
     list_lists: list
         A list of lists of elements.  The lists could be unequal in size.
-    select_number: int
+    select_amount: int
         An integer of samples to take.
 
     Examples
     --------
-    list_lists is of form [[a, b, c] [1, 2, 3] [x, y].  If select_number is 5,
+    list_lists is of form [[a, b, c] [1, 2, 3] [x, y].  If select_amount is 5,
     then the function will return [a, 1, x, b, 2].
 
     Returns
@@ -147,7 +158,7 @@ def select_equal(list_lists, select_number):
     empty = [0] * len(list_lists)
     output_list = []
     iterations = 0
-    while len(output_list) < select_number and sum(empty) < len(list_lists):
+    while len(output_list) < select_amount and sum(empty) < len(list_lists):
         i = iterations % len(list_lists)
         j = pos[i]
         if j < len(list_lists[i]):
@@ -157,6 +168,108 @@ def select_equal(list_lists, select_number):
             empty[i] = 1
         iterations = i + 1
     return output_list
+
+
+def select_genomes(genome_list,
+                   index,
+                   down_select="random",
+                   select_amount=None,
+                   X=None,
+                   mapping=None):
+    """
+    Get a list of genomes in a sorted list or in a random list.
+
+    Parameters
+    ----------
+    genome_list: list
+        A list of genome accessions.
+    index: dict
+        The Radogest index structure
+    down_select: str
+        The type of list ordering to perform.
+        'random' puts the list in random order
+        'sort' puts the list in sorted order
+        'dist' uses genome distances (e.g. Mash)
+    select_amount: int
+        The number of genomes to select.
+        If this is None, then the list will not be cut.
+    dist_location: str
+        The location of the distance matrices, if any.
+
+    Returns
+    -------
+    A list of genome accessions.
+
+    """
+    def splice(a_list):
+        if select_amount != None and select_amount < len(a_list):
+            return a_list[0:select_amount]
+        else:
+            return a_list
+
+    if down_select.startswith("random"):
+        shuffle(genome_list)
+        return splice(genome_list)
+    elif down_select.startswith("sort"):
+        return splice(genome_sort(genome_list, index))
+    elif down_select.startswith("dist"):
+        return cluster(genome_list, select_amount, X, mapping)[0]
+    else:
+        raise NotImplementedError
+
+
+def cluster(genome_list, n_clusters, X, mapping):
+    """
+    Get genomes representing each cluster from a taxid.
+    The genomes are sorted in descending order of cluster size.
+
+    Parameters
+    ----------
+    genome_list: list
+            A list of genome accessions.
+    taxid: int
+        The taxonomic id to get clusters for.
+    n_clusters: int
+        The number of clusters to request.
+    dist_location:
+        The directory where distances are stored.
+
+    Returns
+    -------
+    genome_list: list
+        A list of up to n_clusters genomes.
+    labels: numpy array
+        A list of cluster labels
+
+    """
+    # If there is only one genome, just include it.
+    # Include all genomes if the number of clusters is too high.
+    if len(genome_list) == 1 or n_clusters > len(genome_list):
+        return (genome_list, np.zeros((1, 1)))
+    # Cluster the genomes.
+    labels = AgglomerativeClustering(n_clusters=n_clusters,
+                                     affinity="precomputed",
+                                     linkage="average").fit(X).labels_
+    # Find a genome that best represents the cluster
+    # by finding the genome that has the least distance from
+    # all other genomes.
+    id_label = defaultdict(list)
+    genome_list = []
+    for i, label in enumerate(labels):
+        id_label[label].append(i)
+    labels_count = Counter(labels)
+    for label in id_label:
+        rows = {}
+        shuffle(id_label[label])
+        for i in id_label[label]:
+            rows[i] = sum([X[i][j] for j in id_label[label]])
+        min_value = min(rows.values())
+        min_pos = [pos for pos in rows if abs(rows[pos] - min_value) <= EPS][0]
+        genome_list.append((mapping[min_pos], label, labels_count[label]))
+    # Sort the genomes in descending order of cluster size.
+    genome_list.sort(key=lambda x: x[2], reverse=True)
+    genome_list = [item[0] for item in genome_list]
+    return genome_list, labels
 
 
 class GenomeSelection:
@@ -199,7 +312,7 @@ class ProportionalRandom(GenomeSelection):
     For a given level in the taxonomy tree, select a random fixed number
     of genomes at each level.
     """
-    def __init__(self, index, select_number):
+    def __init__(self, index, select_amount):
         """
         Initialize the GenomeSelection class.
 
@@ -207,12 +320,12 @@ class ProportionalRandom(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        select_number: int
+        select_amount: int
             The number of genomes to select at each level.
 
         """
         super().__init__(index)
-        self.select_number = select_number
+        self.select_amount = select_amount
         self.set_all_genomes(boolean=False)
 
     def select(self, parent, children):
@@ -246,7 +359,7 @@ class ProportionalRandom(GenomeSelection):
                         child_genomes.append(accession)
                 shuffle(child_genomes)
                 children_genomes.append(child_genomes)
-            my_genomes = select_equal(children_genomes, self.select_number)
+            my_genomes = select_equal(children_genomes, self.select_amount)
             samples = len(my_genomes)
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
@@ -257,7 +370,7 @@ class ProportionalRandom(GenomeSelection):
             shuffle(my_genomes)
             i = 0
             for accession in my_genomes:
-                if i >= self.select_number:
+                if i >= self.select_amount:
                     break
                 self.index['taxids'][parent][accession] = True
                 i += 1
@@ -269,7 +382,7 @@ class QualitySortingTree(GenomeSelection):
     For a given level in the taxonomy tree, select a fixed number of genomes
     at each level based on the sorted quality of the genomes.
     """
-    def __init__(self, index, select_number):
+    def __init__(self, index, select_amount):
         """
         Initialize the class.
 
@@ -277,12 +390,12 @@ class QualitySortingTree(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        select_number: int
+        select_amount: int
             The number of genomes to select at each level.
 
         """
         super().__init__(index)
-        self.select_number = select_number
+        self.select_amount = select_amount
         self.set_all_genomes(boolean=False)
 
     def select(self, parent, children):
@@ -311,7 +424,7 @@ class QualitySortingTree(GenomeSelection):
                                             self.index)
                 child_genomes = genome_sort(include, self.index)
                 children_genomes.append(child_genomes)
-            my_genomes = select_equal(children_genomes, self.select_number)
+            my_genomes = select_equal(children_genomes, self.select_amount)
             for accession in my_genomes:
                 self.index['taxids'][parent][accession] = True
             return len(my_genomes)
@@ -321,7 +434,7 @@ class QualitySortingTree(GenomeSelection):
             my_genomes = genome_sort(include, self.index)
             i = 0
             for accession in my_genomes:
-                if i >= self.select_number:
+                if i >= self.select_amount:
                     break
                 self.index['taxids'][parent][accession] = True
                 i += 1
@@ -333,7 +446,7 @@ class QualitySortingLeaf(GenomeSelection):
     For a leaf node, sort the genomes by quality and select a certain number
     of them.  Propagate all selected genomes up the tree.
     """
-    def __init__(self, index, select_number):
+    def __init__(self, index, select_amount):
         """
         Initialize the class.
 
@@ -341,12 +454,12 @@ class QualitySortingLeaf(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        select_number: int
+        select_amount: int
             The number of genomes to select at each level.
 
         """
         super().__init__(index)
-        self.select_number = select_number
+        self.select_amount = select_amount
         self.set_all_genomes(boolean=False)
 
     def select(self, parent, children):
@@ -376,7 +489,7 @@ class QualitySortingLeaf(GenomeSelection):
             my_genomes = genome_sort(include, self.index)
             samples = 0
             for accession in my_genomes:
-                if samples >= self.select_number:
+                if samples >= self.select_amount:
                     break
                 samples += 1
                 self.index['taxids'][parent][accession] = True
@@ -432,9 +545,147 @@ class AllGenomes(GenomeSelection):
         return len(include)
 
 
+class TreeDistSuper(GenomeSelection):
+    """Choose genomes with maximum distance in the taxonomic tree."""
+    def __init__(self, index, select_amount, down_select, dist_location):
+        """
+        Initialize the class.
+
+        Parameters
+        ----------
+        index: dict
+            A dictionary representing the index of genomes.
+        select_amount: int
+            The amount of genomes to select.
+        down_select: str
+            Down selection method: random, sort
+
+        """
+        super().__init__(index)
+        self.select_amount = select_amount
+        self.down_select = down_select
+        self.dist_location = dist_location
+        self.set_all_genomes(boolean=False)
+
+    def _merge(self, l_lists):
+        """
+        Merge a list of lists into one list.  Choose elements so that
+        the first element of the first list is chosen first, and then the
+        first element of the second list is chosen second, and so on.
+
+        Parameters
+        ----------
+        l_lists: list
+            A list of lists to be merged.
+
+        Returns
+        -------
+            A list that represents merged elements.
+
+        """
+        def cond(self, pos):
+            for i, l in enumerate(l_lists):
+                if pos[i] < len(l):
+                    return True
+            return False
+
+        new_list = []
+        pos = [0] * len(l_lists)
+        while cond(self, pos):
+            for i, l in enumerate(l_lists):
+                if pos[i] < len(l):
+                    new_list.append(l[pos[i]])
+                    pos[i] += 1
+        return new_list
+
+    def _genomes_from_mapping(self, taxid):
+        dist_taxid = os.path.join(self.dist_location, str(taxid))
+        if not os.path.isdir(dist_taxid):
+            raise DistRecordError("The distance records for {} "
+                                  "could not be found".format(taxid))
+        dist_taxid += "/"
+        mapping = pickle.load(open(dist_taxid + str(taxid) + "_map.pck", "rb"))
+        X = np.load(dist_taxid + str(taxid) + "_X.npy")
+        return (X, mapping)
+    
+    def _get_clustered_genomes(self, parent, the_select_amount):
+        """Get some genomes by clustering them."""
+        try:
+            X, mapping = self._genomes_from_mapping(parent)
+            include = list(mapping.values())
+        except DistRecordError:
+            X, mapping = None, None
+            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                     self.index)
+        my_genomes = select_genomes(include,
+                                    self.index,
+                                    down_select=self.down_select,
+                                    select_amount=the_select_amount,
+                                    X=X,
+                                    mapping=mapping)
+        return my_genomes
+    
+    
+
+
+class TreeDist(TreeDistSuper):
+    """Choose genomes with maximum distance in the taxonomic tree."""
+    def __init__(self, index, select_amount, down_select, dist_location):
+        """
+        Initialize the class.
+
+        Parameters
+        ----------
+        index: dict
+            A dictionary representing the index of genomes.
+        select_amount: int
+            The amount of genomes to select.
+        down_select: str
+            Down selection method: random, sort
+
+        """
+        super().__init__(index, select_amount, down_select, dist_location)
+
+    def select(self, parent, children, genome_lists):
+        """
+        Select genomes to include.
+
+        Parameters
+        ----------
+        parent: int
+            The taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+        genome_lists: list
+            A list of lists of genome accessions.
+
+        Returns
+        -------
+            A list of genome accessions.
+
+        """
+        if children:  # Inner node
+            shuffle(genome_lists)
+            my_genomes = self._merge(genome_lists)[:self.select_amount]
+            for accession in my_genomes:
+                self.index['taxids'][parent][accession] = True
+            return my_genomes
+        else:  # Leaf (species) node
+            my_genomes = self._get_clustered_genomes(parent, 
+                                                     self.select_amount)
+            for accession in my_genomes:
+                try:
+                    self.index['taxids'][parent][accession] = True
+                except TypeError:
+                    print(parent, accession, my_genomes)
+                    raise
+            return my_genomes
+
+
 class GenomeHoldout(GenomeSelection):
     """Include whole genomes into separate train anid test data sets."""
-    def __init__(self, index, select_number, random=False):
+    def __init__(self, index, select_amount, random=False):
         """
         Initialize the GenomeSelection class.
 
@@ -442,13 +693,13 @@ class GenomeHoldout(GenomeSelection):
         ----------
         index: dict
             A dictionary representing the index of genomes.
-        select_number: dict
+        select_amount: dict
             The number of genomes to include in test and train
             to select at each level.
 
         """
-        super().__init__(index)
-        self.select_number = select_number
+        GenomeSelection.__init__(self, index)
+        self.select_amount = select_amount
         # 1 is train, 2 is test,
         # 3 is validate (if applicable, may not be implemented.).
         self.select_type = 0
@@ -478,6 +729,102 @@ class GenomeHoldout(GenomeSelection):
             return genome_list
         else:
             return genome_sort(genome_list, self.index)
+
+
+class GHTreeDist(GenomeHoldout, TreeDistSuper):
+    """Apply full genome holdout using the TreeDist traversal method. """
+    def __init__(self, index, select_amount, down_select, dist_location):
+        """
+        Initialize the class.
+
+        Parameters
+        ----------
+        index: dict
+            A dictionary representing the index of genomes.
+        select_amount: int
+            The amount of genomes to select.
+        select_type: str
+            Down selection method: random, sort
+
+        """
+        GenomeHoldout.__init__(self, index, select_amount,
+                               0 if down_select == "sort" else 1)
+        TreeDistSuper.__init__(self, index, select_amount, down_select,
+                               dist_location)
+
+    def select(self, parent, children, genome_lists):
+        """
+        Select genomes to include.
+
+        Parameters
+        ----------
+        parent: int
+            The taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+        genome_lists: list
+            A list of lists of lists of genome accessions.
+            Each inner list has three lists for train, test, and singleton
+            [[[] [] []] [[] [] []] [[] [] []]]
+
+        Returns
+        -------
+            A list of genome accessions.
+
+        """
+        if children:  # Inner node
+            shuffle(genome_lists)
+            the_end_list = []
+            for i in range(3):
+                the_list = [item[i] for item in genome_lists]
+                my_genomes = self._merge(the_list)[:self.select_amount[i % 2]]
+                for accession in my_genomes:
+                    self.index['taxids'][parent][
+                        accession] = i + 1 if i < 2 else SINGLETON
+                the_end_list.append(my_genomes)
+            return the_end_list
+        else:  # Leaf (species) node
+            my_genomes = self._get_clustered_genomes(parent, 
+                                                     sum(self.select_amount))
+#             try:
+#                 X, mapping = self._genomes_from_mapping(parent)
+#                 include = list(mapping.values())
+#             except DistRecordError:
+#                 X, mapping = None, None
+#                 include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+#                                          self.index)
+#             my_genomes = select_genomes(include,
+#                                         self.index,
+#                                         down_select=self.down_select,
+#                                         select_amount=sum(self.select_amount),
+#                                         X=X,
+#                                         mapping=mapping)
+#             my_genomes = self._get_clustered_genomes(parent)
+            samples = [0] * self.num_categories
+            select_type = 0
+            if len(my_genomes) == 1:
+                for accession in my_genomes:
+                    self.index['taxids'][parent][accession] = SINGLETON
+                return [[], [], my_genomes]
+            selected_genomes = [[], [], []]
+            for accession in my_genomes:
+                if min([
+                        samples[i] >= self.select_amount[i]
+                        for i in range(self.num_categories)
+                ]):
+                    break
+                self.index['taxids'][parent][accession] = select_type + 1
+                selected_genomes[select_type].append(accession)
+                samples[select_type] += 1
+                for i in range(select_type + 1,
+                               select_type + +1 + self.num_categories):
+                    j = i % self.num_categories
+                    if samples[j] < self.select_amount[j]:
+                        select_type = j
+                        break
+            samples = sum(samples)
+            return selected_genomes
 
 
 class GHLeaf(GenomeHoldout):
@@ -610,7 +957,7 @@ class GHTree(GenomeHoldout):
             The number of genomes selected.
 
         """
-        total_selected = sum(self.select_number)
+        total_selected = sum(self.select_amount)
         genome_label_dict = defaultdict(list)
         # Get all genomes from the child nodes and their labels.
         len_genome_set = 0
@@ -638,11 +985,11 @@ class GHTree(GenomeHoldout):
             samples = [0] * self.num_categories
             single_genomes = self.get_genomes(
                 list(chain.from_iterable(genome_label_dict[SINGLETON])))
-            freq = list(accumulate(self.select_number))
+            freq = list(accumulate(self.select_amount))
             freq = [num / total_selected for num in freq]
             for accession in single_genomes:
                 if min([
-                        samples[i] >= self.select_number[i]
+                        samples[i] >= self.select_amount[i]
                         for i in range(self.num_categories)
                 ]):
                     # Randomly assign remaining genomes to labels.
@@ -657,7 +1004,7 @@ class GHTree(GenomeHoldout):
                     for i in range(select_type + 1,
                                    select_type + 1 + self.num_categories):
                         j = i % self.num_categories
-                        if samples[j] < self.select_number[j]:
+                        if samples[j] < self.select_amount[j]:
                             select_type = j
                             break
             genome_label_dict[SINGLETON] = []
@@ -684,7 +1031,7 @@ class GHTree(GenomeHoldout):
             shuffle(genome_label_dict[label])  # Randomize choice of child.
             if label != SINGLETON:
                 my_genomes = select_equal(genome_label_dict[label],
-                                          self.select_number[label - 1])
+                                          self.select_amount[label - 1])
             else:
                 my_genomes = list(
                     chain.from_iterable(genome_label_dict[SINGLETON]))
@@ -719,7 +1066,7 @@ class GHTree(GenomeHoldout):
 #             The number of genomes selected.
 #
 #         """
-#         total_selected = sum(self.select_number)
+#         total_selected = sum(self.select_amount)
 #         genome_label_dict = defaultdict(list)
 #         # Get all genomes from the child nodes and their labels.
 #         for child in children:
@@ -741,10 +1088,10 @@ class GHTree(GenomeHoldout):
 #                            for i in range(self.num_categories)]
 #                 select_type = 0
 #                 single_genomes = self.get_genomes(child_dict[SINGLETON])
-#                 freq = list(accumulate(self.select_number))
+#                 freq = list(accumulate(self.select_amount))
 #                 freq = [num / total_selected for num in freq]
 #                 for accession in single_genomes:
-#                     if min([samples[i] >= self.select_number[i] for
+#                     if min([samples[i] >= self.select_amount[i] for
 #                             i in range(self.num_categories)]):
 #                         # random assignment
 #                         prob = random()
@@ -757,7 +1104,7 @@ class GHTree(GenomeHoldout):
 #                     for i in range(select_type + 1,
 #                                    select_type + 1 + self.num_categories):
 #                         j = i % self.num_categories
-#                         if samples[j] < self.select_number[j]:
+#                         if samples[j] < self.select_amount[j]:
 #                             select_type = j
 #                             break
 #
@@ -769,7 +1116,7 @@ class GHTree(GenomeHoldout):
 # #
 # #
 # #                 for accession in all_genomes:
-# #                     if min([samples[i] >= self.select_number[i] for
+# #                     if min([samples[i] >= self.select_amount[i] for
 # #                             i in range(self.num_categories)]):
 # #                         break
 # #                     self.index['taxids'][parent][accession] = select_type + 1
@@ -777,7 +1124,7 @@ class GHTree(GenomeHoldout):
 # #                     for i in range(select_type + 1,
 # #                                    select_type + 1 + self.num_categories):
 # #                         j = i % self.num_categories
-# #                         if samples[j] < self.select_number[j]:
+# #                         if samples[j] < self.select_amount[j]:
 # #                             select_type = j
 # #                             break
 # #
@@ -786,7 +1133,7 @@ class GHTree(GenomeHoldout):
 # #
 # #
 # #                 singleton_dict = defaultdict(list)
-# #                 freq = list(accumulate(self.select_number))
+# #                 freq = list(accumulate(self.select_amount))
 # #                 freq = [num / total_selected for num in freq]
 # #                 for g_list in child_dict[SINGLETON]:
 # #                     for accession in g_list:
@@ -808,7 +1155,7 @@ class GHTree(GenomeHoldout):
 #             shuffle(genome_label_dict[label])  # Randomize choice of child.
 #             if label != SINGLETON:
 #                 my_genomes = select_equal(genome_label_dict[label],
-#                                           self.select_number[label - 1])
+#                                           self.select_amount[label - 1])
 #             else:
 #                 my_genomes = list(chain.from_iterable(
 #                     genome_label_dict[SINGLETON]))
@@ -843,7 +1190,7 @@ class GHSpecies(GenomeHoldout):
         my_genomes = self.get_genomes(include)
         samples = 0
         for accession in my_genomes:
-            if samples >= self.select_number[self.select_type]:
+            if samples >= self.select_amount[self.select_type]:
                 break
             self.index['taxids'][parent][accession] = self.select_type + 1
             samples += 1
@@ -882,7 +1229,7 @@ class GHGenome(GenomeHoldout):
             return 1
         for accession in my_genomes:
             if min([
-                    samples[i] >= self.select_number[i]
+                    samples[i] >= self.select_amount[i]
                     for i in range(self.num_categories)
             ]):
                 break
@@ -891,7 +1238,7 @@ class GHGenome(GenomeHoldout):
             for i in range(select_type + 1,
                            select_type + +1 + self.num_categories):
                 j = i % self.num_categories
-                if samples[j] < self.select_number[j]:
+                if samples[j] < self.select_amount[j]:
                     select_type = j
                     break
         samples = sum(samples)
@@ -1020,46 +1367,3 @@ class GHGenomeTree(GHTree, GHGenome):
         else:  # Leaf node
             samples = self.leaf_node(parent)
         return samples
-
-
-class MinHashTree(GenomeSelection):
-    """
-    Use a minhash hierarchical clustering tree to select genomes for a given
-    taxonomic id.
-    """
-    def __init__(self, index, select_number):
-        """
-        Initialize the class.
-
-        Parameters
-        ----------
-        index: dict
-            A dictionary representing the index of genomes.
-        select_number: int
-            The number of genomes to select at each level.
-
-        """
-        raise NotImplementedError
-        super().__init__(index)
-        self.select_number = select_number
-        self.set_all_genomes(boolean=False)
-
-    def select(self, parent, children):
-        """
-        Use a minhash tree to select genomes.
-
-        Parameters
-        ----------
-        parent: int
-            Taxonomic id of the parent.
-        children: iterable
-            An iterable of children taxonomic ids of the parent.  A leaf node
-            is represented when children is [].
-
-        Returns
-        -------
-        samples: int
-            The number of genomes selected.
-
-        """
-        raise NotImplementedError

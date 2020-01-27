@@ -8,8 +8,7 @@ NCBI (National Center for Biotechnology Information)
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: genome holdout genome methods are not splitting the appropriate number of genomes between test and train sets.  Example: taxid 89373.
-# TODO: Exclude species, levels? where there are too few genomes.
+# TODO: forbid user for specifying more than 1 select amount for non GH methods.
 
 import argparse
 import datetime
@@ -177,6 +176,75 @@ def main():
     p_tree.add_argument(*tree.args, **tree.kwargs)
     p_tree.add_argument(*taxid.args, **taxid.kwargs)
     p_tree.add_argument(*verbose.args, **verbose.kwargs)
+    p_sketch = subparsers.add_parser(
+        "sketch",
+        help=('Create genome sketches.'),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p_sketch.add_argument("directory", type=str)
+    p_sketch.add_argument("--kmer_size",
+                          "-k",
+                          type=int,
+                          help=("The kmer size for the sketch. 1-32"),
+                          default=21)
+    p_sketch.add_argument("--sketch_size",
+                          "-s",
+                          type=int,
+                          help=("The sketch size."),
+                          default=5000)
+    p_sketch.add_argument("--processes",
+                          "-p",
+                          type=int,
+                          default=4,
+                          help=("The number of processes to use."))
+    p_dist = subparsers.add_parser(
+        "dist",
+        help=('Compute a distance matrix of genomes for each species.'),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p_dist.add_argument("output_dir",
+                        type=str,
+                        help=("The directory to output the "
+                              "results of the clusters.  "
+                              "This will be used to save a "
+                              "matrix for all of the species "
+                              "taxids under the root taxid."))
+    p_dist.add_argument("--root_taxid",
+                        "-t",
+                        help=("The root taxid for the "
+                              "tree to do clustering."),
+                        type=int,
+                        default=1)
+    p_dist.add_argument("--root_dir",
+                        "-d",
+                        type=str,
+                        help=("The root directory that contains "
+                              "all of the genomes where the index "
+                              "was built."),
+                        default="./")
+    p_dist.add_argument(*index.args, **index.kwargs)
+    p_dist.add_argument(*tree.args, **tree.kwargs)
+    p_dist.add_argument('--select_amount',
+                          '-n',
+                          type=int,
+                          help=("The maximum number of genomes "
+                          "to include in calculating distances."),
+                          default=100)
+    p_dist.add_argument('--down_select',
+                          '-s',
+                          type=str,
+                          choices=["sort", "random", "none"],
+                          help=("Choose how to down select genomes "
+                                "for the distance calculation.  "
+                                "If 'none' is given, then there will "
+                                "be no down selection.  "
+                                "For some species no down selection "
+                                "100s of days."),
+                          default="sort")
+    p_dist.add_argument("--processes",
+                        "-p",
+                        type=int,
+                        help=("The number of processes to use.  "
+                              "Multiple processes is recommended."),
+                        default=4)
     p_select = subparsers.add_parser(
         "select",
         help=("Select which genomes to "
@@ -189,21 +257,25 @@ def main():
                           type=int,
                           help=('The taxonomic id for '
                                 'the root.'))
-    p_select.add_argument(
-        "--strategy",
-        '-s',
-        action='store',
-        choices=['PR', 'QST', 'QSL', 'GHST', 'GHSL', 'GHGT', 'GHGL', 'AG'],
-        help=('Choose the genome selection strategy.  '
-              'The choices are: ProportionalRandom (PR), '
-              'QualitySortingTree (QST), '
-              'QualitySortingLeaf (QSL),'
-              'GenomeHoldoutSpeciesTree (GHST), '
-              'GenomeHoldoutSpeciesLeaf (GHSL), '
-              'GenomeHoldoutGenomeTree (GHGT), '
-              'GenomeHoldoutGenomeLeaf (GHGL), '
-              'AllGenomes (AG)'),
-        default='PR')
+    p_select.add_argument("--strategy",
+                          '-s',
+                          action='store',
+                          choices=[
+                              'PR', 'QST', 'QSL', 'TD', 'GHTD', 'GHST', 'GHSL',
+                              'GHGT', 'GHGL', 'AG'
+                          ],
+                          help=('Choose the genome selection strategy.  '
+                                'The choices are: ProportionalRandom (PR), '
+                                'QualitySortingTree (QST), '
+                                'QualitySortingLeaf (QSL), '
+                                'TreeDistance (TD), '
+                                'GenomeHoldoutTreeDistance (GHTD), '
+                                'GenomeHoldoutSpeciesTree (GHST), '
+                                'GenomeHoldoutSpeciesLeaf (GHSL), '
+                                'GenomeHoldoutGenomeTree (GHGT), '
+                                'GenomeHoldoutGenomeLeaf (GHGL), '
+                                'AllGenomes (AG)'),
+                          default='TD')
     p_select.add_argument('--select_amount',
                           '-n',
                           nargs='+',
@@ -217,14 +289,22 @@ def main():
                                 'data, and the second one for '
                                 'testing data.'),
                           default=[10])
-    p_select.add_argument('--random',
+    p_select.add_argument('--down_select',
                           '-d',
-                          action='store_true',
-                          help="Select genomes at random rather than sort "
-                          "them by quality when selecting genomes for "
-                          "genome holdout strategies.  This option only "
-                          "applies to genome holdout strategies.",
-                          default=False)
+                          type=str,
+                          choices=["sort", "random", "dist"],
+                          help=("Choose how to down select genomes.  "
+                                "If dist is chosen, then sketches "
+                                "and distance matrices must be computed. "
+                                "dist_location must be given."),
+                          default="sort")
+    p_select.add_argument("--dist_location",
+                          "-l",
+                          type=str,
+                          help=("The location of the "
+                                "precomputed distance matrices "
+                                "for the 'dist' down selection."),
+                          default="./distances")
     p_select.add_argument('--output',
                           '-o',
                           type=str,
@@ -508,11 +588,34 @@ def main():
         with open(args.taxid, "w") as taxid_file:
             for taxid in taxid_list:
                 print(taxid, file=taxid_file)
+    elif mode == "sketch":
+        from library.sketch import sketch_root
+        ret_code = sketch_root(args.directory, args.kmer_size,
+                               args.sketch_size, args.processes)
+        print("The sketches were completed. [{}]".format(ret_code),
+              file=sys.stderr)
+    elif mode == "dist":
+        from library.dist import dist_all
+        written, failed = dist_all(args.root_dir,
+                                     args.root_taxid,
+                                     read_ds(args.tree),
+                                     read_ds(args.index),
+                                     args.output_dir,
+                                     args.down_select,
+                                     args.select_amount,
+                                     processes=args.processes)
+        print("The number of distance matrices produced: {}".format(written),
+              file=sys.stderr)
+        print("The number of species without distance matrices"
+              " (taxids with 0 or 1 genomes): {}".format(failed),
+              file=sys.stderr)
     elif mode == "select":
         from library.genome_selection.strategy import ProportionalRandom
         from library.genome_selection.strategy import QualitySortingTree
         from library.genome_selection.strategy import QualitySortingLeaf
         from library.genome_selection.strategy import AllGenomes
+        from library.genome_selection.strategy import TreeDist
+        from library.genome_selection.strategy import GHTreeDist
         from library.genome_selection.strategy import GHSpeciesLeaf
         from library.genome_selection.strategy import GHSpeciesTree
         from library.genome_selection.strategy import GHGenomeLeaf
@@ -520,10 +623,17 @@ def main():
         from library.genome_selection.strategy import EXCLUDED_GENOMES
         from library.genome_selection.traversal import StrategyNotFound
         from library.genome_selection.traversal import TaxTreeTraversal
+        from library.genome_selection.traversal import TaxTreeListTraversal
         strategy_string = args.strategy.upper()
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         select_amount = args.select_amount
+        if args.down_select == "sort":
+            radon = 0
+        elif args.down_select == "random":
+            radon = 1
+        else:
+            radon = 3
         if not min(list(map(lambda x: x > 0, select_amount))):
             parser.error('The sample amount needs to be a positive integer.')
         if strategy_string == 'PR':
@@ -541,35 +651,37 @@ def main():
             warning = ("Species holdout strategies may not make sense "
                        "for selecting genera.")
             if strategy_string == 'GHSL':
-                strategy = GHSpeciesLeaf(index,
-                                         select_amount,
-                                         random=args.random)
+                strategy = GHSpeciesLeaf(index, select_amount, random=radon)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHST':
-                strategy = GHSpeciesTree(index,
-                                         select_amount,
-                                         random=args.random)
+                strategy = GHSpeciesTree(index, select_amount, random=radon)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHGL':
-                strategy = GHGenomeLeaf(index,
-                                        select_amount,
-                                        random=args.random)
+                strategy = GHGenomeLeaf(index, select_amount, random=radon)
             elif strategy_string == 'GHGT':
-                strategy = GHGenomeTree(index,
-                                        select_amount,
-                                        random=args.random)
+                strategy = GHGenomeTree(index, select_amount, random=radon)
+            elif strategy_string == 'GHTD':
+                strategy = GHTreeDist(index, select_amount, args.down_select,
+                                      args.dist_location)
             else:
                 raise StrategyNotFound()
         elif strategy_string == 'AG':
             strategy = AllGenomes(index)
+        elif strategy_string == 'TD':
+            strategy = TreeDist(index, select_amount[0], args.down_select,
+                                args.dist_location)
         else:
             raise StrategyNotFound()
         index["select"] = {
             "strategy": strategy_string,
             "select_amount": select_amount
         }
-        traversal = TaxTreeTraversal(tree, strategy)
-        levels_visited = traversal.select_genomes(args.taxid)
+        if strategy_string == 'TD' or strategy_string == 'GHTD':
+            traversal = TaxTreeListTraversal(tree, strategy)
+            levels_visited = traversal.select_genomes(args.taxid)[0]
+        else:
+            traversal = TaxTreeTraversal(tree, strategy)
+            levels_visited = traversal.select_genomes(args.taxid)
         if args.verbose >= 1:
             for accession in EXCLUDED_GENOMES:
                 print("WARNING: {} excluded because {}.".format(
