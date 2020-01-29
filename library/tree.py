@@ -186,9 +186,9 @@ def make_tree(index, verbose=False):
         try:
             taxid = int(index['genomes'][accession]['taxid'])
         except KeyError:
-            print("Could not find a key for: {}".format(accession),
+            print("WARNING: Could not find a key for: {}".format(accession),
                   file=sys.stderr)
-            raise KeyError
+            continue
         if taxid in looked_at:
             continue
         if not index['taxids'][taxid]:
