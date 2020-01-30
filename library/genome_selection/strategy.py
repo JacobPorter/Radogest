@@ -609,7 +609,7 @@ class TreeDist(TreeDistSuper):
 
 class GenomeHoldout(GenomeSelection):
     """Include whole genomes into separate train anid test data sets."""
-    def __init__(self, index, select_amount, random=False):
+    def __init__(self, index, select_amount, down_select=False):
         """
         Initialize the GenomeSelection class.
 
@@ -630,8 +630,8 @@ class GenomeHoldout(GenomeSelection):
         # The number of data categories.  2 means train and test.
         # 3 means train, test, and validate.  (Not implemented.  Probably.)
         self.num_categories = 2
-        # If random, select random genomes.  Otherwise sort the genomes.
-        self.random = random
+        # Set the down selection method.  i.e. 'sort' or 'dist'
+        self.down_select = down_select
         # Set the inclusion to all genomes to False (0).
         self.set_all_genomes(boolean=0)
 
@@ -646,14 +646,9 @@ class GenomeHoldout(GenomeSelection):
         Returns
         -------
         A list of genome accessions.
-
         """
-        if self.random:
-            return select_genomes(genome_list, self.index, "random", None,
-                                  None, None)
-        else:
-            return select_genomes(genome_list, self.index, "sort", None, None,
-                                  None)
+        return select_genomes(genome_list, self.index, self.down_select, 
+                              None, None, None)
 
 
 class GHTreeDist(GenomeHoldout, TreeDistSuper):

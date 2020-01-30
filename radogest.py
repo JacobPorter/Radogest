@@ -626,17 +626,13 @@ def main():
         strategy_string = args.strategy.upper()
         if (args.down_select == "dist" and 
             strategy_string in ['TS', 'GHSL', 'GHST', 'GHGL', 'GHGT']):
-            p_select.error("The combination of down_select "
-                           "and strategy is not supported.")
+            p_select.error("The combination of down_select '{}' "
+                           "and strategy '{}' "
+                           "is not supported.".format(args.down_select, 
+                                                      args.strategy))
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         select_amount = args.select_amount
-        if args.down_select == "sort":
-            radon = 0
-        elif args.down_select == "random":
-            radon = 1
-        else:
-            radon = 3
         if not min(list(map(lambda x: x > 0, select_amount))):
             parser.error('The sample amount needs to be a positive integer.')
         if strategy_string == 'TS':
@@ -652,15 +648,19 @@ def main():
             warning = ("Species holdout strategies may not make sense "
                        "for selecting genera.")
             if strategy_string == 'GHSL':
-                strategy = GHSpeciesLeaf(index, select_amount, random=radon)
+                strategy = GHSpeciesLeaf(index, select_amount, 
+                                         down_select=args.down_select)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHST':
-                strategy = GHSpeciesTree(index, select_amount, random=radon)
+                strategy = GHSpeciesTree(index, select_amount, 
+                                         down_select=args.down_select)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHGL':
-                strategy = GHGenomeLeaf(index, select_amount, random=radon)
+                strategy = GHGenomeLeaf(index, select_amount, 
+                                        down_select=args.down_select)
             elif strategy_string == 'GHGT':
-                strategy = GHGenomeTree(index, select_amount, random=radon)
+                strategy = GHGenomeTree(index, select_amount, 
+                                        down_select=args.down_select)
             elif strategy_string == 'GHTD':
                 strategy = GHTreeDist(index, select_amount, args.down_select,
                                       args.dist_location)
