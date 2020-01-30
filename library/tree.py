@@ -13,7 +13,8 @@ from tqdm import tqdm
 
 ncbi = NCBITaxa()
 
-DEBUG_TID = 554915
+DEBUG_TID = None
+# Issue #34: 554915 has no rank, so it is being excluded by design.
 
 
 def count_levels(tree, roots):
@@ -186,9 +187,9 @@ def make_tree(index, verbose=False):
         try:
             taxid = int(index['genomes'][accession]['taxid'])
         except KeyError:
-            print("Could not find a key for: {}".format(accession),
+            print("WARNING: Could not find a key for: {}".format(accession),
                   file=sys.stderr)
-            raise KeyError
+            continue
         if taxid in looked_at:
             continue
         if not index['taxids'][taxid]:
