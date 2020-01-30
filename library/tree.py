@@ -13,6 +13,9 @@ from tqdm import tqdm
 
 ncbi = NCBITaxa()
 
+DEBUG_TID = None
+# Issue #34: 554915 has no rank, so it is being excluded by design.
+
 
 def count_levels(tree, roots):
     """
@@ -167,6 +170,10 @@ def make_tree(index, verbose=False):
         6. taxid_list: The non-leaf taxonomic id in a random order.
 
     """
+    def print_debug(msg):
+        if DEBUG_TID:
+            print("{} {}:".format(msg, DEBUG_TID), ranks[DEBUG_TID])
+    
     rank_list = [
         "superkingdom", "kingdom", "phylum", "class", "order", "family",
         "genus", "species"
@@ -180,9 +187,9 @@ def make_tree(index, verbose=False):
         try:
             taxid = int(index['genomes'][accession]['taxid'])
         except KeyError:
-            print("Could not find a key for: {}".format(accession),
+            print("WARNING: Could not find a key for: {}".format(accession),
                   file=sys.stderr)
-            raise KeyError
+            continue
         if taxid in looked_at:
             continue
         if not index['taxids'][taxid]:
@@ -216,6 +223,7 @@ def make_tree(index, verbose=False):
                     break
     for taxid in ranks:
         ranks[taxid] = list(ranks[taxid])
+    print_debug("Initial")
     unclassified = []
     print("Removing species with 'unclassified' in their lineage.",
           file=sys.stderr)
@@ -238,6 +246,7 @@ def make_tree(index, verbose=False):
         for species in unclassified:
             if species in ranks[taxid]:
                 ranks[taxid].remove(species)
+    print_debug("Unclassified")
     # Add the root node for eukaryotes, bacteria, viruses, archaea
     ranks[1] = [2759, 2, 10239, 2157]
     print("Removing nodes with only one child.", file=sys.stderr)
@@ -245,6 +254,7 @@ def make_tree(index, verbose=False):
     remove_domains = [domain for domain in ranks[1] if not ranks[domain]]
     for domain in remove_domains:
         ranks[1].remove(domain)
+    print_debug("Removed child")
     print("Removing empties.", file=sys.stderr)
     empties_remove = 0
     to_delete = []
@@ -254,6 +264,7 @@ def make_tree(index, verbose=False):
             empties_remove += 1
     for taxid in to_delete:
         del ranks[taxid]
+    print_debug("Remove empties")
     print("Counting the levels and producing the taxonomic id list.",
           file=sys.stderr)
     counter_dict, taxid_list = count_levels(ranks, ranks[1])
