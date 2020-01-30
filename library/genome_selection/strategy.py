@@ -725,10 +725,11 @@ class GenomeHoldout(GenomeSelection):
 
         """
         if self.random:
-            shuffle(genome_list)
-            return genome_list
+            return select_genomes(genome_list, self.index, 
+                                  "random", None, None, None)
         else:
-            return genome_sort(genome_list, self.index)
+            return select_genomes(genome_list, self.index, 
+                                  "sort", None, None, None)
 
 
 class GHTreeDist(GenomeHoldout, TreeDistSuper):
