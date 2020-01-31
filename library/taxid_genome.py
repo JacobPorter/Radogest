@@ -8,7 +8,7 @@ and genome accessions for each fasta header.
 """
 import sys
 
-from SeqIterator.SeqIterator import SeqReader
+from seq.SeqIterator import SeqReader
 
 
 def get_taxid_genomes(fasta_file):

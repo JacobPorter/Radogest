@@ -9,7 +9,7 @@ training, validation, and testing partitions.
 import sys
 from random import shuffle
 
-from SeqIterator.SeqIterator import SeqReader, SeqWriter
+from seq.SeqIterator import SeqReader, SeqWriter
 
 
 def write_fasta_taxid(both_records, fasta_writable, taxid_writable):

@@ -28,7 +28,7 @@ from library.chop import chop_genomes
 from library.genome_selection.strategy import SINGLETON
 from library.permute import randomly_permute_fasta_taxid
 from library.util import which
-from SeqIterator.SeqIterator import SeqReader, SeqWriter
+from seq.SeqIterator import SeqReader, SeqWriter
 
 ncbi = NCBITaxa()
 

@@ -10,7 +10,7 @@ import os
 import random
 import sys
 
-from SeqIterator.SeqIterator import SeqReader, SeqWriter
+from seq.SeqIterator import SeqReader, SeqWriter
 
 # The default seed for the random number generator for subsampling.
 _SEED = 42
