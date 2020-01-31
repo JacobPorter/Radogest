@@ -311,7 +311,7 @@ class StandardSelect(GenomeSelection):
     """
 
     """
-    def __init__(self, index, select_amount, down_select):
+    def __init__(self, index, select_amount, down_select, dist_location=None):
         """
         Initialize the StandardSelect class.
 
@@ -326,57 +326,11 @@ class StandardSelect(GenomeSelection):
             e.g. 'random' or 'sort'
 
         """
-        super().__init__(index)
+        GenomeSelection.__init__(self, index)
         self.select_amount = select_amount
         self.down_select = down_select
+        self.dist_location=dist_location
         self.set_all_genomes(boolean=False)
-
-
-class LeafSelect(StandardSelect):
-    """
-    Perform down selection only at the leaves of the tree.
-    """
-    def select(self, parent, children):
-        """
-        Perform down selection only at the leaves of the tree.
-
-        Parameters
-        ----------
-        parent: int
-            Taxonomic id of the parent.
-        children: iterable
-            An iterable of children taxonomic ids of the parent.  A leaf
-            node is represented by [] or False.
-
-        Returns
-        -------
-        samples: int
-            The number of genomes selected.
-
-        """
-        if not children:
-            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
-                                        self.index)
-            my_genomes = select_genomes(include,
-                                        self.index,
-                                        down_select=self.down_select,
-                                        select_amount=self.select_amount)
-            samples = 0
-            for accession in my_genomes:
-                if samples >= self.select_amount:
-                    break
-                samples += 1
-                self.index['taxids'][parent][accession] = True
-        else:
-            samples = 0
-            for child in children:
-                include, _ = filter_genomes(self.index['taxids'][child].keys(),
-                                            self.index)
-                for accession in include:
-                    if self.index['taxids'][child][accession]:
-                        self.index['taxids'][parent][accession] = True
-                        samples += 1
-        return samples
 
 
 class TreeSelect(StandardSelect):
@@ -550,6 +504,57 @@ class TreeDistSuper(GenomeSelection):
                                     X=X,
                                     mapping=mapping)
         return my_genomes
+
+
+class LeafSelect(StandardSelect, TreeDistSuper):
+    """
+    Perform down selection only at the leaves of the tree.
+    """
+    def select(self, parent, children):
+        """
+        Perform down selection only at the leaves of the tree.
+
+        Parameters
+        ----------
+        parent: int
+            Taxonomic id of the parent.
+        children: iterable
+            An iterable of children taxonomic ids of the parent.  A leaf
+            node is represented by [] or False.
+
+        Returns
+        -------
+        samples: int
+            The number of genomes selected.
+
+        """
+        if not children:
+            include, _ = filter_genomes(self.index['taxids'][parent].keys(),
+                                        self.index)
+            if self.down_select == "dist":
+                my_genomes = self._get_clustered_genomes(parent, 
+                                                    self.select_amount)
+            else:
+                my_genomes = select_genomes(include,
+                                            self.index,
+                                            down_select=self.down_select,
+                                            select_amount=self.select_amount)
+            samples = 0
+            for accession in my_genomes:
+                if samples >= self.select_amount:
+                    break
+                samples += 1
+                self.index['taxids'][parent][accession] = True
+        else:
+            samples = 0
+            for child in children:
+                include, _ = filter_genomes(self.index['taxids'][child].keys(),
+                                            self.index)
+                for accession in include:
+                    if self.index['taxids'][child][accession]:
+                        self.index['taxids'][parent][accession] = True
+                        samples += 1
+        return samples
 
 
 class TreeDist(TreeDistSuper):

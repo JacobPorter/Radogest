@@ -630,6 +630,9 @@ def main():
                            "and strategy '{}' "
                            "is not supported.".format(args.down_select, 
                                                       args.strategy))
+        if args.down_select == "dist" and not os.path.isdir(args.dist_location):
+            p_select.error("The directory {} does not appear "
+                           "to exist.".format(args.dist_location))
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         select_amount = args.select_amount
@@ -638,7 +641,8 @@ def main():
         if strategy_string == 'TS':
             strategy = TreeSelect(index, select_amount[0], args.down_select)
         elif strategy_string == 'LS':
-            strategy = LeafSelect(index, select_amount[0], args.down_select)
+            strategy = LeafSelect(index, select_amount[0], args.down_select, 
+                                  args.dist_location)
         elif strategy_string.startswith('GH'):
             if len(select_amount) != 2:
                 p_select.error("There must be two and only two sample amounts "
