@@ -13,7 +13,10 @@ import sys
 from collections import defaultdict
 from multiprocessing import Pool
 
-from config import SAMTOOLS
+try:
+    from config import SAMTOOLS
+except ImportError:
+    SAMTOOLS = ""
 from library.util import which
 
 FASTA_ENDINGS = ['fasta', 'fa', 'fna', 'faa', 'jsonhfasta']

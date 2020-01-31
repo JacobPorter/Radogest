@@ -20,7 +20,10 @@ from multiprocessing import Manager, Pool, Process
 
 from ete3 import NCBITaxa
 
-from config import BEDTOOLS
+try:
+    from config import BEDTOOLS
+except ImportError:
+    BEDTOOLS = ""
 from library.chop import chop_genomes
 from library.genome_selection.strategy import SINGLETON
 from library.permute import randomly_permute_fasta_taxid

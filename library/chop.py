@@ -204,7 +204,6 @@ def chop_genomes(accessions_list,
         writer = get_output_writer(output)
     number_written = 0
     for location, accession in zip(locations, accessions_list):
-        # print(location, file=sys.stderr)
         number_written += chop_a_genome(location,
                                         accession,
                                         length,
