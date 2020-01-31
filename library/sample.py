@@ -279,21 +279,6 @@ def uniform_samples_at_rank(index,
                 accession, taxid, index, genomes_dir, kmer_length,
                 include_wild, amino_acid, temp_dir, include_list)
         ]
-        #         for accession in my_accessions:
-        #             accession_chop_subs[accession] = {"subsample": 0,
-        #                                               "sub_cutoff": None}
-        #         if strategy.startswith("GHG"):
-        #             # Detect if there is a singleton genome for genome holdout genome.
-        #             init_accessions = [accession
-        #                                for accession in index['taxids'][taxid]]
-        #             if len(init_accessions) == 1:
-        #                     my_accessions = init_accessions
-        #                     subsample = -1 if include_list[0] == _TRAIN else 1
-        #                     accession_chop_subs[my_accessions[0]] = {"subsample":
-        #                                                              subsample,
-        #                                                              "sub_cutoff":
-        #                                                              _GHG_CHOP_SUB_CUT
-        #                                                              }
         my_sums = [
             index['genomes'][accession]['contig_sum'] -
             kmer_length * index['genomes'][accession]['contig_count'] + 1
@@ -321,9 +306,6 @@ def uniform_samples_at_rank(index,
         uniform_sample_counts.append(
             (taxid,
              uniform_samples(taxid, taxid_accessions[taxid], uniform_number)))
-
-
-#                                       taxid_chop_subs[taxid]))
     return uniform_sample_counts
 
 
@@ -394,7 +376,7 @@ def include_accession(accession,
     else:
         inside_std = kmer_length <= mx
     if (kmer_length > _WILDCARD_KMER_T and not include_wild and not amino_acid
-            and inside_std):  # What does this do?
+            and inside_std):
         file_locations_d = file_locations(accession, genomes_dir, index,
                                           temp_dir)
         fai_location = file_locations_d["fai"]
@@ -518,39 +500,6 @@ def file_locations(accession, accession_location, temp_dir):
     }
 
 
-# def index_service(index_dir, pipes):
-#     """
-#     Access the genomes index object through pipes.
-#     This allows for paralellism.
-#
-#     Parameters
-#     ----------
-#     index_dir: str
-#         The location of the genomes index object.
-#     pipes: list<Pipe>
-#         A list of Pipe objects to send and receive
-#         requests for information from the index.
-#
-#     Returns
-#     -------
-#     None
-#
-#     """
-#     index = pickle.load(open(index_dir, 'rb'))
-#     stay = True
-#     while(stay):
-#         ready_pipes = connection.wait(pipes)
-#         for pipe in ready_pipes:
-#             index_accessor = pipe.recv()
-#             if index_accessor:
-#                 d1 = index
-#                 for accessor in index_accessor:
-#                     d1 = d1[accessor]
-#                 pipe.send(d1)
-#             else:
-#                 stay = False
-
-
 def file_service(fasta_file_location,
                  taxid_file_location,
                  record_count,
@@ -609,7 +558,6 @@ def get_fasta(accession_counts_list,
               genomes_dir,
               fasta_path,
               taxid_path,
-              index_dir,
               include_wild=False,
               window_length=50,
               thresholding=False,
@@ -639,8 +587,6 @@ def get_fasta(accession_counts_list,
         A path for a fasta file.
     taxid_path: str
         A path for a taxid file.
-    index_dir: str
-        The path to the genomes index object.
     include_wild: boolean
         Determines if sequences with wild card characters will be kept.
     window_length: int
@@ -675,22 +621,12 @@ def get_fasta(accession_counts_list,
         fasta_record_count = {}
     else:
         pool = Pool(processes=processes)
-        #         pool_connections = []
-        #         service_connections = []
-        #         for _ in len(processes):
-        #             c1, c2 = Pipe()
-        #             pool_connections.append(c1)
-        #             service_connections.append(c2)
-        #         index_process = Process(target=index_service,
-        #                                 args=(index_dir, service_connections))
-        # fasta_record_count = Value('i', 0)
         manager = Manager()
         fasta_record_count = manager.dict()
         queue = manager.Queue()
         file_process = Process(target=file_service,
                                args=(fasta_path, taxid_path,
                                      fasta_record_count, queue))
-        #         index_process.start()
         file_process.start()
     drawn_accessions = []
     for taxid, accession_counts in accession_counts_list:
@@ -767,11 +703,8 @@ def get_fasta(accession_counts_list,
     else:
         pool.close()
         pool.join()
-        #         index_process.join()
         queue.put(None)
         file_process.join()
-        # index_process.close()
-        # file_process.close()
     return fasta_record_count, drawn_accessions
 
 
@@ -1088,7 +1021,6 @@ def get_sample(taxid,
                                         test_amt,
                                         length,
                                         data_dir,
-                                        index_dir,
                                         split=False,
                                         split_amount=split_amount,
                                         include_wild=include_wild,
@@ -1135,7 +1067,6 @@ def get_sample(taxid,
                                          train_amt,
                                          length,
                                          data_dir,
-                                         index_dir,
                                          split=False,
                                          split_amount=split_amount,
                                          include_wild=include_wild,
@@ -1194,7 +1125,6 @@ def get_sample_worker(taxid,
                       number,
                       length,
                       data_dir,
-                      index_dir,
                       split=True,
                       split_amount='0.8,0.1,0.1',
                       include_wild=False,
@@ -1228,8 +1158,6 @@ def get_sample_worker(taxid,
         The number of bases for each sample
     data_dir: str
         The path to the data directory where fasta files will be written.
-    index_dir: str
-        The path to the genomes index object.
     split: bool
         Determine whether to split the data or not.
     split_amount: str
@@ -1291,10 +1219,6 @@ def get_sample_worker(taxid,
     if not accession_counts_list:
         print("{} has no sublevels.".format(taxid), file=sys.stderr)
         return ((0, 0), [])
-
-
-#     if taxid == 89373:
-#         print(accession_counts_list)
     print("Getting the kmer samples from {} taxids of {} "
           "possible taxids.".format(len(accession_counts_list),
                                     len(sublevels)),
@@ -1312,7 +1236,6 @@ def get_sample_worker(taxid,
                                  genomes_dir,
                                  fasta_path_init,
                                  taxid_path,
-                                 index_dir,
                                  include_wild=include_wild,
                                  window_length=window_length,
                                  temp_dir=temp_dir,
