@@ -20,6 +20,7 @@ def chop_a_genome(location,
                   accession,
                   length,
                   taxid,
+                  species_taxid,
                   writer,
                   queue=None,
                   include_wild=False,
@@ -40,6 +41,8 @@ def chop_a_genome(location,
         The length of the kmer to get.
     taxid: int
         The taxid to use for the fasta record.
+    species_taxid: int
+        The species taxid associated with the genome accession.
     writer: SeqWriter
         The SeqWriter object to write fasta records to.
     queue: Queue
@@ -92,9 +95,10 @@ def chop_a_genome(location,
             substring = sequence[i:i + length].upper()
             if (len(substring) == length
                     and (include_wild or 'N' not in substring)):
-                seq_id = "{}:{}:{}:{}-{}".format(accession, taxid,
-                                                 header.split()[0], i,
-                                                 i + length)
+                seq_id = "{}:{}:{}:{}:{}-{}".format(accession, taxid,
+                                                    species_taxid,
+                                                    header.split()[0], i,
+                                                    i + length)
                 keep = True
                 if subsample and not op(random.random(), sub_cutoff):
                     keep = False
@@ -138,6 +142,7 @@ def chop_genomes(accessions_list,
                  length,
                  locations,
                  taxid,
+                 species_taxid,
                  output,
                  queue=None,
                  include_wild=False,
@@ -160,6 +165,8 @@ def chop_genomes(accessions_list,
         in the same order as the accessions_list
     taxid: int
         The taxid to use for the fasta record.
+    species_taxid: int
+        The species taxid associated with the genome accession.
     output: str or writable
         The location of the output file as a string path or a writable object.
     queue: Queue
@@ -202,6 +209,7 @@ def chop_genomes(accessions_list,
                                         accession,
                                         length,
                                         taxid,
+                                        species_taxid,
                                         writer,
                                         queue=queue,
                                         include_wild=include_wild,
