@@ -692,6 +692,7 @@ def get_fasta(accession_counts_list,
         for accession in accession_counts.keys():
             if accession_counts[accession] <= 0:
                 continue
+            species_taxid = int(index["genomes"][accession]["species_taxid"])
             if verbose >= 1:
                 sys.stderr.write("Writing fasta records for "
                                  "taxid {} from genome accession {}\n".format(
@@ -720,6 +721,7 @@ def get_fasta(accession_counts_list,
                     records_written = chop_genomes([accession],
                                                    length, [location],
                                                    taxid,
+                                                   species_taxid,
                                                    final_file,
                                                    queue=None,
                                                    include_wild=include_wild,
@@ -732,24 +734,26 @@ def get_fasta(accession_counts_list,
                     my_fasta_record_count += records_written
                 else:
                     pool.apply_async(chop_genomes,
-                                     args=([accession
-                                            ], length, [location], taxid, None,
-                                           queue, include_wild, window_length,
+                                     args=([accession], length, [location],
+                                           taxid, species_taxid, None, queue,
+                                           include_wild, window_length,
                                            subsample, sub_cutoff, accession))
                 drawn_accessions.append((fasta_location, taxid))
                 continue
             drawn_accessions.append((fasta_location, taxid))
             if processes == 1:
                 my_fasta_record_count += random_bed_fast_worker(
-                    accession_counts[accession], length, taxid, accession,
-                    fai_location, fasta_location, taxid_file, final_file, None,
-                    include_wild, amino_acid, temp_dir, verbose)
+                    accession_counts[accession], length, taxid, species_taxid,
+                    accession, fai_location, fasta_location, taxid_file,
+                    final_file, None, include_wild, amino_acid, temp_dir,
+                    verbose)
             else:
-                pool.apply_async(
-                    random_bed_fast_worker,
-                    args=(accession_counts[accession], length, taxid,
-                          accession, fai_location, fasta_location, None, None,
-                          queue, include_wild, amino_acid, temp_dir, verbose))
+                pool.apply_async(random_bed_fast_worker,
+                                 args=(accession_counts[accession], length,
+                                       taxid, species_taxid, accession,
+                                       fai_location, fasta_location, None,
+                                       None, queue, include_wild, amino_acid,
+                                       temp_dir, verbose))
         fasta_record_count[str(taxid)] = my_fasta_record_count
     if processes == 1:
         final_file.close()
@@ -768,6 +772,7 @@ def get_fasta(accession_counts_list,
 def random_bed_fast_worker(total_accession_count,
                            length,
                            taxid,
+                           species_taxid,
                            accession,
                            fai_location,
                            fasta_location,
@@ -791,6 +796,8 @@ def random_bed_fast_worker(total_accession_count,
         The length of the nucleotide sequence to get.
     taxid: int
         The taxonomic id to sample from
+    species_taxid: int
+        The species taxid associated with the genome accession.
     accession: str
         A string indicating the accession id for a genome
     fai_location: str
@@ -825,10 +832,11 @@ def random_bed_fast_worker(total_accession_count,
     while get_random:
         accession_number = total_accession_count - accession_cnt
         bed_2bit_counts = get_random_bed_fast(accession_number, length, taxid,
-                                              accession, fai_location,
-                                              fasta_location, taxid_file,
-                                              final_file, include_wild,
-                                              amino_acid, temp_dir, queue)
+                                              species_taxid, accession,
+                                              fai_location, fasta_location,
+                                              taxid_file, final_file,
+                                              include_wild, amino_acid,
+                                              temp_dir, queue)
         get_random = not bed_2bit_counts[0]
         accession_cnt += bed_2bit_counts[1]
         if verbose > 1:
@@ -847,6 +855,7 @@ def random_bed_fast_worker(total_accession_count,
 def get_random_bed_fast(number,
                         length,
                         taxid,
+                        species_taxid,
                         accession,
                         fai_location,
                         fasta_location,
@@ -868,6 +877,8 @@ def get_random_bed_fast(number,
         The length of the nucleotide sequence to get.
     taxid: int
         The taxonomic id to sample from
+    species_taxid: int
+        The species taxid associated with the genome accession.
     accession: str
         A string indicating the accession id for a genome
     fai_location: str
@@ -937,7 +948,8 @@ def get_random_bed_fast(number,
                 records_with_n += 1
                 if not include_wild:
                     continue
-            record_id = accession + ":" + taxid + ":" + record_id
+            record_id = "{}:{}:{}:{}".format(accession, taxid, species_taxid,
+                                             record_id)
             if final_file:
                 final_file.write((record_id, record_seq))
             if taxid_file:
