@@ -8,8 +8,6 @@ NCBI (National Center for Biotechnology Information)
     Jacob Porter <jsporter@vt.edu>
 """
 
-# TODO: forbid user for specifying more than 1 select amount for non GH methods.
-
 import argparse
 import datetime
 import json
@@ -223,22 +221,22 @@ def main():
     p_dist.add_argument(*index.args, **index.kwargs)
     p_dist.add_argument(*tree.args, **tree.kwargs)
     p_dist.add_argument('--select_amount',
-                          '-n',
-                          type=int,
-                          help=("The maximum number of genomes "
-                          "to include in calculating distances."),
-                          default=100)
+                        '-n',
+                        type=int,
+                        help=("The maximum number of genomes "
+                              "to include in calculating distances."),
+                        default=100)
     p_dist.add_argument('--down_select',
-                          '-s',
-                          type=str,
-                          choices=["sort", "random", "none"],
-                          help=("Choose how to down select genomes "
-                                "for the distance calculation.  "
-                                "If 'none' is given, then there will "
-                                "be no down selection.  "
-                                "For some species no down selection "
-                                "100s of days."),
-                          default="sort")
+                        '-s',
+                        type=str,
+                        choices=["sort", "random", "none"],
+                        help=("Choose how to down select genomes "
+                              "for the distance calculation.  "
+                              "If 'none' is given, then there will "
+                              "be no down selection.  "
+                              "For some species no down selection "
+                              "100s of days."),
+                        default="sort")
     p_dist.add_argument("--processes",
                         "-p",
                         type=int,
@@ -261,8 +259,8 @@ def main():
                           '-s',
                           action='store',
                           choices=[
-                              'TS', 'LS', 'TD', 'GHTD', 'GHGT', 'GHGL',
-                              'GHST', 'GHSL', 'AG'
+                              'TS', 'LS', 'TD', 'GHTD', 'GHGT', 'GHGL', 'GHST',
+                              'GHSL', 'AG'
                           ],
                           help=('Choose the genome selection strategy.  '
                                 'The choices are: ProportionalRandom (PR), '
@@ -597,13 +595,13 @@ def main():
     elif mode == "dist":
         from library.dist import dist_all
         written, failed = dist_all(args.root_dir,
-                                     args.root_taxid,
-                                     read_ds(args.tree),
-                                     read_ds(args.index),
-                                     args.output_dir,
-                                     args.down_select,
-                                     args.select_amount,
-                                     processes=args.processes)
+                                   args.root_taxid,
+                                   read_ds(args.tree),
+                                   read_ds(args.index),
+                                   args.output_dir,
+                                   args.down_select,
+                                   args.select_amount,
+                                   processes=args.processes)
         print("The number of distance matrices produced: {}".format(written),
               file=sys.stderr)
         print("The number of species without distance matrices"
@@ -624,46 +622,53 @@ def main():
         from library.genome_selection.traversal import TaxTreeTraversal
         from library.genome_selection.traversal import TaxTreeListTraversal
         strategy_string = args.strategy.upper()
-        if (args.down_select == "dist" and 
-            strategy_string in ['TS', 'GHSL', 'GHST', 'GHGL', 'GHGT']):
+        if (args.down_select == "dist"
+                and strategy_string in ['TS', 'GHSL', 'GHST', 'GHGL', 'GHGT']):
             p_select.error("The combination of down_select '{}' "
                            "and strategy '{}' "
-                           "is not supported.".format(args.down_select, 
+                           "is not supported.".format(args.down_select,
                                                       args.strategy))
-        if args.down_select == "dist" and not os.path.isdir(args.dist_location):
+        if args.down_select == "dist" and not os.path.isdir(
+                args.dist_location):
             p_select.error("The directory {} does not appear "
                            "to exist.".format(args.dist_location))
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         select_amount = args.select_amount
         if not min(list(map(lambda x: x > 0, select_amount))):
-            parser.error('The sample amount needs to be a positive integer.')
+            parser.error('The select_amount needs to be a positive integer.')
+        if len(select_amount) != 1 and not strategy_string.startswith("GH"):
+            p_select.error("There must be only one select_amount.")
         if strategy_string == 'TS':
             strategy = TreeSelect(index, select_amount[0], args.down_select)
         elif strategy_string == 'LS':
-            strategy = LeafSelect(index, select_amount[0], args.down_select, 
+            strategy = LeafSelect(index, select_amount[0], args.down_select,
                                   args.dist_location)
         elif strategy_string.startswith('GH'):
             if len(select_amount) != 2:
-                p_select.error("There must be two and only two sample amounts "
+                p_select.error("There must be two and only two select_amounts "
                                "when using the genome holdout strategy: "
-                               "The first for the training set, "
+                               "The first for the training set, and "
                                "the second for the testing set.")
             warning = ("Species holdout strategies may not make sense "
                        "for selecting genera.")
             if strategy_string == 'GHSL':
-                strategy = GHSpeciesLeaf(index, select_amount, 
+                strategy = GHSpeciesLeaf(index,
+                                         select_amount,
                                          down_select=args.down_select)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHST':
-                strategy = GHSpeciesTree(index, select_amount, 
+                strategy = GHSpeciesTree(index,
+                                         select_amount,
                                          down_select=args.down_select)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHGL':
-                strategy = GHGenomeLeaf(index, select_amount, 
+                strategy = GHGenomeLeaf(index,
+                                        select_amount,
                                         down_select=args.down_select)
             elif strategy_string == 'GHGT':
-                strategy = GHGenomeTree(index, select_amount, 
+                strategy = GHGenomeTree(index,
+                                        select_amount,
                                         down_select=args.down_select)
             elif strategy_string == 'GHTD':
                 strategy = GHTreeDist(index, select_amount, args.down_select,

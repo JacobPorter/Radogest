@@ -47,7 +47,6 @@ def dist(sketch_1, sketch_2, sketch_prog=MASH_LOC):
     """
     cp = subprocess.run([sketch_prog, "dist", sketch_1, sketch_2],
                         capture_output=True)
-    # Returns in order: [sketch_1, sketch_2, distance, p-value, jaccard_ratio]
     return (cp.stdout.decode().strip().split()[2], cp.returncode)
 
 

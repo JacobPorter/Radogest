@@ -1007,7 +1007,7 @@ def get_sample(taxid,
         if strategy == "GHSL" or strategy == "GHST":
             sublevels = [
                 taxid for taxid in sublevels
-                if not 'species' in ncbi.get_rank([taxid])[taxid]
+                if 'species' not in ncbi.get_rank([taxid])[taxid]
             ]
             if not sublevels:
                 print("The taxid {} has no non-species below it for the "
