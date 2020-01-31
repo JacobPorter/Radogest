@@ -495,7 +495,7 @@ def main():
         "-o",
         help=("The output to write taxid and genome id sets to."),
         default="./genome_taxid_sets.txt")
-    p_taxid.add_argument(*index.args, **index.kwargs)
+    # p_taxid.add_argument(*index.args, **index.kwargs)
     args = parser.parse_args()
     print(args, file=sys.stderr)
     sys.stderr.flush()
@@ -770,7 +770,7 @@ def main():
     elif mode == "util_taxid":
         from library.taxid_genome import get_taxid_genomes
         genome_set, sample_set, species_set = get_taxid_genomes(
-            args.fasta_file, read_ds(args.index))
+            args.fasta_file)
         write_ds(genome_set, args.output + ".genomes")
         write_ds(sample_set, args.output + ".samples")
         write_ds(species_set, args.output + ".species")
