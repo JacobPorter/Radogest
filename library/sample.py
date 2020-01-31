@@ -15,7 +15,6 @@ import string
 import subprocess
 import sys
 import tempfile
-# from multiprocessing import Pipe
 from collections import defaultdict
 from multiprocessing import Manager, Pool, Process
 

@@ -638,7 +638,8 @@ def main():
         if not min(list(map(lambda x: x > 0, select_amount))):
             parser.error('The select_amount needs to be a positive integer.')
         if len(select_amount) != 1 and not strategy_string.startswith("GH"):
-            p_select.error("There must be only one select_amount.")
+            p_select.error("There must be only one select_amount "
+                           "for strategy {}.".format(strategy_string))
         if strategy_string == 'TS':
             strategy = TreeSelect(index, select_amount[0], args.down_select)
         elif strategy_string == 'LS':
@@ -780,14 +781,14 @@ def main():
         write_ds(sample_set, args.output + ".samples")
         write_ds(species_set, args.output + ".species")
         with open(args.output, "w") as output:
-            print("#File: {}".format(args.fasta_file), file=output)
-            print("#Genome IDs: {}".format(len(genome_set)), file=output)
+            print("# File: {}".format(args.fasta_file), file=output)
+            print("# Genome IDs: {}".format(len(genome_set)), file=output)
             for g in genome_set:
                 print("{}\t{}\t{}".format(g[0], g[1], g[2]), file=output)
-            print("#Sample Taxids: {}".format(len(sample_set)), file=output)
+            print("# Sample Taxids: {}".format(len(sample_set)), file=output)
             for s in sample_set:
                 print(s, file=output)
-            print("#Species Taxids: {}".format(len(species_set)), file=output)
+            print("# Species Taxids: {}".format(len(species_set)), file=output)
             for c in species_set:
                 print(c, file=output)
     else:
