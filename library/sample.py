@@ -295,7 +295,8 @@ def uniform_samples_at_rank(index,
         #                                                              _GHG_CHOP_SUB_CUT
         #                                                              }
         my_sums = [
-            index['genomes'][accession]['contig_sum']
+            index['genomes'][accession]['contig_sum'] -
+            kmer_length * index['genomes'][accession]['contig_count'] + 1
             for accession in my_accessions
         ]
         if threshold and my_accessions:
@@ -371,6 +372,11 @@ def include_accession(accession,
         Return False if the genome should not be included.
 
     """
+    # If the genome length will not accommodate the kmers, don't use it.
+    if (index['genomes'][accession]['contig_sum'] -
+            kmer_length * index['genomes'][accession]['contig_count'] +
+            1) <= 0:
+        return False
     if not index['taxids'][taxid][accession] in include_list:
         return False
     if (index['taxids'][taxid][accession] in include_list
