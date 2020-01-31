@@ -261,19 +261,19 @@ def main():
                           '-s',
                           action='store',
                           choices=[
-                              'PR', 'QST', 'QSL', 'TD', 'GHTD', 'GHST', 'GHSL',
-                              'GHGT', 'GHGL', 'AG'
+                              'TS', 'LS', 'TD', 'GHTD', 'GHGT', 'GHGL',
+                              'GHST', 'GHSL', 'AG'
                           ],
                           help=('Choose the genome selection strategy.  '
                                 'The choices are: ProportionalRandom (PR), '
-                                'QualitySortingTree (QST), '
-                                'QualitySortingLeaf (QSL), '
+                                'TreeSelect (TS), '
+                                'LeafSelect (LS), '
                                 'TreeDistance (TD), '
                                 'GenomeHoldoutTreeDistance (GHTD), '
-                                'GenomeHoldoutSpeciesTree (GHST), '
-                                'GenomeHoldoutSpeciesLeaf (GHSL), '
                                 'GenomeHoldoutGenomeTree (GHGT), '
                                 'GenomeHoldoutGenomeLeaf (GHGL), '
+                                'GenomeHoldoutSpeciesTree (GHST), '
+                                'GenomeHoldoutSpeciesLeaf (GHSL), '
                                 'AllGenomes (AG)'),
                           default='TD')
     p_select.add_argument('--select_amount',
@@ -610,9 +610,8 @@ def main():
               " (taxids with 0 or 1 genomes): {}".format(failed),
               file=sys.stderr)
     elif mode == "select":
-        from library.genome_selection.strategy import ProportionalRandom
-        from library.genome_selection.strategy import QualitySortingTree
-        from library.genome_selection.strategy import QualitySortingLeaf
+        from library.genome_selection.strategy import TreeSelect
+        from library.genome_selection.strategy import LeafSelect
         from library.genome_selection.strategy import AllGenomes
         from library.genome_selection.strategy import TreeDist
         from library.genome_selection.strategy import GHTreeDist
@@ -625,23 +624,25 @@ def main():
         from library.genome_selection.traversal import TaxTreeTraversal
         from library.genome_selection.traversal import TaxTreeListTraversal
         strategy_string = args.strategy.upper()
+        if (args.down_select == "dist" and 
+            strategy_string in ['TS', 'GHSL', 'GHST', 'GHGL', 'GHGT']):
+            p_select.error("The combination of down_select '{}' "
+                           "and strategy '{}' "
+                           "is not supported.".format(args.down_select, 
+                                                      args.strategy))
+        if args.down_select == "dist" and not os.path.isdir(args.dist_location):
+            p_select.error("The directory {} does not appear "
+                           "to exist.".format(args.dist_location))
         index = read_ds(args.index)
         tree = read_ds(args.tree)
         select_amount = args.select_amount
-        if args.down_select == "sort":
-            radon = 0
-        elif args.down_select == "random":
-            radon = 1
-        else:
-            radon = 3
         if not min(list(map(lambda x: x > 0, select_amount))):
             parser.error('The sample amount needs to be a positive integer.')
-        if strategy_string == 'PR':
-            strategy = ProportionalRandom(index, select_amount[0])
-        elif strategy_string == 'QST':
-            strategy = QualitySortingTree(index, select_amount[0])
-        elif strategy_string == 'QSL':
-            strategy = QualitySortingLeaf(index, select_amount[0])
+        if strategy_string == 'TS':
+            strategy = TreeSelect(index, select_amount[0], args.down_select)
+        elif strategy_string == 'LS':
+            strategy = LeafSelect(index, select_amount[0], args.down_select, 
+                                  args.dist_location)
         elif strategy_string.startswith('GH'):
             if len(select_amount) != 2:
                 p_select.error("There must be two and only two sample amounts "
@@ -651,15 +652,19 @@ def main():
             warning = ("Species holdout strategies may not make sense "
                        "for selecting genera.")
             if strategy_string == 'GHSL':
-                strategy = GHSpeciesLeaf(index, select_amount, random=radon)
+                strategy = GHSpeciesLeaf(index, select_amount, 
+                                         down_select=args.down_select)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHST':
-                strategy = GHSpeciesTree(index, select_amount, random=radon)
+                strategy = GHSpeciesTree(index, select_amount, 
+                                         down_select=args.down_select)
                 print(warning, file=sys.stderr)
             elif strategy_string == 'GHGL':
-                strategy = GHGenomeLeaf(index, select_amount, random=radon)
+                strategy = GHGenomeLeaf(index, select_amount, 
+                                        down_select=args.down_select)
             elif strategy_string == 'GHGT':
-                strategy = GHGenomeTree(index, select_amount, random=radon)
+                strategy = GHGenomeTree(index, select_amount, 
+                                        down_select=args.down_select)
             elif strategy_string == 'GHTD':
                 strategy = GHTreeDist(index, select_amount, args.down_select,
                                       args.dist_location)
