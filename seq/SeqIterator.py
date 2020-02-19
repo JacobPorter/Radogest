@@ -1,4 +1,4 @@
-from SeqIterator import Constants
+from seq import Constants
 import gzip
 
 """

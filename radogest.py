@@ -466,6 +466,28 @@ def main():
                       default=False)
     p_rc.add_argument(*prob.args, **prob.kwargs)
     p_rc.add_argument(*verbose.args, **verbose.kwargs)
+    parser_extract = subparsers.add_parser(
+        "util_extract",
+        help="Extract positive examples.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_extract.add_argument("fasta_input",
+                                type=str,
+                                help=("The fasta file for input."))
+    parser_extract.add_argument("taxid_input",
+                                type=str,
+                                help=("The taxid file for input."))
+    parser_extract.add_argument("fasta_output",
+                                type=str,
+                                help=("The fasta file for output."))
+    parser_extract.add_argument("taxid_output",
+                                type=str,
+                                help=("The taxid file for output."))
+    parser_extract.add_argument("--extract_list",
+                                "-e",
+                                type=int,
+                                nargs='+',
+                                help=("A list of taxnomic ids to extract."),
+                                default=[1])
     p_subtree = subparsers.add_parser(
         "util_subtree",
         help=("Get a list of all taxonomic "
@@ -764,6 +786,19 @@ def main():
                                                    verbose=args.verbose)
         print("There were {} records read and {} records written.".format(
             read_counter, write_counter),
+              file=sys.stderr)
+    elif mode == "util_extract":
+        from library.extract import extract
+        if (not os.path.exists(args.fasta_input)
+                or not os.path.exists(args.taxid_input)):
+            parser.error("The taxid or fasta file input files do not exist.")
+        counter_write, counter_processed = extract(args.fasta_input,
+                                                   args.taxid_input,
+                                                   args.fasta_output,
+                                                   args.taxid_output,
+                                                   args.extract_list)
+        print("Records processed: {}, records written: {}".format(
+            counter_processed, counter_write),
               file=sys.stderr)
     elif mode == "util_subtree":
         from library.taxid_subtree import get_subtree
