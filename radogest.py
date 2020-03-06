@@ -165,10 +165,7 @@ def main():
         "tree",
         help=('Construct an object '
               'representing a tree of '
-              'taxonomic ranks.  '
-              'Print a list of '
-              'non leaf non viroid '
-              'taxids to stdout.'),
+              'taxonomic ranks.  '),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p_tree.add_argument(*index.args, **index.kwargs)
     p_tree.add_argument(*tree.args, **tree.kwargs)
@@ -510,6 +507,8 @@ def main():
     p_taxid.add_argument(
         "fasta_file",
         help=("The Radogest fasta file for generating information."))
+    p_taxid.add_argument("--index", "-i", type=str, help=("The location of the string index if using the old format."), default=None)
+    p_taxid.add_argument("--old_format", "-p", action="store_true", help=("Use the old format, which requires an index."), default=False)
     p_taxid.add_argument(
         "--output",
         "-o",
@@ -811,7 +810,8 @@ def main():
     elif mode == "util_taxid":
         from library.taxid_genome import get_taxid_genomes
         genome_set, sample_set, species_set = get_taxid_genomes(
-            args.fasta_file)
+            args.fasta_file, index=None if not args.index else read_ds(args.index),
+            old_format=args.old_format)
         write_ds(genome_set, args.output + ".genomes")
         write_ds(sample_set, args.output + ".samples")
         write_ds(species_set, args.output + ".species")

@@ -41,6 +41,8 @@ def get_files_dvf(fasta_file,
     """
     Get the files in DeepVirFinder and VirFinder format.
     """
+    if isinstance(extract_file, str):
+        extract_file = open(extract_file, "w")
     extract_w = SeqWriter(extract_file)
     remainder_w = SeqWriter(open(remainder_file, "w"))
     with open(fasta_file, "r") as fasta_fd:
