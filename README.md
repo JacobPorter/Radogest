@@ -1,25 +1,16 @@
 # Radogest: *ra*n*do*m *ge*nome *s*ampler for *t*rees
 Radogest randomly samples fixed length nucleotide substrings (kmers) for given taxonomic ids from a data store of genomes downloaded from the National Center for Biotechnology Information (NCBI).  There is support for whole genomes, coding domain nucleotide data, and amino acid data.  (However, each data type needs to be stored in its own directory because of limitations to Radogest's data structures.)  Radogest is useful for generating kmers to train and analyze metagenomic classifiers, and it labels each kmer sampled with the taxonomic id that it represents.  Radogest can generate data for any NCBI taxonomic id that is present in the NCBI data store that is of a conventional rank.  Conventional ranks include superkingdom, kingdom, phylum, class, order, genus, and species.
 
+Radogest has commands to download genomes, create fai indexes of the fasta files, index them, build a tree on them, down select genomes, and sample kmers from the genomes.  It supports several down selection methods and sampling approaches.
+
 
 ## Install Radogest
 
-Radogest source code can be found on github.  It requires the SeqIterator submodule, which can be downloaded at the same time with recursion.
+Anaconda (https://anaconda.org/) can be used to 'install' Radogest with a conda environment with the included yaml file:  
 
+`conda env create -f conda_environment.yml`
 
-```
-git --recurse-submodules clone <the address to this repository>
-```
-
-If this doesn't work, then try:
-
-```
-git clone <the address to this repository>
-git submodule init
-git submodule update
-```
-
-Radogest is written in Python 3, and it requires the Python packages ete3, tqdm, appdirs, and requests.  Radogest requires installing SAMtools (https://github.com/samtools/samtools) and bedtools (https://bedtools.readthedocs.io/en/latest/).  SAMtools is used to generate fasta files, and bedtools is used to generate the locations of randomly drawn kmers.  The location where SAMtools and bedtools are stored can be documented in config.py.  Radogest tries the locations in the config.py file, and if those are not valid executables, then Radogest searches for the exectuables for SAMtools and bedtools in the operating system PATH variable.
+Radogest is written in Python 3, and it requires the Python packages ete3, tqdm, appdirs, and requests.  Radogest requires installing SAMtools (https://github.com/samtools/samtools) and bedtools (https://bedtools.readthedocs.io/en/latest/).  SAMtools is used to generate fasta files, and bedtools is used to generate the locations of randomly drawn kmers.  The location where SAMtools and bedtools are stored can be documented in config.py.  Radogest tries the locations in the config.py file, and if those are not valid executables, then Radogest searches for the exectuables for SAMtools and bedtools in the operating system PATH variable.  The conda environment has these files.
 
 ## Important Files
 
@@ -27,7 +18,7 @@ Radogest is written in Python 3, and it requires the Python packages ete3, tqdm,
 The main program.  Usage: `radogest.py <command> <options>`.  For help, type `radogest.py -h` or `radogest.py <command> -h`.
 
 ### config.py
-This file stores the locations of samtools and BED tools.  This file may need to be modified with the locations of the programs to make radogest.py work correctly.
+This file stores the locations of samtools and BED tools if needed.
 
 ## Commands
 
@@ -37,13 +28,19 @@ Download genomes from NCBI.  Modified by Jacob Porter from [https://github.com/k
 *All file types need to be downloaded into separate directories because Radogest only recognizes one fasta file in a directory.*  For examples, all NCBI whole genomes could be downloaded into GenomesNT, and all coding domain fasta files could be downloaded into GenomesCD, and all amino acid fasta files could be downloaded into GenomesAA. 
 
 ### faidx
-Runs FAIDX from samtools on the genomes in the genomes directory.  The FAI file is used to perform random sampling.  This can be run in parallel.
+Runs FAIDX from samtools on the genomes in the genomes directory.  The FAI file is a fasta file index, and it is used to perform random sampling.  This can be run in parallel.
 
 ### index
-Makes a python dictionary representing genome locations and genome information.  This is called the genomes index.  This includes which genomes are under which taxonomic ids.
+Makes a python dictionary representing genome locations and genome information.  This is called the genomes index.  This describes which genomes are under which taxonomic ids.
 
 ### tree
 Makes a python dictionary that represents the taxonomic tree.  This is called the tree. Requires the index from make_genome_index.py.  This presently uses only conventional taxonomic ranks: superkingdom, kingdom, phylum, class, order, genus, species.  It excludes environmental samples, unclassified samples, and RNA viruses.  Viroids are present but not at the root node 1.
+
+### sketch
+Creates genome sketch files for mash distances.  This is used only by the TreeDistance selection strategy.
+
+### dist
+Compute a distance matrix of genomes for each species.  Used by the TreeDistance selection strategy.
 
 ### select
 Implements strategies to down select genomes at each taxonomic level.  This generates a new index object that must be used when sampling.
@@ -70,6 +67,9 @@ Cuts up a genome into kmers based on a sliding window.  Outputs a fasta file.
 ### util_rc
 Randomly applies the reverse complement to DNA sequences in a fasta file.  Outputs a new fasta file.
 
+### util_extract
+Extract fasta records from a Radogest fasta file and taxid file that have the provided labels.
+
 ### util_subtree
 Gets a list of all taxonomic ids underneath and including the given taxonomic id.
 
@@ -79,7 +79,7 @@ Give the species taxid, genome ids, and sample ids for a Radogest generated fast
 
 ## Workflow
 
-The commands must be done in the following order to generate fasta files of sampled kmers.  Once step 5, select, is done, any number of fasta files may be generated in step 6.  Step 5 may need to be done several times if many genome selection strategies are desired.
+The commands must be done in the following order to generate fasta files of sampled kmers.  Once step 5, select, is done, any number of fasta files of differing kmer lengths may be generated in step 6.  Step 5 may need to be done several times if many genome selection strategies are desired.
 
 1. download
 2. faidx
@@ -87,7 +87,9 @@ The commands must be done in the following order to generate fasta files of samp
 4. tree
 5. select
 6. sample
- 
+
+If the TreeDistance selection strategy is used, then sketch and dist must be run after the tree command.
+
 ## Examples
 
 Download both refseq and genbank data into the /project/GenomesNT directory.  Data can be downloaded for each domain, but this example downloads all NCBI genomes at once.  This example uses 20 processes on a 20 core machine to accelerate downloading.  There are 5 attempts to download a file until the process times out.
@@ -153,22 +155,25 @@ radogest.py sample --index /project/GenomesNT/index_GHT.pck --tree /project/Geno
 
 
 ## Down selection strategies
-Down selection uses a post-order depth-first search of the taxonomic tree to chooses genomes for each taxonomic id in the taxonomic tree.  There are several genome selection strategies.  
+Down selection uses a post-order depth-first search of the taxonomic tree to choose genomes for each taxonomic id in the taxonomic tree.  There are several genome selection strategies.  
 
 The genome holdout strategies with GenomeHoldout in their name hold out entire genomes.  The sampling strategy will chop up whole genomes if this strategy is selected.  Genome holdout strategies may not be appropriate for very high level taxonomic ids since the number of kmers sampled will be unbalanced since eukaryotic genomes could be much larger than virus genomes, for example.  For sampling kmers at the genus level, genome holdout makes no sense since this strategy holds out entire species for training or testing.
 
 ### AllGenomes (AG)
 Uses all non-redundant genomes.  This set could be very large for high level taxonomic ids.
 
+### TreeSelect (TS)
+Down select genomes at every level of the tree.  At each level, up to a fixed level of genomes are selected.  Genomes can be either sorted or chosen randomly.
+
+### LeafSelect (LS)
+Down select genomes only at thte species leaves.  At the species level, up to a fixed number of genomes are chosen.  These genomes are propagated up the tree so that each parent node selects all of the genomes that each species node under the parent contains.  Genomes can be sorted or chosen randomly.
+
 ### ProportionalRandom (PR)
 At each level, this selection strategy chooses a fixed number of random genomes.  Only genomes selected by children nodes are chosen.
 
-### QualitySortingTree (QST)
-At each level, the genomes are sorted by quality, and a fixed number of genomes is chosen.
-
-### QualitySortingLeaf (QSL)
-At the species level, the genomes are sorted by quality and a fixed number of genomes is chosen.  These genomes are propagated up the tree so that each parent node selects all of the genomes that each species node under the parent contains.
-
+### TreeDistance (TD)
+Cluster genomes at the species level based on their mash distances.  Choose up to a fixed amount.  At each intermediate level in the tree, choose genomes so that each subtree is equally represented.  The sketch and dist commands must have been run for this strategy. 
+ 
 ### GenomeHoldoutSpeciesLeaf (GHSL)
 Each species is alternatively labeled as either part of the training or the testing data.  A maximum number of genomes for each species is chosen either sorted by quality or randomly.  The training or testing label for each genome is propagated up the taxonomic tree. This strategy does not generate a validation data set.
  
@@ -218,6 +223,6 @@ Typing `tree[1]`, for example, could give the set `{2, 2157, 10239, 2579}`.  The
 
 Radogest sample generates fasta records with a fasta id in the following format:
 
-`>[Accession]:[TaxonomicID]:[ContigID]:[StartPosition-EndPosition]:[+|-]`
+`>[Accession]:[TaxonomicID]:[SpeciesID]:[ContigID]:[StartPosition-EndPosition]:[+|-]`
 
 The last character is a `+` if the kmer is the forward strand, and it is a `-` for the reverse complement.  The start and end positions are relative to the forward strand.  This means that the start position is always numerically less than the end position.

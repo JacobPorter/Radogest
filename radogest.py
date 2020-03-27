@@ -465,7 +465,8 @@ def main():
     p_rc.add_argument(*verbose.args, **verbose.kwargs)
     parser_extract = subparsers.add_parser(
         "util_extract",
-        help="Extract positive examples.",
+        help=("Extract fasta records from a Radogest fasta file and taxid "
+              "file that have the provided labels."),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser_extract.add_argument("fasta_input",
                                 type=str,
@@ -507,8 +508,12 @@ def main():
     p_taxid.add_argument(
         "fasta_file",
         help=("The Radogest fasta file for generating information."))
-    p_taxid.add_argument("--index", "-i", type=str, help=("The location of the string index if using the old format."), default=None)
-    p_taxid.add_argument("--old_format", "-p", action="store_true", help=("Use the old format, which requires an index."), default=False)
+    p_taxid.add_argument("--index", "-i", type=str, 
+                         help=("The location of the string index if using "
+                               "the old format."), default=None)
+    p_taxid.add_argument("--old_format", "-p", action="store_true", 
+                         help=("Use the old format, which requires an "
+                               "index."), default=False)
     p_taxid.add_argument(
         "--output",
         "-o",
