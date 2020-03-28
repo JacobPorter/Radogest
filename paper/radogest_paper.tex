@@ -1,0 +1,71 @@
+\PassOptionsToPackage{utf8}{inputenc}
+\documentclass{bioinfo}
+\copyrightyear{2020} \pubyear{2020}
+
+\access{Advance Access Publication Date: Day Month Year}
+\appnotes{Applications Note}
+
+\begin{document}
+\firstpage{1}
+
+\subtitle{Sequence analysis}
+
+\title[Radogest]{Radogest: random genome sampler for trees}
+\author[Sample \textit{et~al}.]{Jacob S. Porter\,$^{\text{\sfb 1,}*}$, Andrew S. Warren\,$^{\text{\sfb 1,}*}$}
+\address{$^{\text{\sf 1}}$Biocomplexity Institute and Initiative, University of Virginia, Charlottesville, 22911, USA}
+
+\corresp{$^\ast$To whom correspondence should be addressed.}
+
+\history{Received on XXXXX; revised on XXXXX; accepted on XXXXX}
+
+\editor{Associate Editor: XXXXXXX}
+
+\abstract{\textbf{Summary:} Radogest is a program for sampling $k$-mers by taxonomy from genomes.  Radogest works with amino acid data, coding domain data, and whole genome data.  Radogest currently supports downloading this data from the National Center for Biotechnology Information (NCBI).  Radogest selects genomes to sample from with several strategies based on a post-order depth-first traversal of the NCBI taxonomic tree.  It can hold out genomes based on species, and it can select genomes based on their quality.  Radogest efficiently handles terabytes of data through parallelism.  It can easily be deployed on a compute cluster for bioinformatics projects since it is written in Python3.  One application of sampling $k$-mers labeled by their taxonomic id is to train metagenomics classifiers.  The genome selection feature can be used to generate both 'hard' and 'easy' data for metagenomics classification.\\
+\textbf{Availability and Implementation:} Available online: https://www.github.com/ \\
+\textbf{Contact:} \href{jsporter@virginia.edu}{jsporter@virginia.edu} or \href{aswarren@virginia.edu}{aswarren@virginia.edu}\\
+\textbf{Supplementary information:} Supplementary data are available at \textit{Bioinformatics}
+online.}
+
+\maketitle
+
+\section{Introduction}
+
+A need for scalable data sampling methods is desired.
+
+\section{Features}
+
+Compare to CAMISIM \cite{fritz2019camisim}.
+
+\section{Methods}
+
+Opal \cite{luo2018metagenomic}
+
+\section{Results}
+
+Text text
+
+\section{Conclusion}
+
+Text text
+
+\section*{Acknowledgements}
+
+Text text
+
+
+\section*{Funding}
+
+Text
+
+
+\bibliographystyle{natbib}
+%\bibliographystyle{achemnat}
+%\bibliographystyle{plainnat}
+%\bibliographystyle{abbrv}
+%\bibliographystyle{bioinformatics}
+%
+%\bibliographystyle{plain}
+%
+\bibliography{document}
+
+\end{document}

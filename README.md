@@ -166,7 +166,7 @@ Uses all non-redundant genomes.  This set could be very large for high level tax
 Down select genomes at every level of the tree.  At each level, up to a fixed level of genomes are selected.  Genomes can be either sorted or chosen randomly.
 
 ### LeafSelect (LS)
-Down select genomes only at thte species leaves.  At the species level, up to a fixed number of genomes are chosen.  These genomes are propagated up the tree so that each parent node selects all of the genomes that each species node under the parent contains.  Genomes can be sorted or chosen randomly.
+Down select genomes only at the species leaves.  Genomes can be chosen based on sorting, clustering, or randomizing.  At the species level, up to a fixed number of genomes are chosen.  These genomes are propagated up the tree so that each parent node selects all of the genomes that each species node under the parent contains.
 
 ### ProportionalRandom (PR)
 At each level, this selection strategy chooses a fixed number of random genomes.  Only genomes selected by children nodes are chosen.

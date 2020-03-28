@@ -1,0 +1,507 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+
+\begin{document}
+\title{Radogest: \underline{ra}n\underline{do}m \underline{ge}nome \underline{s}ampler for \underline{t}rees\large\\ supplemental information}
+\author{Jacob S. Porter\\jsporter@virginia.edu\\Biocomplexity Institute and Initiative\\University of Virginia\\}
+\date{March 2020}
+ 
+ 
+\begin{titlepage}
+\maketitle
+\end{titlepage}
+
+\section{Introduction}
+Radogest randomly samples fixed length nucleotide substrings ($k$-mers) for given taxonomic ids from a data store of genomes downloaded from the National Center for Biotechnology Information (NCBI).  There is support for whole genomes, coding domain nucleotide data, and amino acid data.  (However, each data type needs to be stored in its own directory because of limitations to Radogest's data structures.)  Radogest is useful for generating kmers to train and analyze metagenomic classifiers, and it labels each kmer sampled with the taxonomic id that it represents.  Radogest can generate data for any NCBI taxonomic id that is present in the NCBI data store that is of a conventional rank.  Conventional ranks include superkingdom, kingdom, phylum, class, order, genus, and species.
+
+\section{Radogest Commands \label{commands}}
+
+\subsection{Workflow}
+The following commands must be executed in order to generate $k$-mer samples.  Once steps 1-5 have been completed, any number of data sets can be generated with the sample command.\\
+
+\noindent
+1. \textbf{download}: download fasta files from NCBI. \\
+2. \textbf{faidx}: generate fasta index files for each fasta file.  This requires samtools faidx.\\
+3. \textbf{index}: produce a Radogest genomes index data structure that includes information on genomes and taxonomy.\\
+4. \textbf{tree}: create the taxonomic tree used by Radogest when sampling.\\
+5. \textbf{select}: modify the Radogest index to select certain genomes for sampling.\\
+6. \textbf{sample}: draw kmer samples and make a fasta file and a file of taxonomic ids.  Requires bedtools random, a Radogest index after selection has been run, and a Radogest tree.\\
+
+After step 4, tree, the following commands may be run to create mash distances.  These are used for tree distance methods: TreeDist, LeafSelect (with clustering), and GenomeHoldoutTreeDistance.\\
+
+\noindent
+4a. \textbf{sketch}: create genome mash sketches.\\
+4b. \textbf{dist}: compute a distance matrix of genomes for each species.\\
+
+\subsection{Utilities}
+Radogest has three utility functions that are useful for manipulating fasta and taxonomic id files.\\
+
+\noindent
+\textbf{\text{util\_permute}}: Randomly permute and optionally split fasta records and their associated taxonomic ids.\\
+\textbf{util\_chop}: Cut up whole genomes with a sliding window and write out a fasta file and a taxonomic id file.\\
+\textbf{util\_rc}: Randomly take the reverse complement of DNA sequences in a fasta file.\\
+\textbf{util\_subtree}: Gets a list of all taxonomic ids underneath and including the given taxonomic id.\\
+\textbf{util\_extract}: Extract fasta records from a Radogest fasta file and taxid file that have the provided labels.\\
+\textbf{util\_taxid}: Give the species taxid, genome ids, and sample ids for a Radogest generated fasta file.\\
+
+
+\section{Genome Selection Algorithms}
+
+There are several genome selection strategies.  These algorithms modify the Radogest index data structure so that only certain genomes underneath a taxonomic id will be used to generate $k$-mers during sampling.  Genome selection is accomplished by using a post-order depth-first traversal of the taxonomic tree.  This is given in Algorithm \ref{selection}, \textsc{Select}.
+
+\begin{algorithm}
+\caption{\textbf{Select}: A depth-first post-order traversal.}
+\label{selection}
+\begin{algorithmic}
+\State $r \gets$ the root node of the taxonomic tree.
+\State \textsc{S} $\gets$ the selection strategy algorithm to use. 
+\State $\mathcal{I} \gets$ an index of genomes. \Comment{A Python dictionary.}
+\Procedure{Select}{$r$, \textsc{S}, $\mathcal{I}$}
+\State $c_n \gets$ the children of $r$
+\For{$c_j \in c_n $}
+    \textsc{Select}($c_j$, S, $\mathcal{I}$)
+\EndFor
+\textsc{S}($r$, $c_n$, $\mathcal{I}$)
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\textsc{Select} requires a selection strategy S, and these are detailed in the following sections.  If $\mathcal{T}$ is the set of nodes (taxonomic ids) in the taxonomic tree, and $\mathcal{G}$ is the set of genomes, then algorithm \ref{selection} has time complexity $O(|\mathcal{T}||\mathcal{G}|log(|\mathcal{G}|))$ in the worst case when choosing genomes by sorting.  This is because the algorithm must visit every node on the taxonomic tree and choose genome labels for every genome at that node.  The selection algorithms may sort the genomes, and, as is shown later, sorting has time complexity $O(\mathcal{|G|}log(\mathcal{|G|}))$.
+
+This procedure uses a genome index, which is a Python dictionary.  The index was computed in the \textbf{index} step in the workflow.  The index assigns each taxonomic id with a list of genomes and genome selection values.  Suppose the index is $\mathcal{I}$, then for the taxonomic id $t$, $\mathcal{I}(t)$ gives a mapping of genome ids $\{g_i\}$ to selection values $\{v_i\}$, $\{g_1: v_1, g_2: v_2, \cdots, g_s : v_s \}$.  The selection values $\{v_i\}$ are either boolean values or integers. 
+
+The following strategies randomly partition kmers from the same genome into training, validation, and test sets: AllGenomes (AG), ProportionalRandom (PR), TreeSelect (TS), LeafSelect (LS), and TreeDist (TD).  GenomeHoldout strategies, on the other hand, separate whole genomes into training and testing data sets.  These strategies begin with ``GenomeHoldout''.  GenomeHoldout strategies can choose genomes either randomly or in sorted order in accordance with Algorithm \ref{Sort}.  These strategies are unable to generate a validation (or third) data set.  If a species has only one genome, then the kmers for that one genome are partitioned into training and test data sets.
+
+The selection strategy algorithms first filter genomes in the following way.  If a genome is duplicated between refseq and genbank, then the refseq genome is used.  If a genome file does not have contigs, then it is excluded.  This filtering step is done every time a genome set is generated, but this step is not shown in the pseudocode.
+
+Several selection algorithms sort a set of genomes $\mathcal{G}$ by presumptive quality.  Algorithm \ref{Sort}, \textsc{Sort}, gives the sorting algorithm that they use.  When the index data structure is built, it stores whether the genome is a reference genome, a representative genome, or another genome.  It stores the assembly level of the genome.  This information is downloaded from the NCBI server.  It computes the number of bases $b_g$ and the number of contigs $c_g$ in the genome by inspecting the genome file.  The \textsc{Sort} algorithm uses this information.
+
+The \textsc{Sort} algorithm first divides genomes into three sets of genome type: reference genomes, representative genomes, and other genomes.  Each of these sets are divided into lists of genomes based on assembly level.  Some genomes are more complete, and some are less complete.  First by genome type and then from more complete to less complete genome assembly, the genomes are sorted in descending order by $\frac{b_g}{c_g}$.  This ratio gives the number of bases divided by the number of contigs.  The idea behind this is that if there are more contigs relative to bases, (many small contigs), then this genome could be lower quality.  Since genomes are sorted first by reference status and by assembly level, higher quality, more complete genomes are chosen first.  The algorithm returns the list of sorted genomes.
+
+This algorithm runs in time $O(\mathcal{|G|}log(\mathcal{|G|}))$ because it sorts the genomes in descending order based on the numerical key $\frac{b_g}{c_g}$.
+
+\begin{algorithm}[h!]
+\caption{\textbf{Sort}: Sort the genomes.}
+\label{Sort}
+\begin{algorithmic}
+\State $\mathcal{G}$ a set of genomes.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\Procedure{Sort}{$\mathcal{G}$, $\mathcal{I}$}
+\State Divide the genomes $\mathcal{G}$ into three sets: reference genomes $\mathcal{R}_f$, representative genomes $\mathcal{R}_p$, and all other genomes $\mathcal{O}$.
+\State Let $b_g$ be the count of bases for a genome $g$.
+\State Let $c_g$ be the count of contigs for a genome $g$.
+\State $l \gets$ an empty list 
+\For{$\mathcal{S} \in \{\mathcal{R}_f, \mathcal{R}_p, \mathcal{O} \}$ in order}
+\State Divide $\mathcal{S}$ into sets of genomes by assembly level and order them from most complete to least complete. 
+\For{each assembly level set in order of completeness}
+\State Sort the genomes in descending order by $\frac{b_g}{c_g}$
+\State Append this sorted list to $l$
+\EndFor
+\EndFor
+\State \Return The list $l$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+\newpage
+
+The \textsc{Cluster} algorithm, shown in algorithm \ref{Cluster}, can be used by strategies TreeDist and LeafSelect instead of sorting (algorithm \ref{Sort}) or random choosing to select genomes.  It performs $k$-agglomerative clustering based on pre-computed mash distances.  Then, it selects a representative genome for each cluster and returns the genomes sorted in descending order of the cluster size that they represent.
+
+\begin{algorithm}[h!]
+\caption{\textbf{Cluster}: Cluster the genomes.  Radogest uses agglomerative clustering with an average linkage based on mash distances.}
+\label{Cluster}
+\begin{algorithmic}
+\State $\mathcal{G}$ a set of genomes.
+\State $k \gets$ the number of genomes desired 
+\Procedure{Cluster}{$\mathcal{G}$, $k$}
+\State Perform a $k$-clustering of the genomes in $\mathcal{G}$
+\State $l \gets$ an empty list
+\For{cluster $c \in \mathcal{C}$} \Comment{Choose a genome to represent the cluster.}
+\State Find the genome in $c$ with the least average distance to the other genomes in $c$
+\State Put that genome in $l$
+\EndFor
+\State Sort $l$ in order of decreasing cluster size
+\State \Return The list $l$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\subsection{AllGenomes (AG)}
+Uses all non-redundant genomes.  This set could be very large for high level taxonomic ids.
+
+\begin{algorithm}[h!]
+\caption{\textbf{AG}: Select all genomes.}
+\label{AG}
+\begin{algorithmic}[1]
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\Procedure{AG}{$p$, $c_n$, $\mathcal{I}$}
+\State Set all genomes in $\mathcal{I}(p)$ to True.
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\subsection{ProportionalRandom (PR)}
+At each level, this selection strategy chooses a fixed number of random genomes.  For a parent node, only genomes selected by children nodes can be assigned to the parent.
+
+\begin{algorithm}[h!]
+\caption{\textbf{PR}: Choose a random set of genomes at each node.}
+\label{PR}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k \gets$ the number of genomes to choose.
+\Procedure{PR}{$p$, $c_n$, $\mathcal{I}$, $k$}
+\If{$|c_n| \neq 0$} \Comment{Inner node}
+\State $l \gets$ all genomes set to True in $\mathcal{I}(c_j)$ $\forall c_j \in c_n$ 
+\State Randomly choose $k$ genomes in $l$.
+\State Set those genomes' values in $\mathcal{I}(p)$ to True.
+\Else \Comment{Leaf node}
+\State Randomly assign $k$ genomes in $\mathcal{I}(p)$ to True.
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\subsection{LeafSelect (LS)}
+At the species level, the genomes are down selected, and the root of every subtree is given the genomes in all of the species (leaves) in the subtree.  There are three ways that the genomes can be chosen: in sorted order, in random order, or by clustered order based on genome (mash) distances.
+
+\begin{algorithm}[h!]
+\caption{\textbf{LS}: At each species (leaf) node, choose at most $k$ genomes.  Propagate all chosen genomes up the tree.}
+\label{LS}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k \gets$ the number of genomes to choose.
+\State \textsc{Choose}, the algorithm for choosing genomes.
+\Procedure{LS}{$p$, $c_n$, $\mathcal{I}$, $k$, \textsc{Choose}}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\State Set genomes from \textsc{Choose}($\mathcal{I}(p)$, $k$) to True in $\mathcal{I}(p)$
+\Else \Comment{Inner node}
+\For{$c_j \in c_n $}
+\For{genome $g \in \mathcal{I}(c_j)$ that is set to True}
+\State Set $g$ in $\mathcal{I}(p)$ to True
+\EndFor
+\EndFor
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\subsection{TreeSelect (TS)}
+At each node in the taxonomic tree, up to a fixed number $k$ of genomes are chosen.  Genomes are selected for a parent so that genomes from children are equally represented.  Genomes can be either chosen in sorted order or chosen randomly.
+
+\begin{algorithm}[h!]
+\caption{\textbf{TS}: At each node, sort the genomes and choose at most $k$ genomes.}
+\label{TS}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k \gets$ the number of genomes to choose.
+\State \textsc{Choose}, the algorithm for choosing genomes.
+\Procedure{TS}{$p$, $c_n$, $\mathcal{I}$, $k$, \textsc{Choose}}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\State Set genomes from \textsc{Choose}($\mathcal{I}(p)$, $k$) to True in $\mathcal{I}(p)$
+\Else \Comment{Inner node}
+\State $l \gets$ an empty list
+\For{$c_j \in c_n$}
+\State Get the list $l_j$ of genomes from \textsc{Choose}($\mathcal{I}(c_j)$, $k$)
+\State Append $l_j$ to $l$
+\EndFor
+\State Set $i \gets 0$ \Comment{A counter for the number of genomes.}
+\State Set $j \gets 0$ \Comment{A counter for choosing the genome list.}
+\While{$i < k$} \Comment{Child genomes are represented equally.}
+\State Pop off a genome in $l[j]$ and set it to True in $\mathcal{I}(p)$
+\State $i \gets i + 1$
+\State $j \gets j + 1 \mod |l|$ 
+\EndWhile
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+
+\subsection{TreeDistance(TD)}
+At the species level, genomes are selected by clustering them based on mash distances.  In inner nodes, genomes are chosen so that each subtree is equally represented.  This is accomplished with the \textsc{Merge} algorithm.  
+
+The \textsc{Merge} algorithm is similar to the famous merge operation in the merge sort algorithm, but it can operate on more than two lists.  It iterates through a list of lists and chooses elements from those lists in the order that they are in.  It returns a flattened list.
+
+This algorithm requires that the tree traversal method (depth-first search) passes into this algorithm a list of selected genomes from each child node.  Thus, this algorithm returns a list of genomes.
+
+\begin{algorithm}[h!]
+\caption{\textbf{TD}: At species nodes, choose genomes based on clustering, and at inner nodes, choose genomes so that each subtree is equally represented.}
+\label{TD}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k \gets$ the number of genomes to choose.
+\State $g_l \gets$ a list of lists of genomes
+\Procedure{TD}{$p$, $c_n$, $\mathcal{I}$, $k$, $g_l$}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\State Set genomes from \textsc{Cluster}($\mathcal{I}(p)$, $k$) to True in $\mathcal{I}(p)$
+\State \Return the list of genomes set to true
+\Else \Comment{Inner node}
+\State Shuffle $g_l$
+\State $g_l \gets$ \textsc{Merge}($g_l$)
+\State Choose the first $k$ genomes in $g_l$ and set them to True in  $\mathcal{I}(p)$
+\State \Return $g_l$
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+\begin{algorithm}[h!]
+\caption{\textbf{Merge}: Merge two lists so that elements are chosen in the order that they appear in the sublists.}
+\label{Merge}
+\begin{algorithmic}
+\State $g_l \gets$ A list of lists.
+\Procedure{Merge}{$g_l$}
+\State $g_n \gets$ an empty list
+\While{there are unchosen elements in $g_l$}
+\For{$l \in g_l$}
+\State Append the first unchosen element from $l$ to $g_n$
+\EndFor
+\EndWhile
+\State \Return $g_n$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+\newpage
+
+
+\subsection{GenomeHoldoutSpeciesLeaf (GHSL)}
+Each species is alternatively labeled as either part of the training or the testing data.  A maximum number of genomes for each species is chosen either sorted by quality or randomly.  The training or testing label for each genome is propagated up the taxonomic tree. This strategy does not generate a validation data set.
+
+\begin{algorithm}[h!]
+\caption{\textbf{GHSL}: Holdout species for training and testing.  Propagate all choices up the tree.}
+\label{GHSL}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k_1 \gets$ the number of genomes to choose for training.
+\State $k_2 \gets$ the number of genomes to choose for testing.
+\State $s \gets$ the training or testing state.  $s \in \{0, 1\}$.
+\State $r \gets$ an indication for sorting or randomizing genomes.
+\Procedure{GHSL}{$p$, $c_n$, $\mathcal{I}$, $k_1$, $k_2$, $s$, $r$}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\State Put the genomes in $\mathcal{I}(c_n)$ in order $r$
+\State Set up to $k_s$ genomes in $\mathcal{I}(c_n)$ to state $s$
+\State Alternate state $s$
+\Else \Comment{Inner node}
+\For{$c_j \in c_n $}
+\For{genome $g \in \mathcal{I}(c_j)$}
+\State Set $g$ in $\mathcal{I}(p)$ to the same label as in $\mathcal{I}(c_j)$
+\EndFor
+\EndFor
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\subsection{GenomeHoldoutSpeciesTree (GHST)}
+Each species is alternatively labeled as either part of the training or the testing data.  A maximum number of genomes for each species is chosen either sorted by quality or randomly.  At each level of the tree, each genome is labeled as either part of the train or the test set up to a maximum number of genomes. Genomes from each child are represented equally. This strategy does not generate a validation data set.
+
+\begin{algorithm}[h!]
+\caption{\textbf{GHST}: Select species for training and testing.  At each inner node, select genomes for training or testing so that each child is represented equally.}
+\label{GHST}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k_1 \gets$ the number of genomes to choose for training.
+\State $k_2 \gets$ the number of genomes to choose for testing.
+\State $s \gets$ the training or testing state.  $s \in \{0, 1\}$.
+\State $r \gets$ an indication for sorting or randomizing genomes.
+\Procedure{GHST}{$p$, $c_n$, $\mathcal{I}$, $k_1$, $k_2$, $s$, $r$}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\State Put the genomes in $\mathcal{I}(c_n)$ in order $r$
+\State Set up to $k_s$ genomes in $\mathcal{I}(c_n)$ to state $s$
+\State Alternate state $s$
+\Else \Comment{Inner node}
+\For{each state $s_i$}
+\State Select an equal number of genomes from each child with state $s_i$ and given them that state in $\mathcal{I}(p)$
+\State Randomly assign singleton state genomes to another state in $\mathcal{I}(p)$ if there are too many singleton genomes.
+\EndFor
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\subsection{GenomeHoldoutGenomeLeaf (GHGL)}
+ At each species leaf, full genomes are labeled as either part of the training or the testing set.  This labeling is propagated up the tree.  If there is only a single genome for a species, then k-mers from the genome are partitioned into either the training or the testing sets.  This strategy does not generate a validation data set.
+
+\begin{algorithm}[h!]
+\caption{\textbf{GHGL}: Holdout whole genomes for training or testing at every species node.  Propagate all choices up the tree.}
+\label{GHGL}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k_1 \gets$ the number of genomes to choose for training.
+\State $k_2 \gets$ the number of genomes to choose for testing.
+\State $s \gets$ the training or testing state.  $s \in \{0, 1\}$.
+\State $r \gets$ an indication for sorting or randomizing genomes.
+\Procedure{GHGL}{$p$, $c_n$, $\mathcal{I}$, $k_1$, $k_2$, $s$, $r$}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\If{$|\mathcal{I}(c_n)| = 1$}
+set the $g \in \mathcal{I}(c_n)$ to the singleton state.
+\Else
+\State Let $|\mathcal{G}_s|$ be the number of genomes selected for state $s$
+\For{$g \in \mathcal{I}(c_n)$ in $r$ order}
+\If{$|\mathcal{G}_s| < k_s$}
+\State Set $g$ to $s$ 
+\State Alternate state $s$
+\EndIf
+\EndFor
+\EndIf
+\Else \Comment{Inner node}
+\For{$c_j \in c_n $}
+\For{genome $g \in \mathcal{I}(c_j)$}
+\State Set $g$ in $\mathcal{I}(p)$ to the same label as in $\mathcal{I}(c_j)$
+\EndFor
+\EndFor
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\subsection{GenomeHoldoutGenomeTree (GHGT)}
+At each taxonomic node, full genomes are labeled as either part of the training or the testing set.  If there is only a single genome for a species, then k-mers from the genome are partitioned into either the training or the testing sets.  Genomes from each child are represented equally.  This strategy does not generate a validation data set.  No more than some limit of genomes are chosen for training or testing.
+
+\begin{algorithm}[h!]
+\caption{\textbf{GHGT}: Select whole genomes for training or testing at each taxonomic node.}
+\label{GHGT}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k_1 \gets$ the number of genomes to choose for training.
+\State $k_2 \gets$ the number of genomes to choose for testing.
+\State $s \gets$ the training or testing state.  $s \in \{0, 1\}$.
+\State $r \gets$ an indication for sorting or randomizing genomes.
+\Procedure{GHGT}{$p$, $c_n$, $\mathcal{I}$, $k_1$, $k_2$, $s$, $r$}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\If{$|\mathcal{I}(c_n)| = 1$}
+set the $g \in \mathcal{I}(c_n)$ to the singleton state.
+\Else
+\State Let $|\mathcal{G}_s|$ be the number of genomes selected for state $s$
+\For{$g \in \mathcal{I}(c_n)$ in $r$ order}
+\If{$|\mathcal{G}_s| < k_s$}
+\State Set $g$ to $s$ 
+\State Alternate state $s$
+\EndIf
+\EndFor
+\EndIf
+\Else \Comment{Inner node}
+\For{each state $s_i$}
+\State Select an equal number of genomes from each child with state $s_i$ and given them that state in $\mathcal{I}(p)$
+\EndFor
+\State Randomly assign singleton state genomes to another state in $\mathcal{I}(p)$ if there are too many singleton genomes.
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+
+\subsection{GenomeHoldoutTreeDistance(GHTD)}
+This selection strategy is similar to the TreeDistance strategy, but it maintains lists of test set and training set genomes as well as singleton genomes.  Each genome is marked with a state representing whether it is in the training set, the test set, or both (singleton genomes).  A different number of genomes can be chosen for the training set and the testing set.
+
+\begin{algorithm}[h!]
+\caption{\textbf{GHTD}: At species nodes, choose genomes based on clustering, and at inner nodes, choose genomes so that each subtree is equally represented.}
+\label{GHTD}
+\begin{algorithmic}
+\State $p \gets$ parent taxonomic id.
+\State $c_n \gets$ a list of children of $p$.
+\State $\mathcal{I} \gets$ a genome index where all genomes are initialized to False.
+\State $k \gets$ the number of genomes to choose
+\State $g_l \gets$ a list of lists of genomes
+\Procedure{GHTD}{$p$, $c_n$, $\mathcal{I}$, $k$, $g_l$}
+\If{$|c_n| = 0$} \Comment{Leaf node}
+\State If there is a single genome, set its state to 2 (singleton).
+\State Otherwise, alternatively set genomes from \textsc{Cluster}($\mathcal{I}(p)$, $k$) to $s \in \{0, 1\}$ in $\mathcal{I}(p)$
+\State \Return a list of genome lists for each state 
+\Else \Comment{Inner node}
+\State $g_n$ an empty list
+\For{$s \in \{0, 1, 2\}$}
+\State $g_s \gets$ list for $s$ in $g_l$
+\State Shuffle $g_s$
+\State $g_s \gets$ \textsc{Merge}($g_s$)
+\State Choose the first $k$ genomes in $g_l$ and set them to $s$ in  $\mathcal{I}(p)$
+\State Append $g_s$ to $g_n$
+\EndFor
+\State \Return $g_n$
+\EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\section{Sampling Algorithm}
+Once genome selection is complete and the Radogest index is updated, then Radogest can generate $k$-mers in fasta files.  It uses algorithm \ref{Sample} \textsc{Sample}.  This algorithm can be run in parallel on multiple taxonomic ids, or it can be run in parallel on a single taxonomic id where each genome is sampled from in parallel.  
+
+If the selection strategy is not a GenomeHoldout strategy, then the returned list $l$ is randomly partitioned into training, validation, test sets in proportion to user specification.  For these selection strategies, $k$-mers can be generated randomly, or the whole genome can be cut up with a sliding window.  Using a random approach, the number of $k$-mers drawn from a genome $g$ is directly proportional to the total number of bases in the genome.  So, if $m$ is the total length of all genomes to be drawn from and $n$ is the total number of $k$-mers requested for taxonomic id $t$, then there are approximately $\frac{|g|}{m}n$ $k$-mers sampled from genome $g$.  A random draw of a $k$-mer consists of generating a starting position in the genome string uniformly at random with replacement.  If a $k$-mer cannot be generated because the starting position would generate a string that is too short, then that starting position is not used.  It is possible to have duplicate $k$-mers because the starting position can be randomly generated multiple times.  
+
+A sliding window approach can be used instead of random starting positions.  If this is done, then $n$, the number of $k$-mers requested, is ignored.  A stride parameter can be used to determine the stride of the sliding window.  This approach gives a variable number of $k$-mers.
+
+If the selection strategy is a GenomeHoldout strategy, then \textsc{Sample} is called separately on training set genomes and on testing set genomes.  The $k$-mers are generated using a sliding window with a parameterized stride.  If the genome is a singleton genome, then $k$-mers are generated with a sliding window and $k$-mers are randomly assigned to either the training or the testing data set.  For each taxonomic level, the $k$-mers given to the training or the testing set will always be the same for singleton genomes because the random number generator that assigns them has a fixed seed.
+
+\begin{algorithm}[h!]
+\caption{\textbf{Sample}: Sample $k$-mers from genomes for a given taxonomic id $t$.}
+\label{Sample}
+\begin{algorithmic}
+\State $t \gets$ a taxonomic rank
+\State $n \gets$ the total number of $k$-mers to sample
+\State $k \gets$ the length of the $k$-mer
+\State $s \gets$ a variable that determines if genomes should be cut up with a sliding window or randomly sampled
+\State $h \gets$ an optional genome size threshold for controlling random draws
+\State $\mathcal{I} \gets$ a Radogest index with selected genomes
+\Procedure{Sample}{$t$, $n$, $k$, $s$, $h$, $\mathcal{I}$}
+\State $l \gets$ an empty list of $k$-mers (and ids)
+\State $m \gets$ the total length of all genomes to sample from
+\For{children $c_j$ of $t$}
+\For{genome $g$ selected in $\mathcal{I}(c_j)$}
+\If{$s$ indicates random and $|g| > h$}
+\State Add approximately $\frac{|g|}{m} n$ random $k$-mers from $g$ to $l$
+\Else
+\State Use a sliding window to add $k$-mers from $g$ to $l$.
+\EndIf
+\EndFor
+\EndFor
+\State \Return $l$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}
